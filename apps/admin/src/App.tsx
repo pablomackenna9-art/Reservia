@@ -6,6 +6,7 @@ import { SignupPage } from "./features/auth/SignupPage";
 import { RestaurantProvider } from "./features/restaurants/RestaurantProvider";
 import { OnboardingPage } from "./features/restaurants/OnboardingPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
+import { PlanoDeMesasPage } from "./features/plano/PlanoDeMesasPage";
 import { ComingSoonPage } from "./components/ComingSoonPage";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
@@ -13,7 +14,6 @@ import { RequireRestaurant } from "./routes/RequireRestaurant";
 
 const COMING_SOON_ROUTES = [
   { path: "/reservas", title: "Reservas", description: "Vista dedicada de reservas — filtros, edición y cambio de estado en detalle. Fase 3 del roadmap." },
-  { path: "/plano-de-mesas", title: "Plano de mesas", description: "Zonas, mesas y sillas automáticas, interactivo. Fase 2 del roadmap." },
   { path: "/lista-de-espera", title: "Lista de espera", description: "Registro de clientes sin reserva y sugerencia de mesa al liberarse un cupo. Fase 5 del roadmap." },
   { path: "/clientes", title: "Clientes", description: "Ficha automática por cliente: historial, preferencias, segmentos. Fase 5 del roadmap." },
   { path: "/marketing", title: "Marketing", description: "Campañas y recuperación de clientes. Todavía no construido." },
@@ -53,6 +53,14 @@ export function App() {
               element={
                 <Protected>
                   <DashboardPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/plano-de-mesas"
+              element={
+                <Protected>
+                  <PlanoDeMesasPage />
                 </Protected>
               }
             />

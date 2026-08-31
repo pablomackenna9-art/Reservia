@@ -12,8 +12,10 @@
   "dependencies": {
     "@reservia/api-client": "workspace:*",
     "@reservia/core": "workspace:*",
+    "konva": "^9.3.14",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-konva": "^18.2.10",
     "react-router-dom": "^6.26.2"
   },
   "devDependencies": {
