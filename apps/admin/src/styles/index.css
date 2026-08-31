@@ -1,19 +1,9 @@
-:root {
-  --ground: #141210;
-  --surface: #1c1916;
-  --ink: #f3eee4;
-  --ink-muted: #b7ac9a;
-  --line: #39332b;
-  --accent: #de9a4c;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--ground);
-  color: var(--ink);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+@layer base {
+  body {
+    @apply bg-ground text-ink antialiased;
+  }
 }

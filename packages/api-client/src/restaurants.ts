@@ -36,7 +36,19 @@ export async function createRestaurant(
   supabase: SupabaseClient,
   input: { name: string; slug: string },
 ): Promise<Restaurant> {
-  const { data, error } = await supabase.from("restaurants").insert(input).select("*").single();
+  // The RLS insert policy requires created_by = auth.uid() — the trigger that
+  // makes the creator the restaurant's owner in restaurant_users relies on
+  // this same column, so it has to be set explicitly, not left to a default.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("No hay una sesión activa.");
+
+  const { data, error } = await supabase
+    .from("restaurants")
+    .insert({ ...input, created_by: user.id })
+    .select("*")
+    .single();
   if (error) throw error;
   return mapRestaurant(data);
 }

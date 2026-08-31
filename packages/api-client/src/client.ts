@@ -14,4 +14,4 @@ export function createReservationClient(url: string, anonKey: string): SupabaseC
   });
 }
 
-export type { SupabaseClient };
+export type { SupabaseClient, Session, User, AuthChangeEvent } from "@supabase/supabase-js";
