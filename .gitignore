@@ -1,0 +1,24 @@
+node_modules
+dist
+.next
+.turbo
+out
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+
+*.log
+npm-debug.log*
+
+.DS_Store
+Thumbs.db
+
+.vscode/*
+!.vscode/extensions.json
+
+supabase/.temp
+
+# local-only backup of the previous scaffold, not part of project history
+/_backup_pre_reservia
