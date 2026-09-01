@@ -63,16 +63,27 @@ export function ZoneCanvas({
     return map;
   }, [tables]);
 
+  // Konva's own drawing can fail transiently on a canvas that's mid-resize
+  // (a browser-level "drawImage on a 0x0 canvas" error, not an app bug) —
+  // never let that crash the whole page, just skip that redraw.
+  function safeBatchDraw(stage: Konva.Stage) {
+    try {
+      stage.batchDraw();
+    } catch (err) {
+      console.warn("Konva batchDraw skipped:", err);
+    }
+  }
+
   const fitToScreen = () => {
     const stage = stageRef.current;
-    if (!stage || width === 0 || height === 0 || floorWidth === 0) return;
+    if (!stage || width <= 0 || height <= 0 || floorWidth <= 0 || floorHeight <= 0) return;
     const scale = Math.min(width / floorWidth, height / floorHeight) * FLOOR_MARGIN;
     stage.scale({ x: scale, y: scale });
     stage.position({
       x: (width - floorWidth * scale) / 2,
       y: (height - floorHeight * scale) / 2,
     });
-    stage.batchDraw();
+    safeBatchDraw(stage);
   };
 
   // Re-fit whenever the panel is resized or the set of zones on screen changes.
@@ -100,12 +111,12 @@ export function ZoneCanvas({
       x: pointer.x - pointerFloorPos.x * newScale,
       y: pointer.y - pointerFloorPos.y * newScale,
     });
-    stage.batchDraw();
+    safeBatchDraw(stage);
   }
 
   function zoomBy(factor: number) {
     const stage = stageRef.current;
-    if (!stage || width === 0 || height === 0) return;
+    if (!stage || width <= 0 || height <= 0) return;
     const oldScale = stage.scaleX();
     const newScale = clamp(oldScale * factor, MIN_SCALE, MAX_SCALE);
     const center = { x: width / 2, y: height / 2 };
@@ -116,7 +127,7 @@ export function ZoneCanvas({
       x: center.x - centerFloorPos.x * newScale,
       y: center.y - centerFloorPos.y * newScale,
     });
-    stage.batchDraw();
+    safeBatchDraw(stage);
   }
 
   function toggleFullscreen() {
@@ -131,10 +142,11 @@ export function ZoneCanvas({
 
   return (
     <div ref={containerRef} className="relative w-full h-full">
+      {width > 0 && height > 0 && (
       <Stage
         ref={stageRef}
-        width={width || 1}
-        height={height || 1}
+        width={width}
+        height={height}
         onWheel={handleWheel}
         onClick={(e) => {
           if (e.target === e.target.getStage()) onSelectTable(null);
@@ -193,6 +205,7 @@ export function ZoneCanvas({
           ))}
         </Layer>
       </Stage>
+      )}
 
       <div className="absolute bottom-3 right-3 flex gap-1.5">
         <CanvasButton label="−" onClick={() => zoomBy(1 / 1.25)} title="Alejar" />
@@ -229,6 +242,7 @@ function CanvasButton({
 
 /** Faint plank seams over the floor gradient — reads as hardwood, not a void. */
 function WoodFloor({ width, height }: { width: number; height: number }) {
+  if (width <= 0 || height <= 0) return null;
   const plankHeight = 34;
   const planks = Math.ceil(height / plankHeight);
   return (
