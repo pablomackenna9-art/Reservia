@@ -14,6 +14,15 @@ export async function listReservationsForDate(
   restaurantId: string,
   date: string, // "YYYY-MM-DD", interpreted as the caller's local day
 ): Promise<ReservationWithDetails[]> {
+  return listReservationsInRange(supabase, restaurantId, date, date);
+}
+
+export async function listReservationsInRange(
+  supabase: SupabaseClient,
+  restaurantId: string,
+  startDate: string, // "YYYY-MM-DD", inclusive, caller's local day
+  endDate: string, // "YYYY-MM-DD", inclusive, caller's local day
+): Promise<ReservationWithDetails[]> {
   // Converted through Date so "local day" means the same thing here as it
   // does when a reservation is created — both go through `new Date(naive
   // string)`, which the JS engine parses in the browser's local timezone.
@@ -21,15 +30,15 @@ export async function listReservationsForDate(
   // as a UTC boundary, silently hiding same-day reservations whenever the
   // browser isn't in UTC. (Real restaurant-timezone awareness — using
   // restaurants.timezone instead of the browser's — is still a gap here.)
-  const startOfDay = new Date(`${date}T00:00:00`).toISOString();
-  const endOfDay = new Date(`${date}T23:59:59.999`).toISOString();
+  const startOfRange = new Date(`${startDate}T00:00:00`).toISOString();
+  const endOfRange = new Date(`${endDate}T23:59:59.999`).toISOString();
 
   const { data, error } = await supabase
     .from("reservations")
     .select("*, customers(*), tables(name)")
     .eq("restaurant_id", restaurantId)
-    .gte("starts_at", startOfDay)
-    .lte("starts_at", endOfDay)
+    .gte("starts_at", startOfRange)
+    .lte("starts_at", endOfRange)
     .order("starts_at", { ascending: true });
 
   if (error) throw error;

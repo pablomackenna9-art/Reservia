@@ -8,18 +8,18 @@ import { OnboardingPage } from "./features/restaurants/OnboardingPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { PlanoDeMesasPage } from "./features/plano/PlanoDeMesasPage";
 import { ReservasPage } from "./features/reservations/ReservasPage";
+import { ClientesPage } from "./features/customers/ClientesPage";
+import { ConfiguracionPage } from "./features/config/ConfiguracionPage";
+import { ListaDeEsperaPage } from "./features/waitlist/ListaDeEsperaPage";
+import { ReportesPage } from "./features/reports/ReportesPage";
+import { IntegracionesPage } from "./features/integrations/IntegracionesPage";
 import { ComingSoonPage } from "./components/ComingSoonPage";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { RequireRestaurant } from "./routes/RequireRestaurant";
 
 const COMING_SOON_ROUTES = [
-  { path: "/lista-de-espera", title: "Lista de espera", description: "Registro de clientes sin reserva y sugerencia de mesa al liberarse un cupo. Fase 5 del roadmap." },
-  { path: "/clientes", title: "Clientes", description: "Ficha automática por cliente: historial, preferencias, segmentos. Fase 5 del roadmap." },
   { path: "/marketing", title: "Marketing", description: "Campañas y recuperación de clientes. Todavía no construido." },
-  { path: "/reportes", title: "Reportes", description: "Ocupación, canales, ticket promedio y revenue management. Fase 8 del roadmap." },
-  { path: "/integraciones", title: "Integraciones", description: "WhatsApp, Google, pagos y POS — capa de integraciones desacoplada. Fase 7 del roadmap." },
-  { path: "/configuracion", title: "Configuración", description: "Zonas, mesas, horarios y reglas de reserva del restaurante. Fase 2-3 del roadmap." },
 ];
 
 function Protected({ children }: { children: ReactNode }) {
@@ -69,6 +69,46 @@ export function App() {
               element={
                 <Protected>
                   <ReservasPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/lista-de-espera"
+              element={
+                <Protected>
+                  <ListaDeEsperaPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/clientes"
+              element={
+                <Protected>
+                  <ClientesPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/configuracion"
+              element={
+                <Protected>
+                  <ConfiguracionPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/reportes"
+              element={
+                <Protected>
+                  <ReportesPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/integraciones"
+              element={
+                <Protected>
+                  <IntegracionesPage />
                 </Protected>
               }
             />

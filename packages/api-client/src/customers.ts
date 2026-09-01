@@ -18,6 +18,39 @@ export async function searchCustomers(
   return (data ?? []).map(mapCustomer);
 }
 
+export async function listCustomers(supabase: SupabaseClient, restaurantId: string): Promise<Customer[]> {
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("restaurant_id", restaurantId)
+    .order("last_visit_at", { ascending: false, nullsFirst: false });
+
+  if (error) throw error;
+  return (data ?? []).map(mapCustomer);
+}
+
+export async function updateCustomer(
+  supabase: SupabaseClient,
+  id: string,
+  patch: { firstName?: string; lastName?: string | null; phone?: string | null; email?: string | null; notes?: string | null },
+): Promise<Customer> {
+  const { data, error } = await supabase
+    .from("customers")
+    .update({
+      ...(patch.firstName !== undefined && { first_name: patch.firstName }),
+      ...(patch.lastName !== undefined && { last_name: patch.lastName }),
+      ...(patch.phone !== undefined && { phone: patch.phone }),
+      ...(patch.email !== undefined && { email: patch.email }),
+      ...(patch.notes !== undefined && { notes: patch.notes }),
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return mapCustomer(data);
+}
+
 export async function createCustomer(
   supabase: SupabaseClient,
   input: { restaurantId: string; firstName: string; lastName?: string; phone?: string; email?: string },

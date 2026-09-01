@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { setAverageTicketPerPerson } from "@reservia/api-client";
+import { listWaitlist, setAverageTicketPerPerson, type WaitlistEntryWithCustomer } from "@reservia/api-client";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas } from "../plano/ZoneCanvas";
@@ -38,6 +38,12 @@ export function DashboardPage() {
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [showNewReservation, setShowNewReservation] = useState(false);
   const [editingTicket, setEditingTicket] = useState(false);
+  const [waitlist, setWaitlist] = useState<WaitlistEntryWithCustomer[]>([]);
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    listWaitlist(supabase, restaurantId).then(setWaitlist);
+  }, [restaurantId, reservationsToday]);
   const [ticketInput, setTicketInput] = useState("");
 
   const now = new Date();
@@ -247,8 +253,24 @@ export function DashboardPage() {
             </div>
 
             <div className="rounded-xl border border-line bg-surface p-4">
-              <h2 className="text-sm font-semibold mb-2">Lista de espera</h2>
-              <p className="text-xs text-ink-faint">Todavía no está construida — llega en Fase 5 del roadmap.</p>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold">Lista de espera</h2>
+                <Link to="/lista-de-espera" className="text-xs text-accent">
+                  Ver todas
+                </Link>
+              </div>
+              {waitlist.length === 0 ? (
+                <p className="text-xs text-ink-faint">Nadie está esperando ahora mismo.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {waitlist.slice(0, 4).map((w) => (
+                    <li key={w.id} className="flex items-center justify-between text-sm">
+                      <span className="truncate">{w.customerName}</span>
+                      <span className="text-xs text-ink-faint shrink-0 ml-2">{w.partySize}p</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         )}

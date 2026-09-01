@@ -6,3 +6,5 @@ export * from "./tables";
 export * from "./customers";
 export * from "./reservations";
 export * from "./reservationRules";
+export * from "./hours";
+export * from "./waitlist";

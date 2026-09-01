@@ -13,7 +13,38 @@ export async function listZones(supabase: SupabaseClient, restaurantId: string):
   return (data ?? []).map(mapZone);
 }
 
-function mapZone(row: Record<string, unknown>): Zone {
+export async function createZone(
+  supabase: SupabaseClient,
+  input: { restaurantId: string; name: string; type?: string; width?: number; height?: number; sortOrder: number },
+): Promise<Zone> {
+  const { data, error } = await supabase
+    .from("zones")
+    .insert({
+      restaurant_id: input.restaurantId,
+      name: input.name,
+      type: input.type ?? "salon",
+      width: input.width ?? 1000,
+      height: input.height ?? 700,
+      sort_order: input.sortOrder,
+    })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return mapZone(data);
+}
+
+export async function renameZone(supabase: SupabaseClient, id: string, name: string): Promise<void> {
+  const { error } = await supabase.from("zones").update({ name }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deactivateZone(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from("zones").update({ active: false }).eq("id", id);
+  if (error) throw error;
+}
+
+export function mapZone(row: Record<string, unknown>): Zone {
   return {
     id: row.id as string,
     restaurantId: row.restaurant_id as string,

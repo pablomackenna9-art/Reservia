@@ -17,27 +17,36 @@ export async function getReservationRules(
 }
 
 /** Restaurants don't get a reservation_rules row by default — upsert creates it the first time. */
+export async function updateReservationRules(
+  supabase: SupabaseClient,
+  restaurantId: string,
+  patch: Partial<Omit<ReservationRules, "restaurantId">>,
+): Promise<void> {
+  const current = await getReservationRules(supabase, restaurantId);
+  const next = { ...current, ...patch };
+  const { error } = await supabase.from("reservation_rules").upsert(
+    {
+      restaurant_id: restaurantId,
+      default_duration_minutes: next.defaultDurationMinutes,
+      buffer_minutes: next.bufferMinutes,
+      min_party_size: next.minPartySize,
+      max_party_size: next.maxPartySize,
+      min_advance_hours: next.minAdvanceHours,
+      max_advance_days: next.maxAdvanceDays,
+      allow_online_booking: next.allowOnlineBooking,
+      average_ticket_per_person: next.averageTicketPerPerson,
+    },
+    { onConflict: "restaurant_id" },
+  );
+  if (error) throw error;
+}
+
 export async function setAverageTicketPerPerson(
   supabase: SupabaseClient,
   restaurantId: string,
   averageTicketPerPerson: number,
 ): Promise<void> {
-  const current = await getReservationRules(supabase, restaurantId);
-  const { error } = await supabase.from("reservation_rules").upsert(
-    {
-      restaurant_id: restaurantId,
-      default_duration_minutes: current.defaultDurationMinutes,
-      buffer_minutes: current.bufferMinutes,
-      min_party_size: current.minPartySize,
-      max_party_size: current.maxPartySize,
-      min_advance_hours: current.minAdvanceHours,
-      max_advance_days: current.maxAdvanceDays,
-      allow_online_booking: current.allowOnlineBooking,
-      average_ticket_per_person: averageTicketPerPerson,
-    },
-    { onConflict: "restaurant_id" },
-  );
-  if (error) throw error;
+  return updateReservationRules(supabase, restaurantId, { averageTicketPerPerson });
 }
 
 function mapReservationRules(row: Record<string, unknown>): ReservationRules {
