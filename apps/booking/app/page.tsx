@@ -1,10 +1,11 @@
 export default function HomePage() {
   return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: "2rem" }}>
-      <div style={{ maxWidth: 420, textAlign: "center" }}>
-        <h1 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Reservia</h1>
-        <p style={{ color: "#b7ac9a" }}>
-          Fase 0 — portal público en construcción. El flujo de reserva llega en Fase 3.
+    <main className="min-h-screen grid place-items-center px-4">
+      <div className="max-w-sm text-center">
+        <h1 className="text-2xl font-semibold mb-2">Reservia</h1>
+        <p className="text-ink-muted text-sm">
+          Este es el portal de reservas. Para reservar en un restaurante, entrá a su enlace directo —
+          reservia.com/r/nombre-del-restaurante.
         </p>
       </div>
     </main>

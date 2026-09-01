@@ -124,7 +124,7 @@ export async function updateReservationStatus(
   if (error) throw error;
 }
 
-function mapReservation(row: Record<string, unknown>): Reservation {
+export function mapReservation(row: Record<string, unknown>): Reservation {
   return {
     id: row.id as string,
     restaurantId: row.restaurant_id as string,

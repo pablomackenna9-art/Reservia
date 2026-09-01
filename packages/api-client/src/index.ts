@@ -9,3 +9,4 @@ export * from "./reservationRules";
 export * from "./hours";
 export * from "./waitlist";
 export * from "./tableGroups";
+export * from "./publicBooking";

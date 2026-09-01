@@ -1,4 +1,5 @@
-import { getRestaurantBySlug, createReservationClient } from "@reservia/api-client";
+import { createReservationClient, getReservationRules, getRestaurantBySlug, listHours } from "@reservia/api-client";
+import { BookingFlow } from "./BookingFlow";
 
 export default async function RestaurantBookingPage({ params }: { params: { slug: string } }) {
   // Created per-request, not at module scope, so this route only needs
@@ -10,20 +11,33 @@ export default async function RestaurantBookingPage({ params }: { params: { slug
   );
   const restaurant = await getRestaurantBySlug(supabase, params.slug);
 
-  if (!restaurant) {
+  if (!restaurant || restaurant.status !== "active") {
     return (
-      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: "2rem" }}>
-        <p>No encontramos "{params.slug}".</p>
+      <main className="min-h-screen grid place-items-center px-4">
+        <p className="text-ink-muted text-sm">No encontramos "{params.slug}".</p>
+      </main>
+    );
+  }
+
+  const [hours, rules] = await Promise.all([
+    listHours(supabase, restaurant.id),
+    getReservationRules(supabase, restaurant.id),
+  ]);
+
+  if (!rules.allowOnlineBooking) {
+    return (
+      <main className="min-h-screen grid place-items-center px-4">
+        <div className="max-w-sm text-center">
+          <h1 className="text-xl font-semibold mb-2">{restaurant.name}</h1>
+          <p className="text-ink-muted text-sm">Este restaurante no acepta reservas online por ahora — llamalo directamente.</p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: "2rem" }}>
-      <div style={{ maxWidth: 420, textAlign: "center" }}>
-        <h1 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>{restaurant.name}</h1>
-        <p style={{ color: "#b7ac9a" }}>El flujo de reserva pública llega en Fase 3.</p>
-      </div>
+    <main className="min-h-screen grid place-items-center px-4 py-10">
+      <BookingFlow restaurant={restaurant} hours={hours} rules={rules} />
     </main>
   );
 }
