@@ -29,6 +29,10 @@ const NEXT_STATUS: Partial<Record<ReservationStatus, { label: string; status: Re
   seated: [{ label: "Completar", status: "completed" }],
 };
 
+type TableEditPatch = Partial<
+  Pick<Table, "name" | "shape" | "capacityMin" | "capacityMax" | "width" | "height" | "rotation">
+>;
+
 export function TableDetailPanel({
   table,
   restaurantId,
@@ -47,6 +51,7 @@ export function TableDetailPanel({
   onStartJoin,
   onCancelJoin,
   onUnjoin,
+  onUpdateTable,
 }: {
   table: Table;
   restaurantId: string;
@@ -66,6 +71,7 @@ export function TableDetailPanel({
   onStartJoin: () => void;
   onCancelJoin: () => void;
   onUnjoin: () => void;
+  onUpdateTable?: (patch: TableEditPatch) => void;
 }) {
   const reservation = currentOrNextReservation(reservationsToday);
   const [showWalkIn, setShowWalkIn] = useState(false);
@@ -73,6 +79,41 @@ export function TableDetailPanel({
   const [walkInSize, setWalkInSize] = useState(Math.min(2, table.capacityMax));
   const [showMoveTo, setShowMoveTo] = useState(false);
   const [movableTables, setMovableTables] = useState<Table[] | null>(null);
+
+  const [name, setName] = useState(table.name);
+  const [capacityMin, setCapacityMin] = useState(table.capacityMin);
+  const [capacityMax, setCapacityMax] = useState(table.capacityMax);
+  const [width, setWidth] = useState(table.width);
+  const [height, setHeight] = useState(table.height);
+
+  function commitName() {
+    const trimmed = name.trim();
+    if (trimmed && trimmed !== table.name) onUpdateTable?.({ name: trimmed });
+    else setName(table.name);
+  }
+
+  function commitCapacity() {
+    const min = Math.max(1, Math.min(capacityMin, capacityMax));
+    const max = Math.max(min, capacityMax);
+    setCapacityMin(min);
+    setCapacityMax(max);
+    if (min !== table.capacityMin || max !== table.capacityMax) {
+      onUpdateTable?.({ capacityMin: min, capacityMax: max });
+    }
+  }
+
+  function commitSize() {
+    const w = Math.max(20, width);
+    const h = Math.max(20, height);
+    setWidth(w);
+    setHeight(h);
+    if (w !== table.width || h !== table.height) onUpdateTable?.({ width: w, height: h });
+  }
+
+  function rotateBy(delta: number) {
+    const next = ((table.rotation + delta) % 360 + 360) % 360;
+    onUpdateTable?.({ rotation: next });
+  }
 
   const joinedTableNames = groupInfo
     ? groupInfo.tableIds.filter((id) => id !== table.id).map((id) => allTables.find((t) => t.id === id)?.name ?? "?")
@@ -219,10 +260,113 @@ export function TableDetailPanel({
         </div>
       )}
 
-      <dl className="space-y-2.5 text-sm mb-4">
-        <Row label="Forma" value={SHAPE_LABEL[table.shape]} />
-        <Row label="Capacidad" value={`${table.capacityMin}–${table.capacityMax} personas`} />
-      </dl>
+      {editable ? (
+        <div className="space-y-2.5 text-sm mb-4 rounded-lg border border-line bg-ground p-3">
+          <div>
+            <label className="block text-xs text-ink-faint mb-1">Nombre / número</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={commitName}
+              className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-ink-faint mb-1">Forma</label>
+              <select
+                value={table.shape}
+                onChange={(e) => onUpdateTable?.({ shape: e.target.value as Table["shape"] })}
+                className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+              >
+                {(Object.entries(SHAPE_LABEL) as [Table["shape"], string][]).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-ink-faint mb-1">Rotación</label>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => rotateBy(-45)}
+                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs hover:border-accent"
+                  aria-label="Rotar -45°"
+                >
+                  ⟲
+                </button>
+                <span className="flex-1 text-center text-xs text-ink-muted tabular-nums">{table.rotation}°</span>
+                <button
+                  type="button"
+                  onClick={() => rotateBy(45)}
+                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs hover:border-accent"
+                  aria-label="Rotar +45°"
+                >
+                  ⟳
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-ink-faint mb-1">Cap. mínima</label>
+              <input
+                type="number"
+                min={1}
+                value={capacityMin}
+                onChange={(e) => setCapacityMin(Number(e.target.value))}
+                onBlur={commitCapacity}
+                className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-ink-faint mb-1">Cap. máxima</label>
+              <input
+                type="number"
+                min={1}
+                value={capacityMax}
+                onChange={(e) => setCapacityMax(Number(e.target.value))}
+                onBlur={commitCapacity}
+                className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-ink-faint mb-1">Ancho</label>
+              <input
+                type="number"
+                min={20}
+                value={Math.round(width)}
+                onChange={(e) => setWidth(Number(e.target.value))}
+                onBlur={commitSize}
+                className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-ink-faint mb-1">Alto</label>
+              <input
+                type="number"
+                min={20}
+                value={Math.round(height)}
+                onChange={(e) => setHeight(Number(e.target.value))}
+                onBlur={commitSize}
+                className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <dl className="space-y-2.5 text-sm mb-4">
+          <Row label="Forma" value={SHAPE_LABEL[table.shape]} />
+          <Row label="Capacidad" value={`${table.capacityMin}–${table.capacityMax} personas`} />
+        </dl>
+      )}
 
       {joinedTableNames.length === 0 &&
         (joinPending ? (

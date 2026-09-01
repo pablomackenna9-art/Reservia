@@ -58,6 +58,32 @@ export async function updateTablePosition(
   if (error) throw error;
 }
 
+export async function updateTable(
+  supabase: SupabaseClient,
+  id: string,
+  patch: Partial<{
+    name: string;
+    shape: Table["shape"];
+    capacityMin: number;
+    capacityMax: number;
+    width: number;
+    height: number;
+    rotation: number;
+  }>,
+): Promise<void> {
+  const update: Record<string, unknown> = {};
+  if (patch.name !== undefined) update.name = patch.name;
+  if (patch.shape !== undefined) update.shape = patch.shape;
+  if (patch.capacityMin !== undefined) update.capacity_min = patch.capacityMin;
+  if (patch.capacityMax !== undefined) update.capacity_max = patch.capacityMax;
+  if (patch.width !== undefined) update.width = patch.width;
+  if (patch.height !== undefined) update.height = patch.height;
+  if (patch.rotation !== undefined) update.rotation = patch.rotation;
+
+  const { error } = await supabase.from("tables").update(update).eq("id", id);
+  if (error) throw error;
+}
+
 /** Soft-delete — matches `deleted_at`/`active`-style removal used elsewhere, not a hard DELETE. */
 export async function deactivateTable(supabase: SupabaseClient, id: string): Promise<void> {
   const { error } = await supabase.from("tables").update({ active: false }).eq("id", id);

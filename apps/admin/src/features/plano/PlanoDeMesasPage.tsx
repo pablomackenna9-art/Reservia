@@ -18,6 +18,7 @@ export function PlanoDeMesasPage() {
     reload,
     getTableStatus,
     moveTable,
+    updateTableProps,
     deleteTable,
     changeReservationStatus,
     seatWalkIn,
@@ -120,6 +121,7 @@ export function PlanoDeMesasPage() {
 
         {selectedTable && selectedTableZone && restaurantId && (
           <TableDetailPanel
+            key={selectedTable.id}
             table={selectedTable}
             restaurantId={restaurantId}
             zoneName={selectedTableZone.name}
@@ -142,6 +144,7 @@ export function PlanoDeMesasPage() {
             onStartJoin={() => setJoinSourceId(selectedTable.id)}
             onCancelJoin={() => setJoinSourceId(null)}
             onUnjoin={() => unjoinTable(selectedTable.id)}
+            onUpdateTable={(patch) => updateTableProps(selectedTable.id, patch)}
           />
         )}
       </div>

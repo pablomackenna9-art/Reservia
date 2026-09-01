@@ -12,6 +12,7 @@ import {
   ungroupTables,
   updateReservationStatus,
   updateReservationTable,
+  updateTable,
   updateTablePosition,
   type ReservationWithDetails,
   type TableGroupInfo,
@@ -76,6 +77,14 @@ export function useFloorPlan(restaurantId: string | undefined) {
   async function moveTable(tableId: string, positionX: number, positionY: number) {
     setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, positionX, positionY } : t)));
     await updateTablePosition(supabase, tableId, positionX, positionY);
+  }
+
+  async function updateTableProps(
+    tableId: string,
+    patch: Partial<Pick<Table, "name" | "shape" | "capacityMin" | "capacityMax" | "width" | "height" | "rotation">>,
+  ) {
+    setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, ...patch } : t)));
+    await updateTable(supabase, tableId, patch);
   }
 
   async function deleteTable(tableId: string) {
@@ -175,6 +184,7 @@ export function useFloorPlan(restaurantId: string | undefined) {
     reload,
     getTableStatus,
     moveTable,
+    updateTableProps,
     deleteTable,
     changeReservationStatus,
     seatWalkIn,
