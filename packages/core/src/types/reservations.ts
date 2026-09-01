@@ -27,6 +27,7 @@ export const reservationSchema = z
     source: z.enum(RESERVATION_SOURCES),
     notes: z.string().nullable(),
     internalNotes: z.string().nullable(),
+    totalAmount: z.number().nonnegative().nullable(),
     createdAt: z.string(),
   })
   .refine((r) => new Date(r.endsAt) > new Date(r.startsAt), {

@@ -4,6 +4,7 @@ import { RESERVATION_STATUSES, type ReservationStatus } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { NewReservationForm } from "./NewReservationForm";
+import { promptTotalAmountIfCompleting } from "./promptTotalAmount";
 import { RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "./statusStyles";
 
 function dateToISO(d: Date): string {
@@ -46,7 +47,8 @@ export function ReservasPage() {
   }, [restaurantId, date]);
 
   async function handleStatusChange(id: string, status: ReservationStatus) {
-    await updateReservationStatus(supabase, id, status);
+    const totalAmount = promptTotalAmountIfCompleting(status);
+    await updateReservationStatus(supabase, id, status, totalAmount);
     reload();
   }
 

@@ -5,3 +5,4 @@ export * from "./zones";
 export * from "./tables";
 export * from "./customers";
 export * from "./reservations";
+export * from "./reservationRules";

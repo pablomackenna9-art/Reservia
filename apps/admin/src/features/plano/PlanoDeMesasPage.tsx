@@ -1,91 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  deactivateTable,
-  listReservationsForDate,
-  listTables,
-  listZones,
-  updateReservationStatus,
-  updateTablePosition,
-  type ReservationWithDetails,
-} from "@reservia/api-client";
-import { deriveTableStatus, type ReservationStatus, type Table, type Zone } from "@reservia/core";
-import { supabase } from "../../lib/supabase";
+import { useState } from "react";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas } from "./ZoneCanvas";
 import { TableDetailPanel } from "./TableDetailPanel";
 import { NewTableForm } from "./NewTableForm";
-
-function todayISO(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+import { useFloorPlan } from "./useFloorPlan";
 
 export function PlanoDeMesasPage() {
   const { current } = useRestaurant();
   const restaurantId = current?.restaurant.id;
 
-  const [zones, setZones] = useState<Zone[]>([]);
-  const [tables, setTables] = useState<Table[]>([]);
-  const [reservationsToday, setReservationsToday] = useState<ReservationWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    zones,
+    tables,
+    reservationsByTable,
+    loading,
+    reload,
+    getTableStatus,
+    moveTable,
+    deleteTable,
+    changeReservationStatus,
+    seatWalkIn,
+  } = useFloorPlan(restaurantId);
+
   const [activeZoneId, setActiveZoneId] = useState<string | "all">("all");
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [showNewTable, setShowNewTable] = useState(false);
 
-  async function reload() {
-    if (!restaurantId) return;
-    const [z, t, r] = await Promise.all([
-      listZones(supabase, restaurantId),
-      listTables(supabase, restaurantId),
-      listReservationsForDate(supabase, restaurantId, todayISO()),
-    ]);
-    setZones(z);
-    setTables(t);
-    setReservationsToday(r);
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    setLoading(true);
-    reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurantId]);
-
-  const reservationsByTable = useMemo(() => {
-    const map = new Map<string, ReservationWithDetails[]>();
-    for (const r of reservationsToday) {
-      if (!r.tableId) continue;
-      map.set(r.tableId, [...(map.get(r.tableId) ?? []), r]);
-    }
-    return map;
-  }, [reservationsToday]);
-
-  function getTableStatus(tableId: string) {
-    return deriveTableStatus(reservationsByTable.get(tableId) ?? []);
-  }
-
-  async function handleMoveTable(tableId: string, positionX: number, positionY: number) {
-    // Optimistic — the drag already shows the new spot; this just makes it stick.
-    setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, positionX, positionY } : t)));
-    await updateTablePosition(supabase, tableId, positionX, positionY);
-  }
-
-  async function handleDeleteTable(tableId: string) {
-    if (!confirm("¿Eliminar esta mesa? Se puede volver a crear, pero no se recupera esta.")) return;
-    setSelectedTableId(null);
-    await deactivateTable(supabase, tableId);
-    reload();
-  }
-
-  async function handleChangeReservationStatus(reservationId: string, status: ReservationStatus) {
-    await updateReservationStatus(supabase, reservationId, status);
-    reload();
-  }
-
   const visibleZones = activeZoneId === "all" ? zones : zones.filter((z) => z.id === activeZoneId);
-  const visibleTables =
-    activeZoneId === "all" ? tables : tables.filter((t) => t.zoneId === activeZoneId);
+  const visibleTables = activeZoneId === "all" ? tables : tables.filter((t) => t.zoneId === activeZoneId);
 
   const selectedTable = tables.find((t) => t.id === selectedTableId) ?? null;
   const selectedTableZone = selectedTable ? zones.find((z) => z.id === selectedTable.zoneId) ?? null : null;
@@ -143,7 +86,7 @@ export function PlanoDeMesasPage() {
 
       {editMode && (
         <p className="text-xs text-ink-faint mb-3">
-          Arrastrá una mesa para moverla — se guarda sola. Tocá una mesa para eliminarla.
+          Arrastrá una mesa para moverla — se guarda sola. Elegí una mesa para eliminarla.
         </p>
       )}
 
@@ -155,7 +98,7 @@ export function PlanoDeMesasPage() {
             selectedTableId={selectedTableId}
             onSelectTable={setSelectedTableId}
             editable={editMode}
-            onMoveTable={handleMoveTable}
+            onMoveTable={moveTable}
             getTableStatus={getTableStatus}
           />
         </div>
@@ -168,8 +111,11 @@ export function PlanoDeMesasPage() {
             reservationsToday={reservationsByTable.get(selectedTable.id) ?? []}
             editable={editMode}
             onClose={() => setSelectedTableId(null)}
-            onDelete={() => handleDeleteTable(selectedTable.id)}
-            onChangeReservationStatus={handleChangeReservationStatus}
+            onDelete={async () => {
+              if (await deleteTable(selectedTable.id)) setSelectedTableId(null);
+            }}
+            onChangeReservationStatus={changeReservationStatus}
+            onSeatWalkIn={(partySize, name) => seatWalkIn(selectedTable.id, partySize, name)}
           />
         )}
       </div>

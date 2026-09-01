@@ -73,6 +73,8 @@ export async function createReservation(
     partySize: number;
     notes?: string;
     createdBy: string;
+    status?: ReservationStatus;
+    source?: Reservation["source"];
   },
 ): Promise<Reservation> {
   const { data, error } = await supabase
@@ -84,8 +86,8 @@ export async function createReservation(
       starts_at: input.startsAt,
       ends_at: input.endsAt,
       party_size: input.partySize,
-      status: "confirmed",
-      source: "admin",
+      status: input.status ?? "confirmed",
+      source: input.source ?? "admin",
       notes: input.notes ?? null,
       created_by: input.createdBy,
     })
@@ -100,8 +102,11 @@ export async function updateReservationStatus(
   supabase: SupabaseClient,
   id: string,
   status: ReservationStatus,
+  totalAmount?: number,
 ): Promise<void> {
-  const { error } = await supabase.from("reservations").update({ status }).eq("id", id);
+  const patch: Record<string, unknown> = { status };
+  if (totalAmount !== undefined) patch.total_amount = totalAmount;
+  const { error } = await supabase.from("reservations").update(patch).eq("id", id);
   if (error) throw error;
 }
 
@@ -118,6 +123,7 @@ function mapReservation(row: Record<string, unknown>): Reservation {
     source: row.source as Reservation["source"],
     notes: (row.notes as string) ?? null,
     internalNotes: (row.internal_notes as string) ?? null,
+    totalAmount: row.total_amount != null ? Number(row.total_amount) : null,
     createdAt: row.created_at as string,
   };
 }

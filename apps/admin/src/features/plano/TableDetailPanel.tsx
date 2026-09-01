@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { currentOrNextReservation, tableStatusLabel, type ReservationStatus, type Table, type TableLiveStatusValue } from "@reservia/core";
 import type { ReservationWithDetails } from "@reservia/api-client";
 import { STATUS_COLORS } from "./statusColors";
@@ -30,6 +31,7 @@ export function TableDetailPanel({
   onClose,
   onDelete,
   onChangeReservationStatus,
+  onSeatWalkIn,
 }: {
   table: Table;
   zoneName: string;
@@ -39,8 +41,12 @@ export function TableDetailPanel({
   onClose: () => void;
   onDelete: () => void;
   onChangeReservationStatus: (reservationId: string, status: ReservationStatus) => void;
+  onSeatWalkIn: (partySize: number, name: string) => void;
 }) {
   const reservation = currentOrNextReservation(reservationsToday);
+  const [showWalkIn, setShowWalkIn] = useState(false);
+  const [walkInName, setWalkInName] = useState("Walk-in");
+  const [walkInSize, setWalkInSize] = useState(Math.min(2, table.capacityMax));
 
   return (
     <aside className="w-72 shrink-0 rounded-xl border border-line bg-surface p-4">
@@ -83,8 +89,50 @@ export function TableDetailPanel({
             </div>
           )}
         </div>
+      ) : showWalkIn ? (
+        <div className="rounded-lg bg-ground border border-line p-3 mb-4 space-y-2">
+          <input
+            value={walkInName}
+            onChange={(e) => setWalkInName(e.target.value)}
+            placeholder="Nombre (opcional)"
+            className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+          />
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-ink-faint">Personas</label>
+            <input
+              type="number"
+              min={1}
+              max={table.capacityMax}
+              value={walkInSize}
+              onChange={(e) => setWalkInSize(Number(e.target.value))}
+              className="w-16 rounded-lg bg-surface border border-line px-2 py-1.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => {
+                onSeatWalkIn(walkInSize, walkInName.trim() || "Walk-in");
+                setShowWalkIn(false);
+              }}
+              className="rounded-lg bg-accent text-accent-ink px-2.5 py-1.5 text-xs font-medium"
+            >
+              Sentar ahora
+            </button>
+            <button onClick={() => setShowWalkIn(false)} className="rounded-lg px-2.5 py-1.5 text-xs text-ink-muted">
+              Cancelar
+            </button>
+          </div>
+        </div>
       ) : (
-        <p className="text-sm text-ink-muted mb-4">Sin reservas para hoy en esta mesa.</p>
+        <div className="mb-4">
+          <p className="text-sm text-ink-muted mb-2">Sin reservas para hoy en esta mesa.</p>
+          <button
+            onClick={() => setShowWalkIn(true)}
+            className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-xs text-ink hover:border-accent"
+          >
+            + Sentar walk-in
+          </button>
+        </div>
       )}
 
       <dl className="space-y-2.5 text-sm">
