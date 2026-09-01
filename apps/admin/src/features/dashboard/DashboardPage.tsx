@@ -34,7 +34,11 @@ export function DashboardPage() {
     seatWalkIn,
   } = useFloorPlan(restaurantId);
 
-  const [activeZoneId, setActiveZoneId] = useState<string | "all">("all");
+  // null = "not decided yet". Once the zones load we default to the first
+  // one by sortOrder — the owner's own order from Configuración — instead
+  // of dumping every zone onto the screen at once. "Todo" stays one click
+  // away, it's just not where you land.
+  const [activeZoneId, setActiveZoneId] = useState<string | "all" | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [showNewReservation, setShowNewReservation] = useState(false);
   const [editingTicket, setEditingTicket] = useState(false);
@@ -89,8 +93,11 @@ export function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reservationsToday]);
 
-  const visibleZones = activeZoneId === "all" ? zones : zones.filter((z) => z.id === activeZoneId);
-  const visibleTables = activeZoneId === "all" ? tables : tables.filter((t) => t.zoneId === activeZoneId);
+  const sortedZones = [...zones].sort((a, b) => a.sortOrder - b.sortOrder);
+  // No manual pick yet -> land on the owner's first zone, not every zone at once.
+  const effectiveZoneId = activeZoneId ?? sortedZones[0]?.id ?? "all";
+  const visibleZones = effectiveZoneId === "all" ? zones : zones.filter((z) => z.id === effectiveZoneId);
+  const visibleTables = effectiveZoneId === "all" ? tables : tables.filter((t) => t.zoneId === effectiveZoneId);
   const selectedTable = tables.find((t) => t.id === selectedTableId) ?? null;
   const selectedTableZone = selectedTable ? zones.find((z) => z.id === selectedTable.zoneId) ?? null : null;
 
@@ -181,17 +188,15 @@ export function DashboardPage() {
       </div>
 
       <div className="mb-3 flex gap-1.5">
-        <ZoneTab label="Todo" active={activeZoneId === "all"} onClick={() => setActiveZoneId("all")} />
-        {[...zones]
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((zone) => (
-            <ZoneTab
-              key={zone.id}
-              label={zone.name}
-              active={activeZoneId === zone.id}
-              onClick={() => setActiveZoneId(zone.id)}
-            />
-          ))}
+        <ZoneTab label="Todo" active={effectiveZoneId === "all"} onClick={() => setActiveZoneId("all")} />
+        {sortedZones.map((zone) => (
+          <ZoneTab
+            key={zone.id}
+            label={zone.name}
+            active={effectiveZoneId === zone.id}
+            onClick={() => setActiveZoneId(zone.id)}
+          />
+        ))}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 mb-4" style={{ height: "48vh" }}>

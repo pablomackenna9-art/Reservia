@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { listCustomers, updateCustomer } from "@reservia/api-client";
+import { getAveragePurchaseByCustomer, listCustomers, updateCustomer } from "@reservia/api-client";
 import { customerFullName, type Customer } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
@@ -9,18 +9,28 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function formatCLP(amount: number): string {
+  return amount.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
+}
+
 export function ClientesPage() {
   const { current } = useRestaurant();
   const restaurantId = current?.restaurant.id;
 
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [avgPurchase, setAvgPurchase] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   async function reload() {
     if (!restaurantId) return;
-    setCustomers(await listCustomers(supabase, restaurantId));
+    const [c, avg] = await Promise.all([
+      listCustomers(supabase, restaurantId),
+      getAveragePurchaseByCustomer(supabase, restaurantId),
+    ]);
+    setCustomers(c);
+    setAvgPurchase(avg);
     setLoading(false);
   }
 
@@ -64,8 +74,10 @@ export function ClientesPage() {
                 <tr className="border-b border-line text-xs text-ink-faint uppercase tracking-wide">
                   <th className="text-left font-normal px-4 py-2.5">Nombre</th>
                   <th className="text-left font-normal px-4 py-2.5">Contacto</th>
+                  <th className="text-left font-normal px-4 py-2.5">Mail</th>
                   <th className="text-right font-normal px-4 py-2.5">Visitas</th>
                   <th className="text-right font-normal px-4 py-2.5">No-shows</th>
+                  <th className="text-right font-normal px-4 py-2.5">Promedio compra</th>
                   <th className="text-left font-normal px-4 py-2.5">Última visita</th>
                 </tr>
               </thead>
@@ -97,9 +109,13 @@ export function ClientesPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-2.5 text-ink-faint">{c.phone ?? c.email ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-ink-faint">{c.phone ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-ink-faint">{c.email ?? "—"}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{c.totalVisits}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{c.noShowCount}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-ink-faint">
+                      {avgPurchase.has(c.id) ? formatCLP(avgPurchase.get(c.id)!) : "—"}
+                    </td>
                     <td className="px-4 py-2.5 text-ink-faint">{formatDate(c.lastVisitAt)}</td>
                   </tr>
                 ))}
@@ -111,6 +127,7 @@ export function ClientesPage() {
         {selected && (
           <CustomerDetailPanel
             customer={selected}
+            averagePurchase={avgPurchase.get(selected.id) ?? null}
             onClose={() => setSelectedId(null)}
             onSaved={(updated) => {
               setCustomers((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
@@ -124,10 +141,12 @@ export function ClientesPage() {
 
 function CustomerDetailPanel({
   customer,
+  averagePurchase,
   onClose,
   onSaved,
 }: {
   customer: Customer;
+  averagePurchase: number | null;
   onClose: () => void;
   onSaved: (c: Customer) => void;
 }) {
@@ -158,10 +177,11 @@ function CustomerDetailPanel({
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      <div className="grid grid-cols-2 gap-2 mb-4">
         <MiniStat label="Visitas" value={customer.totalVisits} />
         <MiniStat label="No-shows" value={customer.noShowCount} />
         <MiniStat label="Cancelaciones" value={customer.cancellationCount} />
+        <MiniStat label="Promedio compra" value={averagePurchase != null ? formatCLP(averagePurchase) : "—"} />
       </div>
 
       <div className="space-y-3">
@@ -211,7 +231,7 @@ function CustomerDetailPanel({
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: number }) {
+function MiniStat({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-lg bg-ground border border-line px-2 py-2 text-center">
       <p className="text-lg font-semibold tabular-nums">{value}</p>

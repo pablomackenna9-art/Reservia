@@ -189,8 +189,26 @@ function AddToWaitlistForm({
   const [newMode, setNewMode] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [duplicateMatches, setDuplicateMatches] = useState<Customer[]>([]);
   const [partySize, setPartySize] = useState(2);
   const [submitting, setSubmitting] = useState(false);
+
+  // While loading a "new" customer, check if the phone/email they just typed
+  // already belongs to someone — cheaper to offer linking now than to end up
+  // with two rows for the same person later.
+  useEffect(() => {
+    const handle = setTimeout(async () => {
+      if (!newMode || selected) return;
+      const term = phone.trim() || email.trim();
+      if (term.length < 4) {
+        setDuplicateMatches([]);
+        return;
+      }
+      setDuplicateMatches(await searchCustomers(supabase, restaurantId, term));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [newMode, phone, email, restaurantId, selected]);
 
   useEffect(() => {
     const handle = setTimeout(async () => {
@@ -202,7 +220,14 @@ function AddToWaitlistForm({
 
   async function handleSubmit() {
     setSubmitting(true);
-    const customer = selected ?? (await createCustomer(supabase, { restaurantId, firstName: firstName.trim(), phone: phone.trim() || undefined }));
+    const customer =
+      selected ??
+      (await createCustomer(supabase, {
+        restaurantId,
+        firstName: firstName.trim(),
+        phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
+      }));
     await addToWaitlist(supabase, { restaurantId, customerId: customer.id, partySize });
     setSubmitting(false);
     onAdded();
@@ -221,7 +246,25 @@ function AddToWaitlistForm({
         ) : newMode ? (
           <div className="space-y-2 mb-3">
             <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Nombre" className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent" />
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Teléfono (opcional)" className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent" />
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Teléfono" className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent" />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Mail" className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent" />
+            {duplicateMatches.length > 0 && (
+              <div className="rounded-lg border border-accent/40 bg-accent/10 p-2 space-y-1">
+                <p className="text-xs text-accent">Ya existe un cliente con estos datos:</p>
+                {duplicateMatches.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setSelected(c);
+                      setDuplicateMatches([]);
+                    }}
+                    className="w-full text-left text-xs rounded px-2 py-1 hover:bg-surface-2"
+                  >
+                    {c.firstName} {c.lastName ?? ""} {c.phone ? `· ${c.phone}` : ""} {c.email ? `· ${c.email}` : ""} — usar este
+                  </button>
+                ))}
+              </div>
+            )}
             <button onClick={() => setNewMode(false)} className="text-xs text-ink-faint">Buscar cliente existente</button>
           </div>
         ) : (
@@ -232,7 +275,7 @@ function AddToWaitlistForm({
                 {results.map((c) => (
                   <li key={c.id}>
                     <button onClick={() => setSelected(c)} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-2">
-                      {c.firstName} {c.lastName ?? ""} {c.phone ? `· ${c.phone}` : ""}
+                      {c.firstName} {c.lastName ?? ""} {c.phone ? `· ${c.phone}` : ""} {c.email ? `· ${c.email}` : ""}
                     </button>
                   </li>
                 ))}

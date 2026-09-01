@@ -44,6 +44,11 @@ export async function deactivateZone(supabase: SupabaseClient, id: string): Prom
   if (error) throw error;
 }
 
+export async function setZoneSortOrder(supabase: SupabaseClient, id: string, sortOrder: number): Promise<void> {
+  const { error } = await supabase.from("zones").update({ sort_order: sortOrder }).eq("id", id);
+  if (error) throw error;
+}
+
 export function mapZone(row: Record<string, unknown>): Zone {
   return {
     id: row.id as string,

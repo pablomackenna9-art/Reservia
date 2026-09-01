@@ -31,6 +31,8 @@ export function NewReservationForm({
   const [newFirstName, setNewFirstName] = useState("");
   const [newLastName, setNewLastName] = useState("");
   const [newPhone, setNewPhone] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [duplicateMatches, setDuplicateMatches] = useState<Customer[]>([]);
 
   const [partySize, setPartySize] = useState(2);
   const [time, setTime] = useState("20:00");
@@ -53,6 +55,21 @@ export function NewReservationForm({
     }, 250);
     return () => clearTimeout(handle);
   }, [customerQuery, restaurantId, selectedCustomer]);
+
+  // Same idea as the search box, but for the "cliente nuevo" path — catches
+  // it before a duplicate customer row gets created.
+  useEffect(() => {
+    const handle = setTimeout(async () => {
+      if (!newCustomerMode || selectedCustomer) return;
+      const term = newPhone.trim() || newEmail.trim();
+      if (term.length < 4) {
+        setDuplicateMatches([]);
+        return;
+      }
+      setDuplicateMatches(await searchCustomers(supabase, restaurantId, term));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [newCustomerMode, newPhone, newEmail, restaurantId, selectedCustomer]);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +108,7 @@ export function NewReservationForm({
               firstName: newFirstName.trim(),
               lastName: newLastName.trim() || undefined,
               phone: newPhone.trim() || undefined,
+              email: newEmail.trim() || undefined,
             })
           ).id;
 
@@ -156,11 +174,35 @@ export function NewReservationForm({
                 className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
               />
               <input
-                placeholder="Teléfono (opcional)"
+                placeholder="Teléfono"
                 value={newPhone}
                 onChange={(e) => setNewPhone(e.target.value)}
                 className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
               />
+              <input
+                placeholder="Mail"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+              {duplicateMatches.length > 0 && (
+                <div className="rounded-lg border border-accent/40 bg-accent/10 p-2 space-y-1">
+                  <p className="text-xs text-accent">Ya existe un cliente con estos datos:</p>
+                  {duplicateMatches.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCustomer(c);
+                        setDuplicateMatches([]);
+                      }}
+                      className="w-full text-left text-xs rounded px-2 py-1 hover:bg-surface-2"
+                    >
+                      {c.firstName} {c.lastName ?? ""} {c.phone ? `· ${c.phone}` : ""} {c.email ? `· ${c.email}` : ""} — usar este
+                    </button>
+                  ))}
+                </div>
+              )}
               <button type="button" onClick={() => setNewCustomerMode(false)} className="text-xs text-ink-faint">
                 Buscar cliente existente en cambio
               </button>

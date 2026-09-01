@@ -11,7 +11,7 @@ export async function searchCustomers(
     .from("customers")
     .select("*")
     .eq("restaurant_id", restaurantId)
-    .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,phone.ilike.%${query}%`)
+    .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,phone.ilike.%${query}%,email.ilike.%${query}%`)
     .limit(8);
 
   if (error) throw error;
@@ -27,6 +27,35 @@ export async function listCustomers(supabase: SupabaseClient, restaurantId: stri
 
   if (error) throw error;
   return (data ?? []).map(mapCustomer);
+}
+
+/** Average of `total_amount` across each customer's completed reservations that have a real amount charged. */
+export async function getAveragePurchaseByCustomer(
+  supabase: SupabaseClient,
+  restaurantId: string,
+): Promise<Map<string, number>> {
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("customer_id, total_amount")
+    .eq("restaurant_id", restaurantId)
+    .eq("status", "completed")
+    .not("total_amount", "is", null);
+
+  if (error) throw error;
+
+  const totals = new Map<string, { sum: number; count: number }>();
+  for (const row of data ?? []) {
+    const customerId = row.customer_id as string;
+    const amount = Number(row.total_amount);
+    const entry = totals.get(customerId) ?? { sum: 0, count: 0 };
+    entry.sum += amount;
+    entry.count += 1;
+    totals.set(customerId, entry);
+  }
+
+  const averages = new Map<string, number>();
+  for (const [customerId, { sum, count }] of totals) averages.set(customerId, sum / count);
+  return averages;
 }
 
 export async function updateCustomer(
