@@ -1,9 +1,16 @@
 import { useEffect, useState } from "react";
-import { listReservationsForDate, updateReservationStatus, type ReservationWithDetails } from "@reservia/api-client";
+import {
+  listReservationsForDate,
+  updateReservationNotes,
+  updateReservationStatus,
+  updateReservationTable,
+  type ReservationWithDetails,
+} from "@reservia/api-client";
 import { RESERVATION_STATUSES, type ReservationStatus } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { NewReservationForm } from "./NewReservationForm";
+import { ReservationDetailModal } from "./ReservationDetailModal";
 import { promptTotalAmountIfCompleting } from "./promptTotalAmount";
 import { RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "./statusStyles";
 
@@ -33,6 +40,7 @@ export function ReservasPage() {
   const [reservations, setReservations] = useState<ReservationWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
 
   async function reload() {
     if (!restaurantId) return;
@@ -96,7 +104,14 @@ export function ReservasPage() {
       ) : (
         <div className="rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden">
           {reservations.map((r) => (
-            <div key={r.id} className="flex items-center gap-4 px-4 py-3">
+            <div
+              key={r.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => setDetailReservation(r)}
+              onKeyDown={(e) => e.key === "Enter" && setDetailReservation(r)}
+              className="w-full flex items-center gap-4 px-4 py-3 text-left cursor-pointer hover:bg-surface-2"
+            >
               <span className="w-14 text-sm tabular-nums text-ink-muted">{formatTime(r.startsAt)}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{r.customerName}</p>
@@ -113,6 +128,7 @@ export function ReservasPage() {
               </span>
               <select
                 value={r.status}
+                onClick={(e) => e.stopPropagation()}
                 onChange={(e) => handleStatusChange(r.id, e.target.value as ReservationStatus)}
                 className="rounded-lg bg-ground border border-line text-xs px-2 py-1.5 outline-none focus:border-accent"
               >
@@ -135,6 +151,26 @@ export function ReservasPage() {
           onCreated={() => {
             setShowForm(false);
             reload();
+          }}
+        />
+      )}
+
+      {detailReservation && restaurantId && (
+        <ReservationDetailModal
+          reservation={reservations.find((r) => r.id === detailReservation.id) ?? detailReservation}
+          restaurantId={restaurantId}
+          zoneName={null}
+          onClose={() => setDetailReservation(null)}
+          onChangeStatus={async (id, status) => {
+            await handleStatusChange(id, status);
+          }}
+          onAssignTable={async (id, tableId) => {
+            await updateReservationTable(supabase, id, tableId);
+            await reload();
+          }}
+          onSaveNotes={async (id, notes) => {
+            await updateReservationNotes(supabase, id, notes);
+            await reload();
           }}
         />
       )}
