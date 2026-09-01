@@ -34,19 +34,18 @@ export async function getRestaurantBySlug(supabase: SupabaseClient, slug: string
 
 export async function createRestaurant(
   supabase: SupabaseClient,
-  input: { name: string; slug: string },
+  input: { name: string; slug: string; createdBy: string },
 ): Promise<Restaurant> {
   // The RLS insert policy requires created_by = auth.uid() — the trigger that
   // makes the creator the restaurant's owner in restaurant_users relies on
   // this same column, so it has to be set explicitly, not left to a default.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("No hay una sesión activa.");
-
+  // The caller passes the already-authenticated user id (from context) rather
+  // than us re-fetching it here: a fresh supabase.auth.getUser() call is a
+  // network round-trip that can transiently fail even with a valid session.
+  const { name, slug, createdBy } = input;
   const { data, error } = await supabase
     .from("restaurants")
-    .insert({ ...input, created_by: user.id })
+    .insert({ name, slug, created_by: createdBy })
     .select("*")
     .single();
   if (error) throw error;

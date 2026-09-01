@@ -3,9 +3,11 @@ import { Navigate } from "react-router-dom";
 import { createRestaurant } from "@reservia/api-client";
 import { slugify } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
+import { useAuth } from "../auth/AuthProvider";
 import { useRestaurant } from "./RestaurantProvider";
 
 export function OnboardingPage() {
+  const { user } = useAuth();
   const { current, loading, refetch } = useRestaurant();
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -13,10 +15,11 @@ export function OnboardingPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!user) return; // OnboardingPage always sits behind ProtectedRoute
     setSubmitting(true);
     setError(null);
     try {
-      await createRestaurant(supabase, { name: name.trim(), slug: slugify(name) });
+      await createRestaurant(supabase, { name: name.trim(), slug: slugify(name), createdBy: user.id });
       await refetch();
     } catch (err) {
       const message = err && typeof err === "object" && "message" in err ? String(err.message) : null;

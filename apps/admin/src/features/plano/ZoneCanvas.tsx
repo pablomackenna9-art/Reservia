@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Stage, Layer, Rect, Text } from "react-konva";
+import { Stage, Layer, Rect, Text, Circle, Group } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Table, Zone } from "@reservia/core";
@@ -100,14 +100,32 @@ export function ZoneCanvas({ zone, tables, selectedTableId, onSelectTable }: Zon
         }}
       >
         <Layer listening={false}>
-          <Rect x={0} y={0} width={zone.width} height={zone.height} cornerRadius={16} fill="#141210" />
-          <Text text={zone.name.toUpperCase()} x={16} y={14} fontSize={13} fill="#8a7f6d" letterSpacing={1} />
+          <Rect
+            x={0}
+            y={0}
+            width={zone.width}
+            height={zone.height}
+            cornerRadius={16}
+            fillRadialGradientStartPoint={{ x: zone.width / 2, y: zone.height / 2 }}
+            fillRadialGradientEndPoint={{ x: zone.width / 2, y: zone.height / 2 }}
+            fillRadialGradientStartRadius={0}
+            fillRadialGradientEndRadius={Math.max(zone.width, zone.height) * 0.75}
+            fillRadialGradientColorStops={[0, "#211c17", 1, "#0f0d0b"]}
+          />
+          <PottedPlant x={zone.width * 0.06} y={zone.height * 0.08} scale={Math.min(zone.width, zone.height) / 22} />
+          <PottedPlant
+            x={zone.width * 0.94}
+            y={zone.height * 0.93}
+            scale={Math.min(zone.width, zone.height) / 26}
+          />
+          <ZoneLabel text={zone.name} x={zone.width * 0.5} y={zone.height * 0.07} />
         </Layer>
         <Layer>
           {tables.map((table) => (
             <TableToken
               key={table.id}
               table={table}
+              zone={zone}
               selected={table.id === selectedTableId}
               onSelect={() => onSelectTable(table.id)}
             />
@@ -145,6 +163,39 @@ function CanvasButton({
     >
       {label}
     </button>
+  );
+}
+
+/** Purely decorative — makes an empty corner read as "a room", not a coordinate grid. */
+function PottedPlant({ x, y, scale }: { x: number; y: number; scale: number }) {
+  return (
+    <Group x={x} y={y}>
+      <Circle radius={scale * 0.55} y={scale * 0.35} fill="#2c2419" />
+      <Circle radius={scale * 0.75} fill="#3d5c3f" opacity={0.9} />
+      <Circle radius={scale * 0.55} x={-scale * 0.3} y={-scale * 0.25} fill="#4a7550" opacity={0.85} />
+      <Circle radius={scale * 0.5} x={scale * 0.35} y={-scale * 0.15} fill="#436b48" opacity={0.85} />
+    </Group>
+  );
+}
+
+function ZoneLabel({ text, x, y }: { text: string; x: number; y: number }) {
+  const paddingX = 14;
+  const width = text.length * 8 + paddingX * 2;
+  return (
+    <Group x={x - width / 2} y={y}>
+      <Rect width={width} height={26} cornerRadius={13} fill="#1c1916" stroke="#39332b" strokeWidth={1} />
+      <Text
+        text={text.toUpperCase()}
+        width={width}
+        height={26}
+        align="center"
+        verticalAlign="middle"
+        fontSize={11}
+        fontStyle="600"
+        letterSpacing={1}
+        fill="#de9a4c"
+      />
+    </Group>
   );
 }
 
