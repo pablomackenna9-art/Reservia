@@ -12,7 +12,7 @@ export async function listTables(supabase: SupabaseClient, restaurantId: string)
   return (data ?? []).map(mapTable);
 }
 
-function mapTable(row: Record<string, unknown>): Table {
+export function mapTable(row: Record<string, unknown>): Table {
   return {
     id: row.id as string,
     restaurantId: row.restaurant_id as string,
