@@ -12,6 +12,58 @@ export async function listTables(supabase: SupabaseClient, restaurantId: string)
   return (data ?? []).map(mapTable);
 }
 
+export async function createTable(
+  supabase: SupabaseClient,
+  input: {
+    restaurantId: string;
+    zoneId: string;
+    name: string;
+    shape: Table["shape"];
+    capacityMin: number;
+    capacityMax: number;
+    positionX: number;
+    positionY: number;
+    width: number;
+    height: number;
+  },
+): Promise<Table> {
+  const { data, error } = await supabase
+    .from("tables")
+    .insert({
+      restaurant_id: input.restaurantId,
+      zone_id: input.zoneId,
+      name: input.name,
+      shape: input.shape,
+      capacity_min: input.capacityMin,
+      capacity_max: input.capacityMax,
+      pos_x: input.positionX,
+      pos_y: input.positionY,
+      width: input.width,
+      height: input.height,
+    })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return mapTable(data);
+}
+
+export async function updateTablePosition(
+  supabase: SupabaseClient,
+  id: string,
+  positionX: number,
+  positionY: number,
+): Promise<void> {
+  const { error } = await supabase.from("tables").update({ pos_x: positionX, pos_y: positionY }).eq("id", id);
+  if (error) throw error;
+}
+
+/** Soft-delete — matches `deleted_at`/`active`-style removal used elsewhere, not a hard DELETE. */
+export async function deactivateTable(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from("tables").update({ active: false }).eq("id", id);
+  if (error) throw error;
+}
+
 export function mapTable(row: Record<string, unknown>): Table {
   return {
     id: row.id as string,

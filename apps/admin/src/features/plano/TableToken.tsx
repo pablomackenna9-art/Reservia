@@ -1,4 +1,5 @@
 import { Circle, Group, Rect, Text } from "react-konva";
+import type { KonvaEventObject } from "konva/lib/Node";
 import { computeSeats, tableStatusLabel, type Table, type TableLiveStatusValue, type Zone } from "@reservia/core";
 import { STATUS_COLORS } from "./statusColors";
 
@@ -9,12 +10,23 @@ interface TableTokenProps {
   status?: TableLiveStatusValue;
   selected: boolean;
   onSelect: () => void;
+  draggable?: boolean;
+  /** Fired with the new position in zone-local units (not %) so the caller converts once. */
+  onDragEnd?: (x: number, y: number) => void;
 }
 
 const SEAT_RADIUS = 4;
 const RING_WIDTH = 3;
 
-export function TableToken({ table, zone, status = "available", selected, onSelect }: TableTokenProps) {
+export function TableToken({
+  table,
+  zone,
+  status = "available",
+  selected,
+  onSelect,
+  draggable = false,
+  onDragEnd,
+}: TableTokenProps) {
   const seats = computeSeats({
     shape: table.shape,
     capacity: table.capacityMax,
@@ -27,6 +39,10 @@ export function TableToken({ table, zone, status = "available", selected, onSele
   const x = (table.positionX / 100) * zone.width;
   const y = (table.positionY / 100) * zone.height;
 
+  function handleDragEnd(e: KonvaEventObject<DragEvent>) {
+    onDragEnd?.(e.target.x(), e.target.y());
+  }
+
   return (
     <Group
       x={x}
@@ -34,6 +50,8 @@ export function TableToken({ table, zone, status = "available", selected, onSele
       rotation={table.rotation}
       onClick={onSelect}
       onTap={onSelect}
+      draggable={draggable}
+      onDragEnd={handleDragEnd}
       listening
     >
       {/* Ambient glow in the status color — reads at a glance, before the ring registers. */}

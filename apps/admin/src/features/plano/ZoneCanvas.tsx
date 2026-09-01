@@ -1,40 +1,84 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Stage, Layer, Rect, Text, Circle, Group } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import type { Table, Zone } from "@reservia/core";
+import type { Table, TableLiveStatusValue, Zone } from "@reservia/core";
 import { useContainerSize } from "../../hooks/useContainerSize";
 import { TableToken } from "./TableToken";
 
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 4;
-const ZONE_MARGIN = 0.92; // leaves breathing room around the zone at fit-to-screen
+const FLOOR_MARGIN = 0.94; // leaves breathing room around the floor at fit-to-screen
+const ZONE_GAP = 40;
+const COMMON_HEIGHT = 700; // every zone is rescaled to this height so they tile in one row cleanly
+
+interface ZoneLayout {
+  zone: Zone;
+  offsetX: number;
+  scale: number;
+}
 
 interface ZoneCanvasProps {
-  zone: Zone;
+  /** One zone (a single tab) or several (the unified "Todo" floor) — same component either way. */
+  zones: Zone[];
   tables: Table[];
   selectedTableId: string | null;
   onSelectTable: (id: string | null) => void;
+  editable?: boolean;
+  onMoveTable?: (tableId: string, positionX: number, positionY: number) => void;
+  getTableStatus?: (tableId: string) => TableLiveStatusValue;
 }
 
-export function ZoneCanvas({ zone, tables, selectedTableId, onSelectTable }: ZoneCanvasProps) {
+export function ZoneCanvas({
+  zones,
+  tables,
+  selectedTableId,
+  onSelectTable,
+  editable = false,
+  onMoveTable,
+  getTableStatus,
+}: ZoneCanvasProps) {
   const { ref: containerRef, width, height } = useContainerSize<HTMLDivElement>();
   const stageRef = useRef<Konva.Stage | null>(null);
 
+  // Each zone keeps its own aspect ratio but is rescaled to a shared height,
+  // then laid out left to right — this is what makes "Todo" read as one
+  // floor instead of a grid of unrelated boxes.
+  const layout = useMemo<ZoneLayout[]>(() => {
+    let cursor = 0;
+    return zones.map((zone) => {
+      const scale = COMMON_HEIGHT / zone.height;
+      const entry = { zone, offsetX: cursor, scale };
+      cursor += zone.width * scale + ZONE_GAP;
+      return entry;
+    });
+  }, [zones]);
+
+  const floorWidth = layout.length
+    ? layout[layout.length - 1]!.offsetX + layout[layout.length - 1]!.zone.width * layout[layout.length - 1]!.scale
+    : 0;
+  const floorHeight = COMMON_HEIGHT;
+
+  const tablesByZone = useMemo(() => {
+    const map = new Map<string, Table[]>();
+    for (const table of tables) map.set(table.zoneId, [...(map.get(table.zoneId) ?? []), table]);
+    return map;
+  }, [tables]);
+
   const fitToScreen = () => {
     const stage = stageRef.current;
-    if (!stage || width === 0 || height === 0) return;
-    const scale = Math.min(width / zone.width, height / zone.height) * ZONE_MARGIN;
+    if (!stage || width === 0 || height === 0 || floorWidth === 0) return;
+    const scale = Math.min(width / floorWidth, height / floorHeight) * FLOOR_MARGIN;
     stage.scale({ x: scale, y: scale });
     stage.position({
-      x: (width - zone.width * scale) / 2,
-      y: (height - zone.height * scale) / 2,
+      x: (width - floorWidth * scale) / 2,
+      y: (height - floorHeight * scale) / 2,
     });
     stage.batchDraw();
   };
 
-  // Re-fit whenever the panel is resized or the active zone changes.
-  useEffect(fitToScreen, [width, height, zone.id, zone.width, zone.height]);
+  // Re-fit whenever the panel is resized or the set of zones on screen changes.
+  useEffect(fitToScreen, [width, height, floorWidth, floorHeight]);
 
   function handleWheel(e: KonvaEventObject<WheelEvent>) {
     e.evt.preventDefault();
@@ -48,15 +92,15 @@ export function ZoneCanvas({ zone, tables, selectedTableId, onSelectTable }: Zon
     const direction = e.evt.deltaY > 0 ? -1 : 1;
     const newScale = clamp(oldScale * (1 + direction * 0.08), MIN_SCALE, MAX_SCALE);
 
-    const pointerZonePos = {
+    const pointerFloorPos = {
       x: (pointer.x - stage.x()) / oldScale,
       y: (pointer.y - stage.y()) / oldScale,
     };
 
     stage.scale({ x: newScale, y: newScale });
     stage.position({
-      x: pointer.x - pointerZonePos.x * newScale,
-      y: pointer.y - pointerZonePos.y * newScale,
+      x: pointer.x - pointerFloorPos.x * newScale,
+      y: pointer.y - pointerFloorPos.y * newScale,
     });
     stage.batchDraw();
   }
@@ -67,12 +111,12 @@ export function ZoneCanvas({ zone, tables, selectedTableId, onSelectTable }: Zon
     const oldScale = stage.scaleX();
     const newScale = clamp(oldScale * factor, MIN_SCALE, MAX_SCALE);
     const center = { x: width / 2, y: height / 2 };
-    const centerZonePos = { x: (center.x - stage.x()) / oldScale, y: (center.y - stage.y()) / oldScale };
+    const centerFloorPos = { x: (center.x - stage.x()) / oldScale, y: (center.y - stage.y()) / oldScale };
 
     stage.scale({ x: newScale, y: newScale });
     stage.position({
-      x: center.x - centerZonePos.x * newScale,
-      y: center.y - centerZonePos.y * newScale,
+      x: center.x - centerFloorPos.x * newScale,
+      y: center.y - centerFloorPos.y * newScale,
     });
     stage.batchDraw();
   }
@@ -100,35 +144,54 @@ export function ZoneCanvas({ zone, tables, selectedTableId, onSelectTable }: Zon
         }}
       >
         <Layer listening={false}>
-          <Rect
-            x={0}
-            y={0}
-            width={zone.width}
-            height={zone.height}
-            cornerRadius={16}
-            fillRadialGradientStartPoint={{ x: zone.width / 2, y: zone.height / 2 }}
-            fillRadialGradientEndPoint={{ x: zone.width / 2, y: zone.height / 2 }}
-            fillRadialGradientStartRadius={0}
-            fillRadialGradientEndRadius={Math.max(zone.width, zone.height) * 0.75}
-            fillRadialGradientColorStops={[0, "#211c17", 1, "#0f0d0b"]}
-          />
-          <PottedPlant x={zone.width * 0.06} y={zone.height * 0.08} scale={Math.min(zone.width, zone.height) / 22} />
-          <PottedPlant
-            x={zone.width * 0.94}
-            y={zone.height * 0.93}
-            scale={Math.min(zone.width, zone.height) / 26}
-          />
-          <ZoneLabel text={zone.name} x={zone.width * 0.5} y={zone.height * 0.07} />
+          {layout.map(({ zone, offsetX, scale }) => (
+            <Group key={zone.id} x={offsetX} scaleX={scale} scaleY={scale}>
+              <Rect
+                x={0}
+                y={0}
+                width={zone.width}
+                height={zone.height}
+                cornerRadius={16}
+                fillRadialGradientStartPoint={{ x: zone.width / 2, y: zone.height / 2 }}
+                fillRadialGradientEndPoint={{ x: zone.width / 2, y: zone.height / 2 }}
+                fillRadialGradientStartRadius={0}
+                fillRadialGradientEndRadius={Math.max(zone.width, zone.height) * 0.75}
+                fillRadialGradientColorStops={[0, "#211c17", 1, "#0f0d0b"]}
+              />
+              <PottedPlant x={zone.width * 0.06} y={zone.height * 0.08} scale={Math.min(zone.width, zone.height) / 22} />
+              <PottedPlant
+                x={zone.width * 0.94}
+                y={zone.height * 0.93}
+                scale={Math.min(zone.width, zone.height) / 26}
+              />
+              <ZoneLabel text={zone.name} x={zone.width * 0.5} y={zone.height * 0.06} />
+            </Group>
+          ))}
         </Layer>
         <Layer>
-          {tables.map((table) => (
-            <TableToken
-              key={table.id}
-              table={table}
-              zone={zone}
-              selected={table.id === selectedTableId}
-              onSelect={() => onSelectTable(table.id)}
-            />
+          {layout.map(({ zone, offsetX, scale }) => (
+            <Group key={zone.id} x={offsetX} scaleX={scale} scaleY={scale}>
+              {(tablesByZone.get(zone.id) ?? []).map((table) => (
+                <TableToken
+                  key={table.id}
+                  table={table}
+                  zone={zone}
+                  status={getTableStatus?.(table.id)}
+                  selected={table.id === selectedTableId}
+                  onSelect={() => onSelectTable(table.id)}
+                  draggable={editable}
+                  onDragEnd={
+                    onMoveTable
+                      ? (x, y) => {
+                          const positionX = clamp((x / zone.width) * 100, 2, 98);
+                          const positionY = clamp((y / zone.height) * 100, 2, 98);
+                          onMoveTable(table.id, positionX, positionY);
+                        }
+                      : undefined
+                  }
+                />
+              ))}
+            </Group>
           ))}
         </Layer>
       </Stage>
