@@ -24,7 +24,6 @@ interface ZoneCanvasProps {
   tables: Table[];
   selectedTableId: string | null;
   onSelectTable: (id: string | null) => void;
-  editable?: boolean;
   onMoveTable?: (tableId: string, positionX: number, positionY: number) => void;
   getTableStatus?: (tableId: string) => TableLiveStatusValue;
 }
@@ -34,7 +33,6 @@ export function ZoneCanvas({
   tables,
   selectedTableId,
   onSelectTable,
-  editable = false,
   onMoveTable,
   getTableStatus,
 }: ZoneCanvasProps) {
@@ -137,7 +135,6 @@ export function ZoneCanvas({
         ref={stageRef}
         width={width || 1}
         height={height || 1}
-        draggable
         onWheel={handleWheel}
         onClick={(e) => {
           if (e.target === e.target.getStage()) onSelectTable(null);
@@ -179,7 +176,7 @@ export function ZoneCanvas({
                   status={getTableStatus?.(table.id)}
                   selected={table.id === selectedTableId}
                   onSelect={() => onSelectTable(table.id)}
-                  draggable={editable}
+                  draggable={Boolean(onMoveTable)}
                   onDragEnd={
                     onMoveTable
                       ? (x, y) => {

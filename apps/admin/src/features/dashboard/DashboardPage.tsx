@@ -27,11 +27,16 @@ export function DashboardPage() {
     reservationsToday,
     reservationsByTable,
     rules,
+    tableGroups,
     loading,
     reload,
     getTableStatus,
+    moveTable,
     changeReservationStatus,
     seatWalkIn,
+    joinTablesTogether,
+    unjoinTable,
+    moveReservationToTable,
   } = useFloorPlan(restaurantId);
 
   // null = "not decided yet". Once the zones load we default to the first
@@ -40,6 +45,7 @@ export function DashboardPage() {
   // away, it's just not where you land.
   const [activeZoneId, setActiveZoneId] = useState<string | "all" | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [joinSourceId, setJoinSourceId] = useState<string | null>(null);
   const [showNewReservation, setShowNewReservation] = useState(false);
   const [editingTicket, setEditingTicket] = useState(false);
   const [waitlist, setWaitlist] = useState<WaitlistEntryWithCustomer[]>([]);
@@ -100,6 +106,18 @@ export function DashboardPage() {
   const visibleTables = effectiveZoneId === "all" ? tables : tables.filter((t) => t.zoneId === effectiveZoneId);
   const selectedTable = tables.find((t) => t.id === selectedTableId) ?? null;
   const selectedTableZone = selectedTable ? zones.find((z) => z.id === selectedTable.zoneId) ?? null : null;
+
+  async function handleSelectTable(id: string | null) {
+    if (joinSourceId && id && id !== joinSourceId) {
+      const groupId = await joinTablesTogether(joinSourceId, id);
+      if (!groupId) alert("Solo se pueden unir mesas de la misma zona.");
+      setJoinSourceId(null);
+      setSelectedTableId(joinSourceId);
+      return;
+    }
+    setJoinSourceId(null);
+    setSelectedTableId(id);
+  }
 
   async function saveTicket() {
     if (!restaurantId) return;
@@ -210,23 +228,35 @@ export function DashboardPage() {
               zones={visibleZones}
               tables={visibleTables}
               selectedTableId={selectedTableId}
-              onSelectTable={setSelectedTableId}
+              onSelectTable={handleSelectTable}
+              onMoveTable={moveTable}
               getTableStatus={getTableStatus}
             />
           )}
         </div>
 
-        {selectedTable && selectedTableZone ? (
+        {selectedTable && selectedTableZone && restaurantId ? (
           <TableDetailPanel
             table={selectedTable}
+            restaurantId={restaurantId}
             zoneName={selectedTableZone.name}
             status={getTableStatus(selectedTable.id)}
             reservationsToday={reservationsByTable.get(selectedTable.id) ?? []}
+            allTables={tables}
+            groupInfo={tableGroups.get(selectedTable.id)}
+            joinPending={joinSourceId === selectedTable.id}
             editable={false}
-            onClose={() => setSelectedTableId(null)}
+            onClose={() => {
+              setSelectedTableId(null);
+              setJoinSourceId(null);
+            }}
             onDelete={() => {}}
             onChangeReservationStatus={changeReservationStatus}
             onSeatWalkIn={(partySize, name) => seatWalkIn(selectedTable.id, partySize, name)}
+            onMoveReservation={moveReservationToTable}
+            onStartJoin={() => setJoinSourceId(selectedTable.id)}
+            onCancelJoin={() => setJoinSourceId(null)}
+            onUnjoin={() => unjoinTable(selectedTable.id)}
           />
         ) : (
           <div className="flex flex-col gap-4 min-h-0">

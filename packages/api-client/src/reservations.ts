@@ -107,6 +107,11 @@ export async function createReservation(
   return mapReservation(data);
 }
 
+export async function updateReservationTable(supabase: SupabaseClient, reservationId: string, tableId: string): Promise<void> {
+  const { error } = await supabase.from("reservations").update({ table_id: tableId }).eq("id", reservationId);
+  if (error) throw error;
+}
+
 export async function updateReservationStatus(
   supabase: SupabaseClient,
   id: string,

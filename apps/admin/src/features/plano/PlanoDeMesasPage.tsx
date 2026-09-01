@@ -13,6 +13,7 @@ export function PlanoDeMesasPage() {
     zones,
     tables,
     reservationsByTable,
+    tableGroups,
     loading,
     reload,
     getTableStatus,
@@ -20,10 +21,14 @@ export function PlanoDeMesasPage() {
     deleteTable,
     changeReservationStatus,
     seatWalkIn,
+    joinTablesTogether,
+    unjoinTable,
+    moveReservationToTable,
   } = useFloorPlan(restaurantId);
 
   const [activeZoneId, setActiveZoneId] = useState<string | "all">("all");
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [joinSourceId, setJoinSourceId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [showNewTable, setShowNewTable] = useState(false);
 
@@ -32,6 +37,18 @@ export function PlanoDeMesasPage() {
 
   const selectedTable = tables.find((t) => t.id === selectedTableId) ?? null;
   const selectedTableZone = selectedTable ? zones.find((z) => z.id === selectedTable.zoneId) ?? null : null;
+
+  async function handleSelectTable(id: string | null) {
+    if (joinSourceId && id && id !== joinSourceId) {
+      const groupId = await joinTablesTogether(joinSourceId, id);
+      if (!groupId) alert("Solo se pueden unir mesas de la misma zona.");
+      setJoinSourceId(null);
+      setSelectedTableId(joinSourceId);
+      return;
+    }
+    setJoinSourceId(null);
+    setSelectedTableId(id);
+  }
 
   if (loading) {
     return <div className="p-6 text-ink-muted text-sm">Cargando plano…</div>;
@@ -84,11 +101,10 @@ export function PlanoDeMesasPage() {
         </div>
       </header>
 
-      {editMode && (
-        <p className="text-xs text-ink-faint mb-3">
-          Arrastrá una mesa para moverla — se guarda sola. Elegí una mesa para eliminarla.
-        </p>
-      )}
+      <p className="text-xs text-ink-faint mb-3">
+        Arrastrá una mesa para moverla — se guarda sola.
+        {editMode && " En modo edición podés agregar mesas nuevas y eliminarlas."}
+      </p>
 
       <div className="flex-1 min-h-0 flex gap-4">
         <div className="flex-1 min-w-0 rounded-xl border border-line overflow-hidden">
@@ -96,26 +112,36 @@ export function PlanoDeMesasPage() {
             zones={visibleZones}
             tables={visibleTables}
             selectedTableId={selectedTableId}
-            onSelectTable={setSelectedTableId}
-            editable={editMode}
+            onSelectTable={handleSelectTable}
             onMoveTable={moveTable}
             getTableStatus={getTableStatus}
           />
         </div>
 
-        {selectedTable && selectedTableZone && (
+        {selectedTable && selectedTableZone && restaurantId && (
           <TableDetailPanel
             table={selectedTable}
+            restaurantId={restaurantId}
             zoneName={selectedTableZone.name}
             status={getTableStatus(selectedTable.id)}
             reservationsToday={reservationsByTable.get(selectedTable.id) ?? []}
+            allTables={tables}
+            groupInfo={tableGroups.get(selectedTable.id)}
+            joinPending={joinSourceId === selectedTable.id}
             editable={editMode}
-            onClose={() => setSelectedTableId(null)}
+            onClose={() => {
+              setSelectedTableId(null);
+              setJoinSourceId(null);
+            }}
             onDelete={async () => {
               if (await deleteTable(selectedTable.id)) setSelectedTableId(null);
             }}
             onChangeReservationStatus={changeReservationStatus}
             onSeatWalkIn={(partySize, name) => seatWalkIn(selectedTable.id, partySize, name)}
+            onMoveReservation={moveReservationToTable}
+            onStartJoin={() => setJoinSourceId(selectedTable.id)}
+            onCancelJoin={() => setJoinSourceId(null)}
+            onUnjoin={() => unjoinTable(selectedTable.id)}
           />
         )}
       </div>
