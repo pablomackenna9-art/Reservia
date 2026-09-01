@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { listWaitlist, setAverageTicketPerPerson, type WaitlistEntryWithCustomer } from "@reservia/api-client";
+import {
+  listWaitlist,
+  setAverageTicketPerPerson,
+  type ReservationWithDetails,
+  type WaitlistEntryWithCustomer,
+} from "@reservia/api-client";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas } from "../plano/ZoneCanvas";
 import { TableDetailPanel } from "../plano/TableDetailPanel";
 import { useFloorPlan, todayISO } from "../plano/useFloorPlan";
 import { NewReservationForm } from "../reservations/NewReservationForm";
+import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
 import { RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
 
 function formatTime(iso: string): string {
@@ -37,6 +43,7 @@ export function DashboardPage() {
     joinTablesTogether,
     unjoinTable,
     moveReservationToTable,
+    saveReservationNotes,
   } = useFloorPlan(restaurantId);
 
   // null = "not decided yet". Once the zones load we default to the first
@@ -49,6 +56,7 @@ export function DashboardPage() {
   const [showNewReservation, setShowNewReservation] = useState(false);
   const [editingTicket, setEditingTicket] = useState(false);
   const [waitlist, setWaitlist] = useState<WaitlistEntryWithCustomer[]>([]);
+  const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
 
   useEffect(() => {
     if (!restaurantId) return;
@@ -218,7 +226,7 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 mb-4" style={{ height: "48vh" }}>
-        <div className="rounded-xl border border-line overflow-hidden">
+        <div className="rounded-xl border border-line overflow-hidden bg-surface-2">
           {zones.length === 0 ? (
             <div className="h-full grid place-items-center">
               <p className="text-sm text-ink-muted">Este restaurante todavía no tiene zonas configuradas.</p>
@@ -265,24 +273,32 @@ export function DashboardPage() {
               {upcoming.length === 0 ? (
                 <p className="text-xs text-ink-faint">No hay reservas próximas.</p>
               ) : (
-                <ul className="space-y-3">
-                  {upcoming.map((r) => (
-                    <li key={r.id} className="flex items-center gap-2 text-sm">
-                      <span className="w-12 text-xs tabular-nums text-ink-muted">{formatTime(r.startsAt)}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="truncate">{r.customerName}</p>
-                        <p className="text-xs text-ink-faint">
-                          {r.partySize}p{r.tableName ? ` · Mesa ${r.tableName}` : ""}
-                        </p>
-                      </div>
-                      <span
-                        className="text-[10px] rounded-full px-2 py-0.5 border shrink-0"
-                        style={{ color: RESERVATION_STATUS_COLOR[r.status], borderColor: RESERVATION_STATUS_COLOR[r.status] }}
-                      >
-                        {RESERVATION_STATUS_LABEL[r.status]}
-                      </span>
-                    </li>
-                  ))}
+                <ul className="space-y-1">
+                  {upcoming.map((r) => {
+                    const zoneName = zones.find((z) => z.id === tables.find((t) => t.id === r.tableId)?.zoneId)?.name;
+                    return (
+                      <li key={r.id}>
+                        <button
+                          onClick={() => setDetailReservation(r)}
+                          className="w-full flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-surface-2"
+                        >
+                          <span className="w-12 text-xs tabular-nums text-ink-muted shrink-0">{formatTime(r.startsAt)}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate">{r.customerName}</p>
+                            <p className="text-xs text-ink-faint truncate">
+                              {r.partySize}p · {r.tableName ? `${zoneName ? `${zoneName} · ` : ""}Mesa ${r.tableName}` : "Sin mesa"}
+                            </p>
+                          </div>
+                          <span
+                            className="text-[10px] rounded-full px-2 py-0.5 border shrink-0"
+                            style={{ color: RESERVATION_STATUS_COLOR[r.status], borderColor: RESERVATION_STATUS_COLOR[r.status] }}
+                          >
+                            {RESERVATION_STATUS_LABEL[r.status]}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
@@ -366,6 +382,24 @@ export function DashboardPage() {
             setShowNewReservation(false);
             reload();
           }}
+        />
+      )}
+
+      {detailReservation && restaurantId && (
+        <ReservationDetailModal
+          reservation={
+            reservationsToday.find((r) => r.id === detailReservation.id) ?? detailReservation
+          }
+          restaurantId={restaurantId}
+          zoneName={zones.find((z) => z.id === tables.find((t) => t.id === detailReservation.tableId)?.zoneId)?.name ?? null}
+          onClose={() => setDetailReservation(null)}
+          onChangeStatus={async (id, status) => {
+            await changeReservationStatus(id, status);
+          }}
+          onAssignTable={async (id, tableId) => {
+            await moveReservationToTable(id, tableId);
+          }}
+          onSaveNotes={saveReservationNotes}
         />
       )}
     </div>

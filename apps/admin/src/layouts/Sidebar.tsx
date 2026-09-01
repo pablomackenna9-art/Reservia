@@ -1,9 +1,11 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthProvider";
 import { useRestaurant } from "../features/restaurants/RestaurantProvider";
+import { useNotificationCount } from "../features/notifications/useNotificationCount";
 
 const NAV_ITEMS = [
   { to: "/", label: "Centro de Control", end: true },
+  { to: "/notificaciones", label: "Notificaciones", badge: true },
   { to: "/reservas", label: "Reservas" },
   { to: "/plano-de-mesas", label: "Plano de mesas" },
   { to: "/lista-de-espera", label: "Lista de espera" },
@@ -23,6 +25,7 @@ const STATUS_LABEL: Record<string, string> = {
 export function Sidebar() {
   const { current } = useRestaurant();
   const { logOut } = useAuth();
+  const notificationCount = useNotificationCount(current?.restaurant.id);
 
   return (
     <aside className="w-60 shrink-0 border-r border-line flex flex-col h-screen sticky top-0">
@@ -47,12 +50,17 @@ export function Sidebar() {
             to={item.to}
             end={item.end}
             className={({ isActive }) =>
-              `block rounded-lg px-3 py-2 text-sm mb-0.5 transition-colors ${
+              `flex items-center justify-between rounded-lg px-3 py-2 text-sm mb-0.5 transition-colors ${
                 isActive ? "bg-surface text-ink" : "text-ink-muted hover:text-ink hover:bg-surface"
               }`
             }
           >
-            {item.label}
+            <span>{item.label}</span>
+            {item.badge && notificationCount > 0 && (
+              <span className="rounded-full bg-accent text-accent-ink text-[11px] leading-none px-1.5 py-1 tabular-nums">
+                {notificationCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

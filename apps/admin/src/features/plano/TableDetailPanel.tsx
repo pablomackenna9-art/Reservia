@@ -9,24 +9,12 @@ import {
 import { listAvailableTables, type ReservationWithDetails, type TableGroupInfo } from "@reservia/api-client";
 import { supabase } from "../../lib/supabase";
 import { STATUS_COLORS } from "./statusColors";
+import { NEXT_STATUS_ACTIONS } from "../reservations/statusStyles";
 
 const SHAPE_LABEL: Record<Table["shape"], string> = {
   round: "Redonda",
   square: "Cuadrada",
   rectangle: "Rectangular",
-};
-
-const NEXT_STATUS: Partial<Record<ReservationStatus, { label: string; status: ReservationStatus }[]>> = {
-  pending: [{ label: "Confirmar", status: "confirmed" }],
-  confirmed: [
-    { label: "Marcar llegada", status: "arriving" },
-    { label: "Cancelar", status: "cancelled" },
-  ],
-  arriving: [
-    { label: "Sentar", status: "seated" },
-    { label: "No-show", status: "no_show" },
-  ],
-  seated: [{ label: "Completar", status: "completed" }],
 };
 
 type TableEditPatch = Partial<
@@ -169,7 +157,7 @@ export function TableDetailPanel({
             {reservation.customerPhone ? ` · ${reservation.customerPhone}` : ""}
           </p>
           <div className="flex flex-wrap gap-1.5 mt-3">
-            {NEXT_STATUS[reservation.status]?.map((action) => (
+            {NEXT_STATUS_ACTIONS[reservation.status]?.map((action) => (
               <button
                 key={action.status}
                 onClick={() => onChangeReservationStatus(reservation.id, action.status)}

@@ -19,3 +19,17 @@ export const RESERVATION_STATUS_COLOR: Record<ReservationStatus, string> = {
   cancelled: "#8a7f6d",
   no_show: "#dd7c68",
 };
+
+/** What a reservation can move to next, from wherever it is now. */
+export const NEXT_STATUS_ACTIONS: Partial<Record<ReservationStatus, { label: string; status: ReservationStatus }[]>> = {
+  pending: [{ label: "Confirmar", status: "confirmed" }],
+  confirmed: [
+    { label: "Marcar llegada", status: "arriving" },
+    { label: "Cancelar", status: "cancelled" },
+  ],
+  arriving: [
+    { label: "Sentar", status: "seated" },
+    { label: "No-show", status: "no_show" },
+  ],
+  seated: [{ label: "Completar", status: "completed" }],
+};

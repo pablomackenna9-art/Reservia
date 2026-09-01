@@ -153,8 +153,9 @@ export function ZoneCanvas({
                 fillRadialGradientEndPoint={{ x: zone.width / 2, y: zone.height / 2 }}
                 fillRadialGradientStartRadius={0}
                 fillRadialGradientEndRadius={Math.max(zone.width, zone.height) * 0.75}
-                fillRadialGradientColorStops={[0, "#211c17", 1, "#0f0d0b"]}
+                fillRadialGradientColorStops={[0, "#3c352b", 1, "#252019"]}
               />
+              <WoodFloor width={zone.width} height={zone.height} />
               <PottedPlant x={zone.width * 0.06} y={zone.height * 0.08} scale={Math.min(zone.width, zone.height) / 22} />
               <PottedPlant
                 x={zone.width * 0.94}
@@ -223,6 +224,30 @@ function CanvasButton({
     >
       {label}
     </button>
+  );
+}
+
+/** Faint plank seams over the floor gradient — reads as hardwood, not a void. */
+function WoodFloor({ width, height }: { width: number; height: number }) {
+  const plankHeight = 34;
+  const planks = Math.ceil(height / plankHeight);
+  return (
+    <Group clipFunc={(ctx) => ctx.rect(0, 0, width, height)} listening={false}>
+      {Array.from({ length: planks }, (_, i) => (
+        <Rect
+          key={i}
+          x={0}
+          y={i * plankHeight}
+          width={width}
+          height={plankHeight}
+          fill={i % 2 === 0 ? "#ffffff" : "#000000"}
+          opacity={0.02}
+        />
+      ))}
+      {Array.from({ length: planks }, (_, i) => (
+        <Rect key={`seam-${i}`} x={0} y={i * plankHeight} width={width} height={1} fill="#000000" opacity={0.12} />
+      ))}
+    </Group>
   );
 }
 

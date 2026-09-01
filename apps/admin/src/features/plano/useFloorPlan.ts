@@ -10,6 +10,7 @@ import {
   listTables,
   listZones,
   ungroupTables,
+  updateReservationNotes,
   updateReservationStatus,
   updateReservationTable,
   updateTable,
@@ -151,6 +152,11 @@ export function useFloorPlan(restaurantId: string | undefined) {
     await reload();
   }
 
+  async function saveReservationNotes(reservationId: string, notes: string) {
+    await updateReservationNotes(supabase, reservationId, notes);
+    await reload();
+  }
+
   async function seatWalkIn(tableId: string, partySize: number, name: string) {
     if (!restaurantId || !user) return;
     const table = tables.find((t) => t.id === tableId);
@@ -191,5 +197,6 @@ export function useFloorPlan(restaurantId: string | undefined) {
     joinTablesTogether,
     unjoinTable,
     moveReservationToTable,
+    saveReservationNotes,
   };
 }

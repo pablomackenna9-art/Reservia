@@ -244,7 +244,7 @@ export function BookingFlow({
             disabled={submitting}
             className="w-full mt-4 rounded-lg bg-accent text-accent-ink py-2.5 text-sm font-medium disabled:opacity-60"
           >
-            {submitting ? "Confirmando…" : "Confirmar reserva"}
+            {submitting ? "Enviando…" : "Enviar solicitud"}
           </button>
         </StepCard>
       )}
@@ -254,7 +254,7 @@ export function BookingFlow({
           <div className="w-12 h-12 rounded-full bg-accent/15 border border-accent/40 grid place-items-center mx-auto mb-4 text-accent text-xl">
             ✓
           </div>
-          <h2 className="text-lg font-semibold mb-1">Reserva confirmada</h2>
+          <h2 className="text-lg font-semibold mb-1">Solicitud enviada</h2>
           <p className="text-sm text-ink-muted">
             {partySize} personas en {restaurant.name}
             <br />
@@ -262,7 +262,9 @@ export function BookingFlow({
             {" · "}
             {new Date(confirmed.startsAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
           </p>
-          <p className="text-xs text-ink-faint mt-4">Te esperamos — si algo cambia, contactá al restaurante.</p>
+          <p className="text-xs text-ink-faint mt-4">
+            El restaurante todavía tiene que confirmarla — te avisamos por teléfono si hay algún cambio.
+          </p>
         </div>
       )}
     </div>

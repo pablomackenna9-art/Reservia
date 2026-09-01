@@ -6,6 +6,7 @@ import { SignupPage } from "./features/auth/SignupPage";
 import { RestaurantProvider } from "./features/restaurants/RestaurantProvider";
 import { OnboardingPage } from "./features/restaurants/OnboardingPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
+import { NotificacionesPage } from "./features/notifications/NotificacionesPage";
 import { PlanoDeMesasPage } from "./features/plano/PlanoDeMesasPage";
 import { ReservasPage } from "./features/reservations/ReservasPage";
 import { ClientesPage } from "./features/customers/ClientesPage";
@@ -61,6 +62,14 @@ export function App() {
               element={
                 <Protected>
                   <PlanoDeMesasPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/notificaciones"
+              element={
+                <Protected>
+                  <NotificacionesPage />
                 </Protected>
               }
             />

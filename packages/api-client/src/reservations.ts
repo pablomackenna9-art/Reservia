@@ -6,7 +6,20 @@ import { mapTable } from "./tables";
 export interface ReservationWithDetails extends Reservation {
   customerName: string;
   customerPhone: string | null;
+  customerEmail: string | null;
   tableName: string | null;
+}
+
+function mapReservationWithDetails(row: Record<string, unknown>): ReservationWithDetails {
+  const customer = mapCustomer(row.customers as Record<string, unknown>);
+  const table = row.tables as { name: string } | null;
+  return {
+    ...mapReservation(row),
+    customerName: [customer.firstName, customer.lastName].filter(Boolean).join(" "),
+    customerPhone: customer.phone,
+    customerEmail: customer.email,
+    tableName: table?.name ?? null,
+  };
 }
 
 export async function listReservationsForDate(
@@ -42,17 +55,33 @@ export async function listReservationsInRange(
     .order("starts_at", { ascending: true });
 
   if (error) throw error;
+  return (data ?? []).map(mapReservationWithDetails);
+}
 
-  return (data ?? []).map((row) => {
-    const customer = mapCustomer(row.customers as Record<string, unknown>);
-    const table = row.tables as { name: string } | null;
-    return {
-      ...mapReservation(row),
-      customerName: [customer.firstName, customer.lastName].filter(Boolean).join(" "),
-      customerPhone: customer.phone,
-      tableName: table?.name ?? null,
-    };
-  });
+/**
+ * Reservations the owner still needs to act on: pending public-portal
+ * requests awaiting a yes/no, and already-accepted reservations that don't
+ * have a table yet. Powers the notifications bell — restaurant-wide, not
+ * scoped to "today", since a request can be for next week.
+ */
+export async function listReservationsNeedingAttention(
+  supabase: SupabaseClient,
+  restaurantId: string,
+): Promise<{ pendingApproval: ReservationWithDetails[]; unassignedTable: ReservationWithDetails[] }> {
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("*, customers(*), tables(name)")
+    .eq("restaurant_id", restaurantId)
+    .in("status", ["pending", "confirmed", "arriving"])
+    .order("starts_at", { ascending: true });
+
+  if (error) throw error;
+  const mapped = (data ?? []).map(mapReservationWithDetails);
+
+  return {
+    pendingApproval: mapped.filter((r) => r.status === "pending"),
+    unassignedTable: mapped.filter((r) => r.status !== "pending" && r.tableId === null),
+  };
 }
 
 export async function listAvailableTables(
@@ -109,6 +138,15 @@ export async function createReservation(
 
 export async function updateReservationTable(supabase: SupabaseClient, reservationId: string, tableId: string): Promise<void> {
   const { error } = await supabase.from("reservations").update({ table_id: tableId }).eq("id", reservationId);
+  if (error) throw error;
+}
+
+export async function updateReservationNotes(
+  supabase: SupabaseClient,
+  id: string,
+  internalNotes: string,
+): Promise<void> {
+  const { error } = await supabase.from("reservations").update({ internal_notes: internalNotes }).eq("id", id);
   if (error) throw error;
 }
 

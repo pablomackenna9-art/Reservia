@@ -108,7 +108,7 @@ export function PlanoDeMesasPage() {
       </p>
 
       <div className="flex-1 min-h-0 flex gap-4">
-        <div className="flex-1 min-w-0 rounded-xl border border-line overflow-hidden">
+        <div className="flex-1 min-w-0 rounded-xl border border-line overflow-hidden bg-surface-2">
           <ZoneCanvas
             zones={visibleZones}
             tables={visibleTables}
