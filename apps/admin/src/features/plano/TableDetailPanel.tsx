@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   currentOrNextReservation,
   findTurnoverConflict,
+  minutesSince,
   tableStatusLabel,
   type ReservationStatus,
   type Table,
@@ -14,6 +15,12 @@ import { STATUS_COLORS } from "./statusColors";
 import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
 import { TableAssignmentPicker } from "../reservations/TableAssignmentPicker";
 import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
+
+function formatElapsed(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
 
 const SHAPE_LABEL: Record<Table["shape"], string> = {
   round: "Redonda",
@@ -175,7 +182,14 @@ export function TableDetailPanel({
 
       {reservation ? (
         <div className="rounded-lg bg-ground border border-line p-3 mb-4">
-          <p className="text-sm font-medium">{reservation.customerName}</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">{reservation.customerName}</p>
+            {reservation.status === "seated" && (
+              <span className="text-xs text-accent tabular-nums shrink-0">
+                ⏱ {formatElapsed(minutesSince(reservation.startsAt))}
+              </span>
+            )}
+          </div>
           <p className="text-xs text-ink-faint mt-0.5">
             {new Date(reservation.startsAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })} ·{" "}
             {reservation.partySize} personas

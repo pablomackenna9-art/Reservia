@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getAveragePurchaseByCustomer, listCustomers, setCustomerBlacklisted, updateCustomer } from "@reservia/api-client";
+import { createCustomer, getAveragePurchaseByCustomer, listCustomers, setCustomerBlacklisted, updateCustomer } from "@reservia/api-client";
 import { customerFullName, type Customer } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
@@ -22,6 +22,7 @@ export function ClientesPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showBlockForm, setShowBlockForm] = useState(false);
 
   async function reload() {
     if (!restaurantId) return;
@@ -52,12 +53,21 @@ export function ClientesPage() {
     <div className="p-6 h-screen flex flex-col">
       <header className="mb-4 flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold">Clientes</h1>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar por nombre, teléfono o correo…"
-          className="w-72 rounded-lg bg-surface border border-line px-3 py-2 text-sm outline-none focus:border-accent"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por nombre, teléfono o correo…"
+            className="w-72 rounded-lg bg-surface border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+          <button
+            onClick={() => setShowBlockForm(true)}
+            disabled={!restaurantId}
+            className="rounded-lg bg-surface-2 border border-status-occupied/40 text-status-occupied px-3 py-2 text-sm font-medium disabled:opacity-60 shrink-0"
+          >
+            🚫 Bloquear a alguien
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 min-h-0 flex gap-4">
@@ -140,6 +150,18 @@ export function ClientesPage() {
           />
         )}
       </div>
+
+      {showBlockForm && restaurantId && (
+        <BlockPersonForm
+          restaurantId={restaurantId}
+          onCancel={() => setShowBlockForm(false)}
+          onBlocked={(customer) => {
+            setShowBlockForm(false);
+            setCustomers((prev) => [customer, ...prev]);
+            setSelectedId(customer.id);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -273,6 +295,99 @@ function MiniStat({ label, value }: { label: string; value: number | string }) {
     <div className="rounded-lg bg-ground border border-line px-2 py-2 text-center">
       <p className="text-lg font-semibold tabular-nums">{value}</p>
       <p className="text-[10px] text-ink-faint">{label}</p>
+    </div>
+  );
+}
+
+/** Blocks someone preemptively -- doesn't require them to have booked before. Phone is what actually gets checked at booking time; name-only entries are a staff-facing reference. */
+function BlockPersonForm({
+  restaurantId,
+  onCancel,
+  onBlocked,
+}: {
+  restaurantId: string;
+  onCancel: () => void;
+  onBlocked: (customer: Customer) => void;
+}) {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const customer = await createCustomer(supabase, {
+        restaurantId,
+        firstName: firstName.trim(),
+        lastName: lastName.trim() || undefined,
+        phone: phone.trim() || undefined,
+      });
+      await setCustomerBlacklisted(supabase, customer.id, true, reason.trim() || null);
+      onBlocked({ ...customer, blacklisted: true, blacklistedReason: reason.trim() || null });
+    } catch (err) {
+      const message = err && typeof err === "object" && "message" in err ? String(err.message) : null;
+      setError(message ?? "No pudimos bloquear a esta persona.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 grid place-items-center z-50 px-4" onClick={onCancel}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-xl border border-line bg-surface p-5">
+        <h2 className="text-lg font-semibold mb-1">Bloquear a alguien</h2>
+        <p className="text-xs text-ink-faint mb-4">
+          No va a poder reservar por el portal público. El staff todavía puede cargarle una reserva a mano si hace falta.
+        </p>
+
+        <label className="block text-sm text-ink-muted mb-1">Nombre</label>
+        <input
+          required
+          autoFocus
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          className="w-full mb-3 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+        />
+        <label className="block text-sm text-ink-muted mb-1">Apellido (opcional)</label>
+        <input
+          value={lastName}
+          onChange={(e) => setLastName(e.target.value)}
+          className="w-full mb-3 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+        />
+        <label className="block text-sm text-ink-muted mb-1">Teléfono</label>
+        <input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="El portal público solo bloquea si hay teléfono cargado"
+          className="w-full mb-3 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+        />
+        <label className="block text-sm text-ink-muted mb-1">Motivo (opcional)</label>
+        <input
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="No-shows repetidos, mal comportamiento…"
+          className="w-full mb-4 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+        />
+
+        {error && <p className="text-sm text-status-occupied mb-3">{error}</p>}
+
+        <div className="flex gap-2 justify-end">
+          <button onClick={onCancel} className="rounded-lg px-4 py-2 text-sm text-ink-muted">
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !firstName.trim()}
+            className="rounded-lg bg-status-occupied text-white px-4 py-2 text-sm font-medium disabled:opacity-60"
+          >
+            {submitting ? "Bloqueando…" : "Bloquear"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
