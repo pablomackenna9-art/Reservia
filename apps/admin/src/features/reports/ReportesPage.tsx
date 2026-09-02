@@ -81,6 +81,43 @@ export function ReportesPage() {
       .filter((s) => s.count > 0);
   }, [notCancelled]);
 
+  const byHour = useMemo(() => {
+    const buckets = new Map<number, number>();
+    for (const r of notCancelled) {
+      const hour = new Date(r.startsAt).getHours();
+      buckets.set(hour, (buckets.get(hour) ?? 0) + r.partySize);
+    }
+    const hours = [...buckets.keys()].sort((a, b) => a - b);
+    const max = Math.max(1, ...buckets.values());
+    return hours.map((hour) => ({ hour, covers: buckets.get(hour)!, pct: (buckets.get(hour)! / max) * 100 }));
+  }, [notCancelled]);
+
+  const topTables = useMemo(() => {
+    const buckets = new Map<string, number>();
+    for (const r of notCancelled) {
+      if (!r.tableName) continue;
+      buckets.set(r.tableName, (buckets.get(r.tableName) ?? 0) + 1);
+    }
+    const max = Math.max(1, ...buckets.values());
+    return [...buckets.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([name, count]) => ({ name, count, pct: (count / max) * 100 }));
+  }, [notCancelled]);
+
+  const assigned = notCancelled.filter((r) => r.tableId);
+  const assignmentBreakdown = useMemo(() => {
+    const counts = { automatic: 0, suggested: 0, manual: 0, none: 0 };
+    for (const r of assigned) {
+      if (r.tableAssignmentSource === "automatic") counts.automatic += 1;
+      else if (r.tableAssignmentSource === "suggested") counts.suggested += 1;
+      else if (r.tableAssignmentSource === "manual") counts.manual += 1;
+      else counts.none += 1;
+    }
+    return counts;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reservations]);
+
   return (
     <div className="p-6">
       <header className="mb-4 flex items-center justify-between">
@@ -157,7 +194,7 @@ export function ReportesPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 mb-4">
             <StatTile
               label="Ticket promedio"
               value={avgTicket != null ? formatCLP(avgTicket) : "—"}
@@ -170,6 +207,64 @@ export function ReportesPage() {
               label="Tasa de cancelación"
               value={reservations.length ? `${Math.round((cancelled.length / reservations.length) * 100)}%` : "—"}
             />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-line bg-surface p-4">
+              <h2 className="text-sm font-semibold mb-3">Ocupación por hora</h2>
+              {byHour.length === 0 ? (
+                <p className="text-xs text-ink-faint">Sin datos en este período.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {byHour.map(({ hour, covers, pct }) => (
+                    <div key={hour} className="flex items-center gap-2 text-xs">
+                      <span className="w-9 tabular-nums text-ink-faint shrink-0">{String(hour).padStart(2, "0")}:00</span>
+                      <div className="flex-1 h-2 rounded-full bg-ground overflow-hidden">
+                        <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="w-10 tabular-nums text-ink-faint text-right shrink-0">{covers}p</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-line bg-surface p-4">
+              <h2 className="text-sm font-semibold mb-3">Mesas más usadas</h2>
+              {topTables.length === 0 ? (
+                <p className="text-xs text-ink-faint">Sin datos en este período.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {topTables.map(({ name, count, pct }) => (
+                    <div key={name} className="flex items-center gap-2 text-xs">
+                      <span className="w-16 text-ink-faint shrink-0 truncate">Mesa {name}</span>
+                      <div className="flex-1 h-2 rounded-full bg-ground overflow-hidden">
+                        <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="w-6 tabular-nums text-ink-faint text-right shrink-0">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-line bg-surface p-4 mt-4">
+            <h2 className="text-sm font-semibold mb-1">Asignación de mesas</h2>
+            <p className="text-xs text-ink-faint mb-3">
+              De {assigned.length} reserva{assigned.length === 1 ? "" : "s"} con mesa, cuántas las asignó el Smart Table
+              Engine (solo o sugiriendo) vs. a mano.
+            </p>
+            {assigned.length === 0 ? (
+              <p className="text-xs text-ink-faint">Sin datos en este período.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <StatTile label="Automática" value={String(assignmentBreakdown.automatic)} />
+                <StatTile label="Sugerida (aceptada)" value={String(assignmentBreakdown.suggested)} />
+                <StatTile label="Manual" value={String(assignmentBreakdown.manual)} />
+                <StatTile label="Sin registrar" value={String(assignmentBreakdown.none)} note="reservas de antes de esta función" />
+              </div>
+            )}
           </div>
         </>
       )}
