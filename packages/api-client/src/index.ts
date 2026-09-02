@@ -11,3 +11,6 @@ export * from "./waitlist";
 export * from "./tableGroups";
 export * from "./publicBooking";
 export * from "./team";
+export * from "./visits";
+export * from "./pos";
+export * from "./integrations";

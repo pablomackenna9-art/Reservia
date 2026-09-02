@@ -4,3 +4,4 @@ export * from "./reservations";
 export * from "./customers";
 export * from "./reservationRules";
 export * from "./hours";
+export * from "./pos";

@@ -384,6 +384,12 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# pos-webhook (Fase 1, no deployada todavía): los proveedores de POS no mandan
+# un JWT de Supabase, así que la verificación de sesión estándar debe quedar
+# apagada acá -- la función hace su propia verificación de firma.
+[functions.pos-webhook]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
