@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  acceptReservation,
   createCustomer,
   createReservation,
+  createTable,
   deactivateTable,
   getReservationRules,
   joinTables as apiJoinTables,
@@ -101,6 +103,26 @@ export function useFloorPlan(restaurantId: string | undefined) {
     await setTableBlocked(supabase, tableId, blocked, reason);
   }
 
+  /** Copies shape/capacity/size from an existing table onto a new one, offset slightly so it doesn't land exactly on top. */
+  async function duplicateTable(tableId: string): Promise<string | null> {
+    const source = tables.find((t) => t.id === tableId);
+    if (!source || !restaurantId) return null;
+    const created = await createTable(supabase, {
+      restaurantId,
+      zoneId: source.zoneId,
+      name: `${source.name} copia`,
+      shape: source.shape,
+      capacityMin: source.capacityMin,
+      capacityMax: source.capacityMax,
+      positionX: Math.min(96, source.positionX + 4),
+      positionY: Math.min(96, source.positionY + 4),
+      width: source.width,
+      height: source.height,
+    });
+    await reload();
+    return created.id;
+  }
+
   async function deleteTable(tableId: string) {
     if (!confirm("¿Eliminar esta mesa? Se puede volver a crear, pero no se recupera esta.")) return false;
     await deactivateTable(supabase, tableId);
@@ -109,8 +131,13 @@ export function useFloorPlan(restaurantId: string | undefined) {
   }
 
   async function changeReservationStatus(reservationId: string, status: ReservationStatus) {
-    const totalAmount = promptTotalAmountIfCompleting(status);
-    await updateReservationStatus(supabase, reservationId, status, totalAmount);
+    const reservation = reservationsToday.find((r) => r.id === reservationId);
+    if (status === "confirmed" && reservation?.status === "pending" && rules) {
+      await acceptReservation(supabase, reservation, rules.tableAssignmentMode);
+    } else {
+      const totalAmount = promptTotalAmountIfCompleting(status);
+      await updateReservationStatus(supabase, reservationId, status, totalAmount);
+    }
     await reload();
   }
 
@@ -205,6 +232,7 @@ export function useFloorPlan(restaurantId: string | undefined) {
     moveTable,
     updateTableProps,
     toggleTableBlocked,
+    duplicateTable,
     deleteTable,
     changeReservationStatus,
     seatWalkIn,

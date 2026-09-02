@@ -5,12 +5,14 @@ import {
   type Reservation,
   type ReservationStatus,
   type Table,
+  type TableAssignmentMode,
   type TableAssignmentSource,
   type TableCandidate,
   type ZonePreferenceMode,
 } from "@reservia/core";
 import { mapCustomer } from "./customers";
 import { mapTable } from "./tables";
+import { joinTables } from "./tableGroups";
 
 export interface ReservationWithDetails extends Reservation {
   customerName: string;
@@ -287,6 +289,42 @@ export async function updateReservationStatus(
   if (totalAmount !== undefined) patch.total_amount = totalAmount;
   const { error } = await supabase.from("reservations").update(patch).eq("id", id);
   if (error) throw error;
+}
+
+/**
+ * Confirms a pending reservation and, when the restaurant's mode is
+ * 'automatic', immediately assigns it the Smart Table Engine's top pick
+ * (joining a second table too, if the recommendation was a combination) —
+ * so an owner running in automatic mode never sees "sin mesa asignada" for
+ * something the engine could already solve. In 'manual'/'suggest' mode this
+ * is just a plain confirm; the host still picks the table by hand.
+ */
+export async function acceptReservation(
+  supabase: SupabaseClient,
+  reservation: Pick<ReservationWithDetails, "id" | "restaurantId" | "partySize" | "startsAt" | "endsAt" | "tableId">,
+  tableAssignmentMode: TableAssignmentMode,
+): Promise<void> {
+  await updateReservationStatus(supabase, reservation.id, "confirmed");
+  if (tableAssignmentMode !== "automatic" || reservation.tableId) return;
+
+  const [candidate] = await getSmartTableCandidates(supabase, {
+    restaurantId: reservation.restaurantId,
+    partySize: reservation.partySize,
+    startsAt: reservation.startsAt,
+    endsAt: reservation.endsAt,
+  });
+  if (!candidate) return;
+
+  await updateReservationTable(supabase, reservation.id, candidate.tableIds[0]!, "automatic");
+  if (candidate.isCombination && candidate.tableIds.length > 1) {
+    await joinTables(
+      supabase,
+      reservation.restaurantId,
+      candidate.tableIds[0]!,
+      candidate.tableIds[1]!,
+      `Mesa ${candidate.tableNames.join("+")}`,
+    );
+  }
 }
 
 export function mapReservation(row: Record<string, unknown>): Reservation {

@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import {
+  acceptReservation,
+  getReservationRules,
   listReservationsNeedingAttention,
   updateReservationNotes,
   updateReservationStatus,
   updateReservationTable,
   type ReservationWithDetails,
 } from "@reservia/api-client";
-import type { TableAssignmentSource } from "@reservia/core";
+import type { ReservationRules, TableAssignmentSource } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
@@ -27,14 +29,19 @@ export function NotificacionesPage() {
 
   const [pendingApproval, setPendingApproval] = useState<ReservationWithDetails[]>([]);
   const [unassignedTable, setUnassignedTable] = useState<ReservationWithDetails[]>([]);
+  const [rules, setRules] = useState<ReservationRules | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
 
   async function reload() {
     if (!restaurantId) return;
-    const { pendingApproval: p, unassignedTable: u } = await listReservationsNeedingAttention(supabase, restaurantId);
+    const [{ pendingApproval: p, unassignedTable: u }, rr] = await Promise.all([
+      listReservationsNeedingAttention(supabase, restaurantId),
+      getReservationRules(supabase, restaurantId),
+    ]);
     setPendingApproval(p);
     setUnassignedTable(u);
+    setRules(rr);
     setLoading(false);
   }
 
@@ -44,8 +51,9 @@ export function NotificacionesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId]);
 
-  async function handleAccept(id: string) {
-    await updateReservationStatus(supabase, id, "confirmed");
+  async function handleAccept(reservation: ReservationWithDetails) {
+    if (rules) await acceptReservation(supabase, reservation, rules.tableAssignmentMode);
+    else await updateReservationStatus(supabase, reservation.id, "confirmed");
     await reload();
   }
 
@@ -56,7 +64,12 @@ export function NotificacionesPage() {
   }
 
   async function handleChangeStatus(id: string, status: Parameters<typeof updateReservationStatus>[2]) {
-    await updateReservationStatus(supabase, id, status);
+    const reservation = [...pendingApproval, ...unassignedTable].find((r) => r.id === id);
+    if (status === "confirmed" && reservation?.status === "pending" && rules) {
+      await acceptReservation(supabase, reservation, rules.tableAssignmentMode);
+    } else {
+      await updateReservationStatus(supabase, id, status);
+    }
     await reload();
     setDetailReservation(null);
   }
@@ -106,7 +119,7 @@ export function NotificacionesPage() {
                   </p>
                 </button>
                 <button
-                  onClick={() => handleAccept(r.id)}
+                  onClick={() => handleAccept(r)}
                   className="rounded-lg bg-accent text-accent-ink px-2.5 py-1.5 text-xs font-medium shrink-0"
                 >
                   Aceptar

@@ -35,6 +35,7 @@ export function TableDetailPanel({
   editable,
   onClose,
   onDelete,
+  onDuplicate,
   onChangeReservationStatus,
   onSeatWalkIn,
   onMoveReservation,
@@ -56,6 +57,7 @@ export function TableDetailPanel({
   editable: boolean;
   onClose: () => void;
   onDelete: () => void;
+  onDuplicate?: () => void;
   onChangeReservationStatus: (reservationId: string, status: ReservationStatus) => void;
   onSeatWalkIn: (partySize: number, name: string) => void;
   onMoveReservation: (reservationId: string, tableId: string, source?: TableAssignmentSource) => void;
@@ -379,12 +381,14 @@ export function TableDetailPanel({
         ))}
 
       {editable && (
-        <button
-          onClick={onDelete}
-          className="w-full mt-4 pt-4 border-t border-line text-sm text-status-occupied hover:opacity-80 text-left"
-        >
-          Eliminar mesa
-        </button>
+        <div className="mt-4 pt-4 border-t border-line flex items-center justify-between gap-2">
+          <button onClick={onDuplicate} className="text-sm text-accent hover:opacity-80 text-left">
+            Duplicar mesa
+          </button>
+          <button onClick={onDelete} className="text-sm text-status-occupied hover:opacity-80 text-left">
+            Eliminar mesa
+          </button>
+        </div>
       )}
     </aside>
   );

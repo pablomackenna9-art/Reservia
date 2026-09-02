@@ -20,6 +20,7 @@ export function PlanoDeMesasPage() {
     moveTable,
     updateTableProps,
     toggleTableBlocked,
+    duplicateTable,
     deleteTable,
     changeReservationStatus,
     seatWalkIn,
@@ -105,7 +106,7 @@ export function PlanoDeMesasPage() {
 
       <p className="text-xs text-ink-faint mb-3">
         Arrastrá una mesa para moverla — se guarda sola.
-        {editMode && " En modo edición podés agregar mesas nuevas y eliminarlas."}
+        {editMode && " En modo edición podés agregar, duplicar y eliminar mesas."}
       </p>
 
       <div className="flex-1 min-h-0 flex gap-4">
@@ -138,6 +139,10 @@ export function PlanoDeMesasPage() {
             }}
             onDelete={async () => {
               if (await deleteTable(selectedTable.id)) setSelectedTableId(null);
+            }}
+            onDuplicate={async () => {
+              const newId = await duplicateTable(selectedTable.id);
+              if (newId) setSelectedTableId(newId);
             }}
             onChangeReservationStatus={changeReservationStatus}
             onSeatWalkIn={(partySize, name) => seatWalkIn(selectedTable.id, partySize, name)}

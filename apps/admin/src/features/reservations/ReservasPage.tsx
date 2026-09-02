@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import {
+  acceptReservation,
+  getReservationRules,
   listReservationsForDate,
   updateReservationNotes,
   updateReservationStatus,
   updateReservationTable,
   type ReservationWithDetails,
 } from "@reservia/api-client";
-import { RESERVATION_STATUSES, type ReservationStatus } from "@reservia/core";
+import { RESERVATION_STATUSES, type ReservationRules, type ReservationStatus } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { NewReservationForm } from "./NewReservationForm";
@@ -41,11 +43,17 @@ export function ReservasPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
+  const [rules, setRules] = useState<ReservationRules | null>(null);
 
   async function reload() {
     if (!restaurantId) return;
     setLoading(true);
-    setReservations(await listReservationsForDate(supabase, restaurantId, date));
+    const [r, rr] = await Promise.all([
+      listReservationsForDate(supabase, restaurantId, date),
+      getReservationRules(supabase, restaurantId),
+    ]);
+    setReservations(r);
+    setRules(rr);
     setLoading(false);
   }
 
@@ -55,8 +63,13 @@ export function ReservasPage() {
   }, [restaurantId, date]);
 
   async function handleStatusChange(id: string, status: ReservationStatus) {
-    const totalAmount = promptTotalAmountIfCompleting(status);
-    await updateReservationStatus(supabase, id, status, totalAmount);
+    const reservation = reservations.find((r) => r.id === id);
+    if (status === "confirmed" && reservation?.status === "pending" && rules) {
+      await acceptReservation(supabase, reservation, rules.tableAssignmentMode);
+    } else {
+      const totalAmount = promptTotalAmountIfCompleting(status);
+      await updateReservationStatus(supabase, id, status, totalAmount);
+    }
     reload();
   }
 
