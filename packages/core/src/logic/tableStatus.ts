@@ -52,3 +52,30 @@ export function currentOrNextReservation<T extends Reservation>(reservationsForT
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
   return upcoming[0] ?? null;
 }
+
+export const TURNOVER_WARNING_MINUTES = 60;
+
+/**
+ * A table someone is currently seated at, with another reservation starting
+ * soon — the host needs a heads-up before it's too late to either free the
+ * table or move the incoming party elsewhere. Returns the at-risk upcoming
+ * reservation, or null when there's no such conflict.
+ */
+export function findTurnoverConflict<T extends Reservation>(
+  reservationsForTable: T[],
+  now: Date = new Date(),
+  thresholdMinutes: number = TURNOVER_WARNING_MINUTES,
+): T | null {
+  const active = reservationsForTable.filter((r) => !["cancelled", "no_show", "completed"].includes(r.status));
+  const isSeatedNow = active.some((r) => r.status === "seated");
+  if (!isSeatedNow) return null;
+
+  const upcoming = active
+    .filter((r) => r.status !== "seated" && new Date(r.startsAt) > now)
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  const next = upcoming[0];
+  if (!next) return null;
+
+  const minutesUntil = (new Date(next.startsAt).getTime() - now.getTime()) / 60_000;
+  return minutesUntil <= thresholdMinutes ? next : null;
+}

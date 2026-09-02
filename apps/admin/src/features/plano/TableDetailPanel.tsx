@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   currentOrNextReservation,
+  findTurnoverConflict,
   tableStatusLabel,
   type ReservationStatus,
   type Table,
@@ -10,8 +11,9 @@ import { joinTables, type ReservationWithDetails, type TableGroupInfo } from "@r
 import type { TableAssignmentSource, TableCandidate } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { STATUS_COLORS } from "./statusColors";
-import { NEXT_STATUS_ACTIONS } from "../reservations/statusStyles";
+import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
 import { TableAssignmentPicker } from "../reservations/TableAssignmentPicker";
+import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
 
 const SHAPE_LABEL: Record<Table["shape"], string> = {
   round: "Redonda",
@@ -44,6 +46,7 @@ export function TableDetailPanel({
   onUnjoin,
   onUpdateTable,
   onToggleBlocked,
+  onSaveNotes,
 }: {
   table: Table;
   restaurantId: string;
@@ -66,12 +69,19 @@ export function TableDetailPanel({
   onUnjoin: () => void;
   onUpdateTable?: (patch: TableEditPatch) => void;
   onToggleBlocked?: (blocked: boolean, reason?: string | null) => void;
+  onSaveNotes?: (reservationId: string, notes: string) => void;
 }) {
   const reservation = currentOrNextReservation(reservationsToday);
   const [showWalkIn, setShowWalkIn] = useState(false);
   const [walkInName, setWalkInName] = useState("Walk-in");
   const [walkInSize, setWalkInSize] = useState(Math.min(2, table.capacityMax));
   const [showMoveTo, setShowMoveTo] = useState(false);
+  const [viewReservation, setViewReservation] = useState<ReservationWithDetails | null>(null);
+
+  const todaysSchedule = reservationsToday
+    .filter((r) => r.status !== "cancelled")
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  const conflict = findTurnoverConflict(reservationsToday);
 
   const [name, setName] = useState(table.name);
   const [capacityMin, setCapacityMin] = useState(table.capacityMin);
@@ -146,6 +156,19 @@ export function TableDetailPanel({
           <span>Unida con Mesa {joinedTableNames.join(", ")}</span>
           <button onClick={onUnjoin} className="text-ink-faint hover:text-status-occupied">
             Desunir
+          </button>
+        </div>
+      )}
+
+      {conflict && (
+        <div className="rounded-lg border border-status-arriving/50 bg-status-arriving/10 px-3 py-2 text-xs mb-3">
+          <p className="text-status-arriving font-medium">
+            ⚠️ Hay gente sentada y una reserva a las{" "}
+            {new Date(conflict.startsAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })} (
+            {conflict.customerName}, {conflict.partySize}p)
+          </p>
+          <button onClick={() => setViewReservation(conflict)} className="text-accent mt-1">
+            Ver reserva y mover a otra mesa →
           </button>
         </div>
       )}
@@ -235,6 +258,34 @@ export function TableDetailPanel({
           >
             + Sentar walk-in
           </button>
+        </div>
+      )}
+
+      {todaysSchedule.length > 0 && (
+        <div className="mb-4">
+          <p className="text-xs text-ink-faint uppercase tracking-wide mb-1.5">Reservas de hoy en esta mesa</p>
+          <div className="rounded-lg border border-line divide-y divide-line overflow-hidden">
+            {todaysSchedule.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => setViewReservation(r)}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-ground"
+              >
+                <span className="w-11 text-xs tabular-nums text-ink-muted shrink-0">
+                  {new Date(r.startsAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+                <span className="flex-1 min-w-0 text-xs truncate">
+                  {r.customerName} · {r.partySize}p
+                </span>
+                <span
+                  className="text-[10px] rounded-full px-1.5 py-0.5 border shrink-0"
+                  style={{ color: RESERVATION_STATUS_COLOR[r.status], borderColor: RESERVATION_STATUS_COLOR[r.status] }}
+                >
+                  {RESERVATION_STATUS_LABEL[r.status]}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -389,6 +440,18 @@ export function TableDetailPanel({
             Eliminar mesa
           </button>
         </div>
+      )}
+
+      {viewReservation && (
+        <ReservationDetailModal
+          reservation={reservationsToday.find((r) => r.id === viewReservation.id) ?? viewReservation}
+          restaurantId={restaurantId}
+          zoneName={zoneName}
+          onClose={() => setViewReservation(null)}
+          onChangeStatus={(id, s) => onChangeReservationStatus(id, s)}
+          onAssignTable={(id, tableId, source) => onMoveReservation(id, tableId, source)}
+          onSaveNotes={(id, notes) => onSaveNotes?.(id, notes)}
+        />
       )}
     </aside>
   );

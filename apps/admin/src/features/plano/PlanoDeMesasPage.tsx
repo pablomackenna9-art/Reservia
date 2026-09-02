@@ -27,6 +27,7 @@ export function PlanoDeMesasPage() {
     joinTablesTogether,
     unjoinTable,
     moveReservationToTable,
+    saveReservationNotes,
   } = useFloorPlan(restaurantId);
 
   const [activeZoneId, setActiveZoneId] = useState<string | "all">("all");
@@ -147,6 +148,7 @@ export function PlanoDeMesasPage() {
             onChangeReservationStatus={changeReservationStatus}
             onSeatWalkIn={(partySize, name) => seatWalkIn(selectedTable.id, partySize, name)}
             onMoveReservation={moveReservationToTable}
+            onSaveNotes={saveReservationNotes}
             onStartJoin={() => setJoinSourceId(selectedTable.id)}
             onCancelJoin={() => setJoinSourceId(null)}
             onUnjoin={() => unjoinTable(selectedTable.id)}

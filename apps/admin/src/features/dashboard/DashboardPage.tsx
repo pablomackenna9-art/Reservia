@@ -262,6 +262,7 @@ export function DashboardPage() {
             onChangeReservationStatus={changeReservationStatus}
             onSeatWalkIn={(partySize, name) => seatWalkIn(selectedTable.id, partySize, name)}
             onMoveReservation={moveReservationToTable}
+            onSaveNotes={saveReservationNotes}
             onStartJoin={() => setJoinSourceId(selectedTable.id)}
             onCancelJoin={() => setJoinSourceId(null)}
             onUnjoin={() => unjoinTable(selectedTable.id)}
