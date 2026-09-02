@@ -14,6 +14,9 @@ export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
 export const RESERVATION_SOURCES = ["admin", "public_portal", "phone", "walk_in"] as const;
 export type ReservationSource = (typeof RESERVATION_SOURCES)[number];
 
+export const TABLE_ASSIGNMENT_SOURCES = ["manual", "suggested", "automatic"] as const;
+export type TableAssignmentSource = (typeof TABLE_ASSIGNMENT_SOURCES)[number];
+
 export const reservationSchema = z
   .object({
     id: z.string().uuid(),
@@ -29,6 +32,9 @@ export const reservationSchema = z
     internalNotes: z.string().nullable(),
     totalAmount: z.number().nonnegative().nullable(),
     createdAt: z.string(),
+    /** The Smart Table Engine's top pick at assignment time — kept even if staff later override it. */
+    suggestedTableId: z.string().uuid().nullable().default(null),
+    tableAssignmentSource: z.enum(TABLE_ASSIGNMENT_SOURCES).nullable().default(null),
   })
   .refine((r) => new Date(r.endsAt) > new Date(r.startsAt), {
     message: "endsAt debe ser posterior a startsAt",

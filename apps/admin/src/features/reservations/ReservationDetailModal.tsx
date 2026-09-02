@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from "react";
-import type { ReservationStatus, Table } from "@reservia/core";
-import { listAvailableTables, type ReservationWithDetails } from "@reservia/api-client";
+import type { ReservationStatus, TableAssignmentSource, TableCandidate } from "@reservia/core";
+import { joinTables, type ReservationWithDetails } from "@reservia/api-client";
 import { supabase } from "../../lib/supabase";
 import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "./statusStyles";
+import { TableAssignmentPicker } from "./TableAssignmentPicker";
 
 const SOURCE_LABEL: Record<ReservationWithDetails["source"], string> = {
   admin: "Cargada por el staff",
@@ -25,28 +26,24 @@ export function ReservationDetailModal({
   zoneName: string | null;
   onClose: () => void;
   onChangeStatus: (id: string, status: ReservationStatus) => void | Promise<void>;
-  onAssignTable: (reservationId: string, tableId: string) => void | Promise<void>;
+  onAssignTable: (reservationId: string, tableId: string, source?: TableAssignmentSource) => void | Promise<void>;
   onSaveNotes: (id: string, notes: string) => void | Promise<void>;
 }) {
   const [internalNotes, setInternalNotes] = useState(reservation.internalNotes ?? "");
   const [savingNotes, setSavingNotes] = useState(false);
   const [showTablePicker, setShowTablePicker] = useState(false);
-  const [pickerTables, setPickerTables] = useState<Table[] | null>(null);
 
   const needsApproval = reservation.status === "pending";
   const needsTable = !needsApproval && reservation.tableId === null && ["confirmed", "arriving"].includes(reservation.status);
   const isFinal = ["cancelled", "completed", "no_show"].includes(reservation.status);
 
-  async function openTablePicker() {
-    setShowTablePicker(true);
-    setPickerTables(
-      await listAvailableTables(supabase, {
-        restaurantId,
-        partySize: reservation.partySize,
-        startsAt: reservation.startsAt,
-        endsAt: reservation.endsAt,
-      }),
-    );
+  async function handlePickTable(candidate: TableCandidate, wasRecommended: boolean) {
+    const source: TableAssignmentSource = wasRecommended ? "suggested" : "manual";
+    await onAssignTable(reservation.id, candidate.tableIds[0]!, source);
+    if (candidate.isCombination && candidate.tableIds.length > 1) {
+      await joinTables(supabase, restaurantId, candidate.tableIds[0]!, candidate.tableIds[1]!, `Mesa ${candidate.tableNames.join("+")}`);
+    }
+    setShowTablePicker(false);
   }
 
   async function saveNotes() {
@@ -153,14 +150,14 @@ export function ReservationDetailModal({
 
         {needsTable && !showTablePicker && (
           <button
-            onClick={openTablePicker}
+            onClick={() => setShowTablePicker(true)}
             className="w-full rounded-lg bg-accent text-accent-ink px-3 py-2 text-sm font-medium"
           >
             Asignar mesa
           </button>
         )}
 
-        {!needsApproval && !isFinal && reservation.tableId && (
+        {!needsApproval && !isFinal && reservation.tableId && !showTablePicker && (
           <div className="flex flex-wrap gap-1.5">
             {NEXT_STATUS_ACTIONS[reservation.status]?.map((action) => (
               <button
@@ -172,7 +169,7 @@ export function ReservationDetailModal({
               </button>
             ))}
             <button
-              onClick={openTablePicker}
+              onClick={() => setShowTablePicker(true)}
               className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-xs text-ink hover:border-accent"
             >
               Cambiar de mesa
@@ -181,28 +178,16 @@ export function ReservationDetailModal({
         )}
 
         {showTablePicker && (
-          <div className="mt-2.5 pt-2.5 border-t border-line">
-            {pickerTables === null ? (
-              <p className="text-xs text-ink-faint">Buscando mesas disponibles…</p>
-            ) : pickerTables.length === 0 ? (
-              <p className="text-xs text-ink-faint">Ninguna mesa libre a esa hora para {reservation.partySize} personas.</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {pickerTables.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => {
-                      onAssignTable(reservation.id, t.id);
-                      setShowTablePicker(false);
-                    }}
-                    className="rounded-lg bg-ground border border-line px-2 py-1 text-xs hover:border-accent"
-                  >
-                    Mesa {t.name} · {t.capacityMax}p
-                  </button>
-                ))}
-              </div>
-            )}
-            <button onClick={() => setShowTablePicker(false)} className="text-xs text-ink-faint mt-1.5">
+          <div className="pt-2.5 border-t border-line">
+            <TableAssignmentPicker
+              restaurantId={restaurantId}
+              partySize={reservation.partySize}
+              startsAt={reservation.startsAt}
+              endsAt={reservation.endsAt}
+              excludeReservationId={reservation.id}
+              onSelect={handlePickTable}
+            />
+            <button onClick={() => setShowTablePicker(false)} className="text-xs text-ink-faint mt-2">
               Cancelar
             </button>
           </div>

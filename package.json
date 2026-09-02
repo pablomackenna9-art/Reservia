@@ -9,6 +9,7 @@
     "dev:booking": "turbo run dev --filter=@reservia/booking",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "lint": "turbo run lint"
   },
   "devDependencies": {

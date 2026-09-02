@@ -3,6 +3,9 @@ import type { KonvaEventObject } from "konva/lib/Node";
 import { computeSeats, tableStatusLabel, type Table, type TableLiveStatusValue, type Zone } from "@reservia/core";
 import { STATUS_COLORS } from "./statusColors";
 
+/** Used only by the Smart Table Engine's floor-plan picker — undefined everywhere else, so the normal plano is untouched. */
+export type TableHighlightState = "recommended" | "alternative" | "dimmed";
+
 interface TableTokenProps {
   table: Table;
   zone: Zone;
@@ -13,10 +16,12 @@ interface TableTokenProps {
   draggable?: boolean;
   /** Fired with the new position in zone-local units (not %) so the caller converts once. */
   onDragEnd?: (x: number, y: number) => void;
+  highlightState?: TableHighlightState;
 }
 
 const SEAT_RADIUS = 4;
 const RING_WIDTH = 3;
+const RECOMMENDED_COLOR = "#4cae83";
 
 export function TableToken({
   table,
@@ -26,6 +31,7 @@ export function TableToken({
   onSelect,
   draggable = false,
   onDragEnd,
+  highlightState,
 }: TableTokenProps) {
   const seats = computeSeats({
     shape: table.shape,
@@ -33,7 +39,8 @@ export function TableToken({
     width: table.width,
     height: table.height,
   });
-  const ringColor = STATUS_COLORS[status];
+  const ringColor = highlightState === "recommended" ? RECOMMENDED_COLOR : STATUS_COLORS[status];
+  const groupOpacity = highlightState === "dimmed" ? 0.32 : 1;
 
   // positionX/Y are 0–100% of the zone's logical canvas, not absolute units.
   const x = (table.positionX / 100) * zone.width;
@@ -48,6 +55,7 @@ export function TableToken({
       x={x}
       y={y}
       rotation={table.rotation}
+      opacity={groupOpacity}
       onClick={onSelect}
       onTap={onSelect}
       draggable={draggable}
@@ -100,7 +108,7 @@ export function TableToken({
           fillLinearGradientEndPoint={{ x: table.width / 2, y: table.height / 2 }}
           fillLinearGradientColorStops={[0, "#4a3826", 1, "#2b2015"]}
           stroke={ringColor}
-          strokeWidth={RING_WIDTH}
+          strokeWidth={highlightState === "recommended" ? RING_WIDTH + 1.5 : RING_WIDTH}
           shadowColor="#000"
           shadowBlur={10}
           shadowOpacity={0.4}
@@ -117,11 +125,26 @@ export function TableToken({
           fillLinearGradientEndPoint={{ x: table.width / 2, y: table.height / 2 }}
           fillLinearGradientColorStops={[0, "#4a3826", 1, "#2b2015"]}
           stroke={ringColor}
-          strokeWidth={RING_WIDTH}
+          strokeWidth={highlightState === "recommended" ? RING_WIDTH + 1.5 : RING_WIDTH}
           shadowColor="#000"
           shadowBlur={10}
           shadowOpacity={0.4}
           shadowOffsetY={4}
+        />
+      )}
+
+      {highlightState === "recommended" && (
+        <Text
+          text="RECOMENDADA"
+          fontSize={9}
+          fontStyle="700"
+          letterSpacing={0.5}
+          fill={RECOMMENDED_COLOR}
+          width={table.width + 40}
+          align="center"
+          offsetX={(table.width + 40) / 2}
+          y={-table.height / 2 - 22}
+          rotation={-table.rotation}
         />
       )}
 

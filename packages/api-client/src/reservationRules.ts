@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_RESERVATION_RULES, type ReservationRules } from "@reservia/core";
+import { DEFAULT_RESERVATION_RULES, type ReservationRules, type TableAssignmentMode } from "@reservia/core";
 
 export async function getReservationRules(
   supabase: SupabaseClient,
@@ -35,6 +35,7 @@ export async function updateReservationRules(
       max_advance_days: next.maxAdvanceDays,
       allow_online_booking: next.allowOnlineBooking,
       average_ticket_per_person: next.averageTicketPerPerson,
+      table_assignment_mode: next.tableAssignmentMode,
     },
     { onConflict: "restaurant_id" },
   );
@@ -49,6 +50,14 @@ export async function setAverageTicketPerPerson(
   return updateReservationRules(supabase, restaurantId, { averageTicketPerPerson });
 }
 
+export async function setTableAssignmentMode(
+  supabase: SupabaseClient,
+  restaurantId: string,
+  tableAssignmentMode: TableAssignmentMode,
+): Promise<void> {
+  return updateReservationRules(supabase, restaurantId, { tableAssignmentMode });
+}
+
 function mapReservationRules(row: Record<string, unknown>): ReservationRules {
   return {
     restaurantId: row.restaurant_id as string,
@@ -60,5 +69,6 @@ function mapReservationRules(row: Record<string, unknown>): ReservationRules {
     maxAdvanceDays: row.max_advance_days as number,
     allowOnlineBooking: row.allow_online_booking as boolean,
     averageTicketPerPerson: Number(row.average_ticket_per_person ?? 0),
+    tableAssignmentMode: (row.table_assignment_mode as TableAssignmentMode) ?? "suggest",
   };
 }

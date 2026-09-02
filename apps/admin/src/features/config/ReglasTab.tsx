@@ -1,7 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { getReservationRules, updateReservationRules } from "@reservia/api-client";
-import { DEFAULT_RESERVATION_RULES, type ReservationRules } from "@reservia/core";
+import { DEFAULT_RESERVATION_RULES, TABLE_ASSIGNMENT_MODES, type ReservationRules, type TableAssignmentMode } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
+
+const MODE_LABEL: Record<TableAssignmentMode, string> = {
+  manual: "Manual — Reservia nunca asigna mesa sola",
+  suggest: "Sugerir — recomienda, el staff confirma",
+  automatic: "Automático — asigna sola, el staff puede cambiarla",
+};
 
 export function ReglasTab({ restaurantId }: { restaurantId: string }) {
   const [rules, setRules] = useState<ReservationRules>({ restaurantId, ...DEFAULT_RESERVATION_RULES });
@@ -109,6 +115,20 @@ export function ReglasTab({ restaurantId }: { restaurantId: string }) {
           />
           Permitir reservas desde el portal público
         </label>
+
+        <Field label="Asignación de mesas">
+          <select
+            value={rules.tableAssignmentMode}
+            onChange={(e) => setRules({ ...rules, tableAssignmentMode: e.target.value as TableAssignmentMode })}
+            className="w-full rounded-lg bg-surface border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+          >
+            {TABLE_ASSIGNMENT_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {MODE_LABEL[mode]}
+              </option>
+            ))}
+          </select>
+        </Field>
 
         <button
           onClick={handleSave}

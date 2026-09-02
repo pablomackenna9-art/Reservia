@@ -4,7 +4,7 @@ import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Table, TableLiveStatusValue, Zone } from "@reservia/core";
 import { useContainerSize } from "../../hooks/useContainerSize";
-import { TableToken } from "./TableToken";
+import { TableToken, type TableHighlightState } from "./TableToken";
 
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 4;
@@ -26,6 +26,8 @@ interface ZoneCanvasProps {
   onSelectTable: (id: string | null) => void;
   onMoveTable?: (tableId: string, positionX: number, positionY: number) => void;
   getTableStatus?: (tableId: string) => TableLiveStatusValue;
+  /** Smart Table Engine floor-plan picker only — leave undefined for the normal plano. */
+  getHighlightState?: (tableId: string) => TableHighlightState | undefined;
 }
 
 export function ZoneCanvas({
@@ -35,6 +37,7 @@ export function ZoneCanvas({
   onSelectTable,
   onMoveTable,
   getTableStatus,
+  getHighlightState,
 }: ZoneCanvasProps) {
   const { ref: containerRef, width, height } = useContainerSize<HTMLDivElement>();
   const stageRef = useRef<Konva.Stage | null>(null);
@@ -189,6 +192,7 @@ export function ZoneCanvas({
                   status={getTableStatus?.(table.id)}
                   selected={table.id === selectedTableId}
                   onSelect={() => onSelectTable(table.id)}
+                  highlightState={getHighlightState?.(table.id)}
                   draggable={Boolean(onMoveTable)}
                   onDragEnd={
                     onMoveTable

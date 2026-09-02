@@ -1,15 +1,35 @@
 import { useEffect, useState, type FormEvent } from "react";
-import {
-  createCustomer,
-  createReservation,
-  listAvailableTables,
-  searchCustomers,
-} from "@reservia/api-client";
-import type { Customer, Table } from "@reservia/core";
+import { createCustomer, createReservation, getReservationRules, listHours, searchCustomers } from "@reservia/api-client";
+import type { Customer, ReservationRules, RestaurantHours, TableCandidate } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
+import { TableAssignmentPicker } from "./TableAssignmentPicker";
 
-const DURATIONS = [60, 90, 120, 150];
+const SLOT_INTERVAL_MINUTES = 30;
+
+interface Slot {
+  time: string; // "HH:MM"
+  label: string;
+}
+
+function buildSlots(hours: RestaurantHours[], dayOfWeek: number, durationMinutes: number): Slot[] {
+  const servicesToday = hours.filter((h) => h.dayOfWeek === dayOfWeek);
+  const slots: Slot[] = [];
+  for (const service of servicesToday) {
+    const [openH = 0, openM = 0] = service.opensAt.split(":").map(Number);
+    const [closeH = 0, closeM = 0] = service.closesAt.split(":").map(Number);
+    const openMinutes = openH * 60 + openM;
+    const closeMinutes = closeH * 60 + closeM;
+    for (let m = openMinutes; m + durationMinutes <= closeMinutes; m += SLOT_INTERVAL_MINUTES) {
+      const h = Math.floor(m / 60);
+      const min = m % 60;
+      const time = `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+      const label = new Date(`2000-01-01T${time}:00`).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+      slots.push({ time, label });
+    }
+  }
+  return slots;
+}
 
 export function NewReservationForm({
   restaurantId,
@@ -35,18 +55,31 @@ export function NewReservationForm({
   const [duplicateMatches, setDuplicateMatches] = useState<Customer[]>([]);
 
   const [partySize, setPartySize] = useState(2);
-  const [time, setTime] = useState("20:00");
-  const [duration, setDuration] = useState(90);
+  const [time, setTime] = useState<string | null>(null);
 
-  const [availableTables, setAvailableTables] = useState<Table[]>([]);
-  const [tablesLoading, setTablesLoading] = useState(false);
-  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [hours, setHours] = useState<RestaurantHours[]>([]);
+  const [rules, setRules] = useState<ReservationRules | null>(null);
+
+  const [selectedCandidate, setSelectedCandidate] = useState<{ candidate: TableCandidate; wasRecommended: boolean } | null>(
+    null,
+  );
 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const startsAt = `${date}T${time}:00`;
-  const endsAt = new Date(new Date(startsAt).getTime() + duration * 60_000).toISOString();
+  useEffect(() => {
+    Promise.all([listHours(supabase, restaurantId), getReservationRules(supabase, restaurantId)]).then(([h, r]) => {
+      setHours(h);
+      setRules(r);
+    });
+  }, [restaurantId]);
+
+  const duration = rules?.defaultDurationMinutes ?? 90;
+  const dayOfWeek = new Date(`${date}T12:00:00`).getDay();
+  const slots = buildSlots(hours, dayOfWeek, duration);
+
+  const startsAt = time ? `${date}T${time}:00` : null;
+  const endsAt = startsAt ? new Date(new Date(startsAt).getTime() + duration * 60_000).toISOString() : null;
 
   useEffect(() => {
     const handle = setTimeout(async () => {
@@ -71,26 +104,16 @@ export function NewReservationForm({
     return () => clearTimeout(handle);
   }, [newCustomerMode, newPhone, newEmail, restaurantId, selectedCustomer]);
 
+  // A previously picked table stops being valid the moment the time or party
+  // size changes — force the host to re-confirm rather than silently keep a
+  // stale (maybe now-unavailable) assignment.
   useEffect(() => {
-    let cancelled = false;
-    setTablesLoading(true);
-    setSelectedTableId(null);
-    listAvailableTables(supabase, { restaurantId, partySize, startsAt: new Date(startsAt).toISOString(), endsAt })
-      .then((tables) => {
-        if (!cancelled) setAvailableTables(tables);
-      })
-      .finally(() => {
-        if (!cancelled) setTablesLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurantId, partySize, startsAt, duration]);
+    setSelectedCandidate(null);
+  }, [time, partySize]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !startsAt || !endsAt) return;
     setError(null);
 
     if (!selectedCustomer && !newFirstName.trim()) {
@@ -115,11 +138,12 @@ export function NewReservationForm({
       await createReservation(supabase, {
         restaurantId,
         customerId,
-        tableId: selectedTableId,
+        tableId: selectedCandidate?.candidate.tableIds[0] ?? null,
         startsAt: new Date(startsAt).toISOString(),
         endsAt,
         partySize,
         createdBy: user.id,
+        tableAssignmentSource: selectedCandidate ? (selectedCandidate.wasRecommended ? "suggested" : "manual") : undefined,
       });
 
       onCreated();
@@ -241,7 +265,7 @@ export function NewReservationForm({
           )}
         </div>
 
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="grid grid-cols-2 gap-2 mb-4">
           <div>
             <label className="block text-sm text-ink-muted mb-1">Personas</label>
             <input
@@ -254,53 +278,59 @@ export function NewReservationForm({
             />
           </div>
           <div>
-            <label className="block text-sm text-ink-muted mb-1">Hora</label>
-            <input
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
-            />
-          </div>
-          <div>
             <label className="block text-sm text-ink-muted mb-1">Duración</label>
-            <select
-              value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
-              className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
-            >
-              {DURATIONS.map((d) => (
-                <option key={d} value={d}>
-                  {d} min
-                </option>
-              ))}
-            </select>
+            <p className="text-sm text-ink py-2">{duration} min</p>
           </div>
         </div>
 
         <div className="mb-4">
-          <label className="block text-sm text-ink-muted mb-1">Mesa (opcional)</label>
-          {tablesLoading ? (
-            <p className="text-xs text-ink-faint">Buscando mesas disponibles…</p>
-          ) : availableTables.length === 0 ? (
-            <p className="text-xs text-ink-faint">Ninguna mesa activa tiene capacidad libre a esa hora.</p>
+          <label className="block text-sm text-ink-muted mb-1">Hora</label>
+          {hours.length === 0 && rules === null ? (
+            <p className="text-xs text-ink-faint">Cargando horarios…</p>
+          ) : slots.length === 0 ? (
+            <p className="text-xs text-ink-faint">El restaurante no tiene horario configurado para ese día.</p>
           ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {availableTables.map((t) => (
+            <div className="grid grid-cols-4 gap-1.5">
+              {slots.map((s) => (
                 <button
-                  key={t.id}
+                  key={s.time}
                   type="button"
-                  onClick={() => setSelectedTableId(t.id === selectedTableId ? null : t.id)}
-                  className={`rounded-lg px-2.5 py-1.5 text-xs border ${
-                    t.id === selectedTableId
+                  onClick={() => setTime(s.time)}
+                  className={`rounded-lg px-2 py-1.5 text-xs border ${
+                    s.time === time
                       ? "bg-accent text-accent-ink border-accent"
                       : "bg-ground border-line text-ink-muted hover:text-ink"
                   }`}
                 >
-                  {t.name} · {t.capacityMax}p
+                  {s.label}
                 </button>
               ))}
             </div>
+          )}
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm text-ink-muted mb-1">Mesa (opcional)</label>
+          {!startsAt ? (
+            <p className="text-xs text-ink-faint">Elegí una hora primero.</p>
+          ) : selectedCandidate ? (
+            <div className="flex items-center justify-between rounded-lg bg-ground border border-line px-3 py-2 text-sm">
+              <span>
+                {selectedCandidate.candidate.tableNames.join(" + ")} · {selectedCandidate.candidate.capacityMax}p
+              </span>
+              <button type="button" onClick={() => setSelectedCandidate(null)} className="text-ink-faint hover:text-ink">
+                Cambiar
+              </button>
+            </div>
+          ) : (
+            <TableAssignmentPicker
+              restaurantId={restaurantId}
+              partySize={partySize}
+              startsAt={new Date(startsAt).toISOString()}
+              endsAt={endsAt!}
+              allowCombinations={false}
+              onSelect={(candidate, wasRecommended) => setSelectedCandidate({ candidate, wasRecommended })}
+            />
           )}
         </div>
 
@@ -312,7 +342,7 @@ export function NewReservationForm({
           </button>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !startsAt}
             className="rounded-lg bg-accent text-accent-ink px-4 py-2 text-sm font-medium disabled:opacity-60"
           >
             {submitting ? "Creando…" : "Crear reserva"}

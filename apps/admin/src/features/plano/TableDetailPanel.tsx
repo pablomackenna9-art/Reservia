@@ -6,10 +6,12 @@ import {
   type Table,
   type TableLiveStatusValue,
 } from "@reservia/core";
-import { listAvailableTables, type ReservationWithDetails, type TableGroupInfo } from "@reservia/api-client";
+import { joinTables, type ReservationWithDetails, type TableGroupInfo } from "@reservia/api-client";
+import type { TableAssignmentSource, TableCandidate } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { STATUS_COLORS } from "./statusColors";
 import { NEXT_STATUS_ACTIONS } from "../reservations/statusStyles";
+import { TableAssignmentPicker } from "../reservations/TableAssignmentPicker";
 
 const SHAPE_LABEL: Record<Table["shape"], string> = {
   round: "Redonda",
@@ -40,6 +42,7 @@ export function TableDetailPanel({
   onCancelJoin,
   onUnjoin,
   onUpdateTable,
+  onToggleBlocked,
 }: {
   table: Table;
   restaurantId: string;
@@ -55,18 +58,18 @@ export function TableDetailPanel({
   onDelete: () => void;
   onChangeReservationStatus: (reservationId: string, status: ReservationStatus) => void;
   onSeatWalkIn: (partySize: number, name: string) => void;
-  onMoveReservation: (reservationId: string, tableId: string) => void;
+  onMoveReservation: (reservationId: string, tableId: string, source?: TableAssignmentSource) => void;
   onStartJoin: () => void;
   onCancelJoin: () => void;
   onUnjoin: () => void;
   onUpdateTable?: (patch: TableEditPatch) => void;
+  onToggleBlocked?: (blocked: boolean, reason?: string | null) => void;
 }) {
   const reservation = currentOrNextReservation(reservationsToday);
   const [showWalkIn, setShowWalkIn] = useState(false);
   const [walkInName, setWalkInName] = useState("Walk-in");
   const [walkInSize, setWalkInSize] = useState(Math.min(2, table.capacityMax));
   const [showMoveTo, setShowMoveTo] = useState(false);
-  const [movableTables, setMovableTables] = useState<Table[] | null>(null);
 
   const [name, setName] = useState(table.name);
   const [capacityMin, setCapacityMin] = useState(table.capacityMin);
@@ -107,17 +110,14 @@ export function TableDetailPanel({
     ? groupInfo.tableIds.filter((id) => id !== table.id).map((id) => allTables.find((t) => t.id === id)?.name ?? "?")
     : [];
 
-  async function openMoveTo() {
+  async function handlePickTable(candidate: TableCandidate, wasRecommended: boolean) {
     if (!reservation) return;
-    setShowMoveTo(true);
-    setMovableTables(
-      await listAvailableTables(supabase, {
-        restaurantId,
-        partySize: reservation.partySize,
-        startsAt: reservation.startsAt,
-        endsAt: reservation.endsAt,
-      }),
-    );
+    const source: TableAssignmentSource = wasRecommended ? "suggested" : "manual";
+    onMoveReservation(reservation.id, candidate.tableIds[0]!, source);
+    if (candidate.isCombination && candidate.tableIds.length > 1) {
+      await joinTables(supabase, restaurantId, candidate.tableIds[0]!, candidate.tableIds[1]!, `Mesa ${candidate.tableNames.join("+")}`);
+    }
+    setShowMoveTo(false);
   }
 
   return (
@@ -167,7 +167,7 @@ export function TableDetailPanel({
               </button>
             ))}
             <button
-              onClick={openMoveTo}
+              onClick={() => setShowMoveTo(true)}
               className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-xs text-ink hover:border-accent"
             >
               Cambiar de mesa
@@ -176,26 +176,14 @@ export function TableDetailPanel({
 
           {showMoveTo && (
             <div className="mt-2.5 pt-2.5 border-t border-line">
-              {movableTables === null ? (
-                <p className="text-xs text-ink-faint">Buscando mesas disponibles…</p>
-              ) : movableTables.length === 0 ? (
-                <p className="text-xs text-ink-faint">Ninguna otra mesa libre a esa hora.</p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {movableTables.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        onMoveReservation(reservation.id, t.id);
-                        setShowMoveTo(false);
-                      }}
-                      className="rounded-lg bg-ground border border-line px-2 py-1 text-xs hover:border-accent"
-                    >
-                      Mesa {t.name} · {t.capacityMax}p
-                    </button>
-                  ))}
-                </div>
-              )}
+              <TableAssignmentPicker
+                restaurantId={restaurantId}
+                partySize={reservation.partySize}
+                startsAt={reservation.startsAt}
+                endsAt={reservation.endsAt}
+                excludeReservationId={reservation.id}
+                onSelect={handlePickTable}
+              />
               <button onClick={() => setShowMoveTo(false)} className="text-xs text-ink-faint mt-1.5">
                 Cancelar
               </button>
@@ -348,6 +336,23 @@ export function TableDetailPanel({
               />
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-xs pt-1 border-t border-line">
+            <input
+              type="checkbox"
+              checked={table.blocked}
+              onChange={(e) => onToggleBlocked?.(e.target.checked, table.blockedReason)}
+            />
+            Mesa bloqueada (fuera de servicio temporalmente)
+          </label>
+          {table.blocked && (
+            <input
+              value={table.blockedReason ?? ""}
+              onChange={(e) => onToggleBlocked?.(true, e.target.value)}
+              placeholder="Motivo (opcional)"
+              className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+            />
+          )}
         </div>
       ) : (
         <dl className="space-y-2.5 text-sm mb-4">

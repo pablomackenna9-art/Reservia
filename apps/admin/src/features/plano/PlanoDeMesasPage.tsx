@@ -19,6 +19,7 @@ export function PlanoDeMesasPage() {
     getTableStatus,
     moveTable,
     updateTableProps,
+    toggleTableBlocked,
     deleteTable,
     changeReservationStatus,
     seatWalkIn,
@@ -145,6 +146,7 @@ export function PlanoDeMesasPage() {
             onCancelJoin={() => setJoinSourceId(null)}
             onUnjoin={() => unjoinTable(selectedTable.id)}
             onUpdateTable={(patch) => updateTableProps(selectedTable.id, patch)}
+            onToggleBlocked={(blocked, reason) => toggleTableBlocked(selectedTable.id, blocked, reason)}
           />
         )}
       </div>

@@ -6,6 +6,7 @@ import {
   updateReservationTable,
   type ReservationWithDetails,
 } from "@reservia/api-client";
+import type { TableAssignmentSource } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
@@ -60,8 +61,8 @@ export function NotificacionesPage() {
     setDetailReservation(null);
   }
 
-  async function handleAssignTable(id: string, tableId: string) {
-    await updateReservationTable(supabase, id, tableId);
+  async function handleAssignTable(id: string, tableId: string, source?: TableAssignmentSource) {
+    await updateReservationTable(supabase, id, tableId, source);
     await reload();
     setDetailReservation(null);
   }

@@ -33,6 +33,9 @@ export const tableSchema = z.object({
   rotation: z.number().min(0).max(359).default(0),
   active: z.boolean(),
   joinable: z.boolean().default(false),
+  /** Temporarily out of service (broken, reserved for a private event) — distinct from `active`, which is a soft delete. */
+  blocked: z.boolean().default(false),
+  blockedReason: z.string().nullable().default(null),
 });
 export type Table = z.infer<typeof tableSchema>;
 

@@ -9,6 +9,7 @@ import {
   listTableGroups,
   listTables,
   listZones,
+  setTableBlocked,
   ungroupTables,
   updateReservationNotes,
   updateReservationStatus,
@@ -18,7 +19,14 @@ import {
   type ReservationWithDetails,
   type TableGroupInfo,
 } from "@reservia/api-client";
-import { deriveTableStatus, type ReservationStatus, type ReservationRules, type Table, type Zone } from "@reservia/core";
+import {
+  deriveTableStatus,
+  type ReservationStatus,
+  type ReservationRules,
+  type Table,
+  type TableAssignmentSource,
+  type Zone,
+} from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
 import { promptTotalAmountIfCompleting } from "../reservations/promptTotalAmount";
@@ -88,6 +96,11 @@ export function useFloorPlan(restaurantId: string | undefined) {
     await updateTable(supabase, tableId, patch);
   }
 
+  async function toggleTableBlocked(tableId: string, blocked: boolean, reason?: string | null) {
+    setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, blocked, blockedReason: blocked ? (reason ?? null) : null } : t)));
+    await setTableBlocked(supabase, tableId, blocked, reason);
+  }
+
   async function deleteTable(tableId: string) {
     if (!confirm("¿Eliminar esta mesa? Se puede volver a crear, pero no se recupera esta.")) return false;
     await deactivateTable(supabase, tableId);
@@ -147,8 +160,8 @@ export function useFloorPlan(restaurantId: string | undefined) {
     await reload();
   }
 
-  async function moveReservationToTable(reservationId: string, tableId: string) {
-    await updateReservationTable(supabase, reservationId, tableId);
+  async function moveReservationToTable(reservationId: string, tableId: string, source?: TableAssignmentSource) {
+    await updateReservationTable(supabase, reservationId, tableId, source);
     await reload();
   }
 
@@ -191,6 +204,7 @@ export function useFloorPlan(restaurantId: string | undefined) {
     getTableStatus,
     moveTable,
     updateTableProps,
+    toggleTableBlocked,
     deleteTable,
     changeReservationStatus,
     seatWalkIn,

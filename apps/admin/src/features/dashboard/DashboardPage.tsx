@@ -396,8 +396,8 @@ export function DashboardPage() {
           onChangeStatus={async (id, status) => {
             await changeReservationStatus(id, status);
           }}
-          onAssignTable={async (id, tableId) => {
-            await moveReservationToTable(id, tableId);
+          onAssignTable={async (id, tableId, source) => {
+            await moveReservationToTable(id, tableId, source);
           }}
           onSaveNotes={saveReservationNotes}
         />

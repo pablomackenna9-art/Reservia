@@ -164,8 +164,8 @@ export function ReservasPage() {
           onChangeStatus={async (id, status) => {
             await handleStatusChange(id, status);
           }}
-          onAssignTable={async (id, tableId) => {
-            await updateReservationTable(supabase, id, tableId);
+          onAssignTable={async (id, tableId, source) => {
+            await updateReservationTable(supabase, id, tableId, source);
             await reload();
           }}
           onSaveNotes={async (id, notes) => {

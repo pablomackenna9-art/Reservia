@@ -84,6 +84,19 @@ export async function updateTable(
   if (error) throw error;
 }
 
+export async function setTableBlocked(
+  supabase: SupabaseClient,
+  id: string,
+  blocked: boolean,
+  reason?: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("tables")
+    .update({ blocked, blocked_reason: blocked ? (reason ?? null) : null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 /** Soft-delete — matches `deleted_at`/`active`-style removal used elsewhere, not a hard DELETE. */
 export async function deactivateTable(supabase: SupabaseClient, id: string): Promise<void> {
   const { error } = await supabase.from("tables").update({ active: false }).eq("id", id);
@@ -107,5 +120,7 @@ export function mapTable(row: Record<string, unknown>): Table {
     rotation: Number(row.rotation ?? 0),
     active: row.active as boolean,
     joinable: Boolean(row.joinable),
+    blocked: Boolean(row.blocked),
+    blockedReason: (row.blocked_reason as string) ?? null,
   };
 }
