@@ -76,6 +76,14 @@ function randomPhone() {
   return "+569" + String(Math.floor(10000000 + Math.random() * 89999999));
 }
 
+// Reservas reales siempre caen en la grilla de 30 min (14:00, 14:30, 15:00...)
+// -- nunca a las 17:08. Los walk-in son la única excepción: llegan cuando
+// llegan, no reservaron nada.
+const SLOT_MS = 30 * 60_000;
+function snapToSlot(date) {
+  return new Date(Math.round(date.getTime() / SLOT_MS) * SLOT_MS);
+}
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -112,9 +120,11 @@ async function main() {
   for (const table of seatedTables) {
     const { firstName, lastName } = randomName();
     const customer = await createCustomer(restaurantId, firstName, lastName);
+    const isWalkIn = Math.random() < 0.5;
     const startedMinutesAgo = 10 + Math.floor(Math.random() * 90);
     const durationMinutes = 75 + Math.floor(Math.random() * 45);
-    const startsAt = new Date(now - startedMinutesAgo * 60_000);
+    // Walk-ins sat down whenever they showed up; everyone else booked a slot.
+    const startsAt = isWalkIn ? new Date(now - startedMinutesAgo * 60_000) : snapToSlot(new Date(now - startedMinutesAgo * 60_000));
     const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
     const partySize = Math.max(1, table.capacity_max - (Math.random() < 0.4 ? 1 : 0) - (Math.random() < 0.2 ? 1 : 0));
 
@@ -128,7 +138,7 @@ async function main() {
         ends_at: endsAt.toISOString(),
         party_size: partySize,
         status: "seated",
-        source: Math.random() < 0.5 ? "walk_in" : "admin",
+        source: isWalkIn ? "walk_in" : "admin",
         created_by: ownerId,
       }),
     });
@@ -143,7 +153,7 @@ async function main() {
     const customer = await createCustomer(restaurantId, firstName, lastName);
     const minutesFromNow = 30 + i * 20 + Math.floor(Math.random() * 15);
     const durationMinutes = 75 + Math.floor(Math.random() * 45);
-    const startsAt = new Date(now + minutesFromNow * 60_000);
+    const startsAt = snapToSlot(new Date(now + minutesFromNow * 60_000));
     const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
     const partySize = Math.max(1, table.capacity_max - (Math.random() < 0.4 ? 1 : 0));
     const status = minutesFromNow <= 20 ? "arriving" : "confirmed";
@@ -173,7 +183,7 @@ async function main() {
   for (const slot of pendingSlots) {
     const { firstName, lastName } = randomName();
     const customer = await createCustomer(restaurantId, firstName, lastName);
-    const startsAt = new Date(now + slot.minutesFromNow * 60_000);
+    const startsAt = snapToSlot(new Date(now + slot.minutesFromNow * 60_000));
     const endsAt = new Date(startsAt.getTime() + 90 * 60_000);
     await rest("reservations", {
       method: "POST",
