@@ -167,20 +167,29 @@ export function NewReservationForm({
         <div className="mb-4">
           <label className="block text-sm text-ink-muted mb-1">Cliente</label>
           {selectedCustomer ? (
-            <div className="flex items-center justify-between rounded-lg bg-ground border border-line px-3 py-2 text-sm">
-              <span>
-                {selectedCustomer.firstName} {selectedCustomer.lastName ?? ""}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCustomer(null);
-                  setCustomerQuery("");
-                }}
-                className="text-ink-faint hover:text-ink"
-              >
-                Cambiar
-              </button>
+            <div>
+              <div className="flex items-center justify-between rounded-lg bg-ground border border-line px-3 py-2 text-sm">
+                <span>
+                  {selectedCustomer.firstName} {selectedCustomer.lastName ?? ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCustomer(null);
+                    setCustomerQuery("");
+                  }}
+                  className="text-ink-faint hover:text-ink"
+                >
+                  Cambiar
+                </button>
+              </div>
+              {selectedCustomer.blacklisted && (
+                <p className="text-xs text-status-occupied mt-1.5">
+                  🚫 Este cliente está bloqueado del portal público
+                  {selectedCustomer.blacklistedReason ? ` — ${selectedCustomer.blacklistedReason}` : ""}. Podés cargarle
+                  la reserva igual si es una excepción.
+                </p>
+              )}
             </div>
           ) : newCustomerMode ? (
             <div className="space-y-2">

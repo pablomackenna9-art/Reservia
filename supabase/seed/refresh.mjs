@@ -1,22 +1,26 @@
 #!/usr/bin/env node
-// Refreshes Restaurante Demo so it always looks "alive" — busy floor right
-// now, a spread of upcoming reservations, a couple of pending requests
-// waiting on approval (no table yet), and a couple of people on the
-// waitlist. Run this whenever the demo looks stale (all reservations from
-// a previous day, "hoy" showing zeros).
+// Resetea y repuebla Restaurante Demo así siempre se ve "vivo": borra toda
+// la actividad anterior (reservas, clientes, lista de espera) y genera todo
+// de nuevo relativo a "ahora" -- sin eso, cada corrida se sumaba sobre la
+// anterior y terminaba con horarios viejos e inconsistentes mezclados con
+// los nuevos. Correr cuando el demo se vea vacío o desactualizado.
 //
 // Uso:
 //   pnpm run seed:refresh
 //
 // Lee SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY desde supabase/seed/.env
-// (ya está armado con las credenciales de este proyecto — no hace falta
-// tocarlo). Si preferís no guardar la service role key en un archivo,
-// podés exportarlas vos mismo en la terminal en vez de tener el .env:
+// (ya está armado con las credenciales de este proyecto). Si preferís no
+// guardar la service role key en un archivo, exportalas vos mismo:
 //   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node supabase/seed/refresh.mjs
 //
-// No es idempotente a propósito -- cada corrida agrega actividad nueva
-// relativa a "ahora", que es exactamente el punto. Los datos viejos no
-// molestan, simplemente dejan de aparecer en las vistas de "hoy".
+// Reglas de coherencia:
+//   - Toda reserva real (pendiente, confirmada, o sentada por 'admin') cae
+//     en la grilla de 30 min -- nunca a las 17:08. Varias mesas distintas
+//     sí pueden compartir el mismo horario, eso es normal.
+//   - Los walk-in son la única excepción horaria: llegaron cuando llegaron.
+//   - Ninguna mesa recibe dos reservas que se pisen en el tiempo -- se
+//     respeta un colchón de 15 min entre una y la siguiente, igual que el
+//     buffer real del motor de disponibilidad.
 
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -76,14 +80,6 @@ function randomPhone() {
   return "+569" + String(Math.floor(10000000 + Math.random() * 89999999));
 }
 
-// Reservas reales siempre caen en la grilla de 30 min (14:00, 14:30, 15:00...)
-// -- nunca a las 17:08. Los walk-in son la única excepción: llegan cuando
-// llegan, no reservaron nada.
-const SLOT_MS = 30 * 60_000;
-function snapToSlot(date) {
-  return new Date(Math.round(date.getTime() / SLOT_MS) * SLOT_MS);
-}
-
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -92,6 +88,15 @@ function shuffle(arr) {
   }
   return a;
 }
+
+// Reservas reales siempre caen en la grilla de 30 min (14:00, 14:30, 15:00...).
+const SLOT_MS = 30 * 60_000;
+function snapToSlot(date) {
+  return new Date(Math.round(date.getTime() / SLOT_MS) * SLOT_MS);
+}
+
+// Colchón entre reservas de la misma mesa -- misma idea que bufferMinutes.
+const BUFFER_MS = 15 * 60_000;
 
 async function createCustomer(restaurantId, firstName, lastName) {
   const [customer] = await rest("customers", {
@@ -108,14 +113,39 @@ async function main() {
   const restaurantId = restaurant.id;
   const ownerId = restaurant.created_by;
 
-  const tables = await rest(`tables?restaurant_id=eq.${restaurantId}&active=eq.true&select=id,name,capacity_max&order=name`);
-  const shuffled = shuffle(tables);
+  // --- Reset: nunca acumular sobre corridas anteriores. reservations y
+  // waitlist_entries van antes que customers porque ambas la referencian
+  // con "on delete restrict".
+  console.log("Limpiando actividad anterior...");
+  await rest(`reservations?restaurant_id=eq.${restaurantId}`, { method: "DELETE" });
+  await rest(`waitlist_entries?restaurant_id=eq.${restaurantId}`, { method: "DELETE" });
+  await rest(`customers?restaurant_id=eq.${restaurantId}`, { method: "DELETE" });
+
+  const tables = await rest(
+    `tables?restaurant_id=eq.${restaurantId}&active=eq.true&select=id,name,capacity_max&order=name`,
+  );
   const now = Date.now();
 
-  // --- Mesas ocupadas ahora (~60%) ---
+  // tableId -> [[startMs, endMs], ...] -- para que ninguna mesa termine con
+  // dos reservas que se pisen en el tiempo.
+  const bookings = new Map();
+  function overlaps(tableId, startMs, endMs) {
+    const list = bookings.get(tableId);
+    if (!list) return false;
+    return list.some(([s, e]) => startMs < e + BUFFER_MS && endMs + BUFFER_MS > s);
+  }
+  function book(tableId, startMs, endMs) {
+    if (!bookings.has(tableId)) bookings.set(tableId, []);
+    bookings.get(tableId).push([startMs, endMs]);
+  }
+
+  let created = 0;
+
+  // --- Mesas ocupadas ahora (~60%) -- una reserva por mesa, sin riesgo de choque acá. ---
   const seatedCount = Math.round(tables.length * 0.6);
-  const seatedTables = shuffled.slice(0, seatedCount);
-  const freeTables = shuffled.slice(seatedCount);
+  const shuffledTables = shuffle(tables);
+  const seatedTables = shuffledTables.slice(0, seatedCount);
+  const freeTables = shuffledTables.slice(seatedCount);
 
   for (const table of seatedTables) {
     const { firstName, lastName } = randomName();
@@ -124,10 +154,13 @@ async function main() {
     const startedMinutesAgo = 10 + Math.floor(Math.random() * 90);
     const durationMinutes = 75 + Math.floor(Math.random() * 45);
     // Walk-ins sat down whenever they showed up; everyone else booked a slot.
-    const startsAt = isWalkIn ? new Date(now - startedMinutesAgo * 60_000) : snapToSlot(new Date(now - startedMinutesAgo * 60_000));
+    const startsAt = isWalkIn
+      ? new Date(now - startedMinutesAgo * 60_000)
+      : snapToSlot(new Date(now - startedMinutesAgo * 60_000));
     const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
     const partySize = Math.max(1, table.capacity_max - (Math.random() < 0.4 ? 1 : 0) - (Math.random() < 0.2 ? 1 : 0));
 
+    book(table.id, startsAt.getTime(), endsAt.getTime());
     await rest("reservations", {
       method: "POST",
       body: JSON.stringify({
@@ -142,23 +175,30 @@ async function main() {
         created_by: ownerId,
       }),
     });
+    created++;
   }
 
-  // --- Reservas confirmadas más tarde (algunas reusan mesas que van a girar) ---
+  // --- Reservas confirmadas más tarde -- se busca una mesa realmente libre
+  // para ese horario antes de asignar, no cualquiera. ---
   const upcomingSlots = 14;
-  const allTablesForUpcoming = shuffle([...seatedTables, ...freeTables, ...seatedTables]);
   for (let i = 0; i < upcomingSlots; i++) {
-    const table = allTablesForUpcoming[i % allTablesForUpcoming.length];
-    const { firstName, lastName } = randomName();
-    const customer = await createCustomer(restaurantId, firstName, lastName);
     const minutesFromNow = 30 + i * 20 + Math.floor(Math.random() * 15);
-    const durationMinutes = 75 + Math.floor(Math.random() * 45);
     const startsAt = snapToSlot(new Date(now + minutesFromNow * 60_000));
+    const durationMinutes = 75 + Math.floor(Math.random() * 45);
     const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
+
+    const table = shuffle([...seatedTables, ...freeTables]).find(
+      (t) => !overlaps(t.id, startsAt.getTime(), endsAt.getTime()),
+    );
+    if (!table) continue; // ninguna mesa libre para ese horario -- se salta, no se fuerza un choque
+
     const partySize = Math.max(1, table.capacity_max - (Math.random() < 0.4 ? 1 : 0));
     const status = minutesFromNow <= 20 ? "arriving" : "confirmed";
     const source = ["public_portal", "admin", "phone"][Math.floor(Math.random() * 3)];
+    const { firstName, lastName } = randomName();
+    const customer = await createCustomer(restaurantId, firstName, lastName);
 
+    book(table.id, startsAt.getTime(), endsAt.getTime());
     await rest("reservations", {
       method: "POST",
       body: JSON.stringify({
@@ -173,6 +213,7 @@ async function main() {
         created_by: ownerId,
       }),
     });
+    created++;
   }
 
   // --- Solicitudes pendientes sin mesa (portal público, esperando aprobación) ---
@@ -199,6 +240,7 @@ async function main() {
         notes: slot.notes ?? null,
       }),
     });
+    created++;
   }
 
   // --- Lista de espera ---
@@ -218,8 +260,8 @@ async function main() {
   }
 
   console.log(
-    `Listo: ${seatedTables.length} mesas sentadas ahora, ${upcomingSlots} reservas confirmadas más tarde, ` +
-      `${pendingSlots.length} solicitudes pendientes sin mesa, ${waitlistCount} en lista de espera.`,
+    `Listo: ${seatedTables.length} mesas sentadas ahora, ${created - seatedTables.length - pendingSlots.length} ` +
+      `reservas confirmadas más tarde, ${pendingSlots.length} solicitudes pendientes sin mesa, ${waitlistCount} en lista de espera.`,
   );
 }
 

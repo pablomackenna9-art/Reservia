@@ -127,7 +127,14 @@ export function ReservasPage() {
             >
               <span className="w-14 text-sm tabular-nums text-ink-muted">{formatTime(r.startsAt)}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{r.customerName}</p>
+                <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                  {r.customerName}
+                  {r.source === "walk_in" && (
+                    <span className="text-[10px] rounded-full px-1.5 py-0.5 border border-line text-ink-faint shrink-0">
+                      Walk-in
+                    </span>
+                  )}
+                </p>
                 <p className="text-xs text-ink-faint">
                   {r.partySize} personas{r.tableName ? ` · Mesa ${r.tableName}` : " · sin mesa asignada"}
                   {r.customerPhone ? ` · ${r.customerPhone}` : ""}

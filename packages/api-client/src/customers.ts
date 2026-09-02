@@ -100,6 +100,19 @@ export async function createCustomer(
   return mapCustomer(data);
 }
 
+export async function setCustomerBlacklisted(
+  supabase: SupabaseClient,
+  id: string,
+  blacklisted: boolean,
+  reason?: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("customers")
+    .update({ blacklisted, blacklisted_reason: blacklisted ? (reason ?? null) : null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 export function mapCustomer(row: Record<string, unknown>): Customer {
   return {
     id: row.id as string,
@@ -114,5 +127,7 @@ export function mapCustomer(row: Record<string, unknown>): Customer {
     noShowCount: row.no_show_count as number,
     cancellationCount: row.cancellation_count as number,
     lastVisitAt: (row.last_visit_at as string) ?? null,
+    blacklisted: Boolean(row.blacklisted),
+    blacklistedReason: (row.blacklisted_reason as string) ?? null,
   };
 }

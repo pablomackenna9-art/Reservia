@@ -13,6 +13,9 @@ export const customerSchema = z.object({
   noShowCount: z.number().int().nonnegative(),
   cancellationCount: z.number().int().nonnegative(),
   lastVisitAt: z.string().nullable(),
+  /** Blocked from booking through the public portal — staff can still create a reservation by hand as an exception. */
+  blacklisted: z.boolean().default(false),
+  blacklistedReason: z.string().nullable().default(null),
 });
 export type Customer = z.infer<typeof customerSchema>;
 

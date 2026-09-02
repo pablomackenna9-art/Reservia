@@ -59,13 +59,19 @@ export function TableAssignmentPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId, partySize, startsAt, endsAt, preferredZoneId, zonePreference, excludeReservationId, allowCombinations]);
 
+  // Zones load eagerly (cheap, small list) so every candidate — list view or
+  // floor-plan view — can always say which sector it's in, not just when the
+  // plan is open.
   useEffect(() => {
-    if (!showPlan || zones.length > 0) return;
-    Promise.all([listZones(supabase, restaurantId), listTables(supabase, restaurantId)]).then(([z, t]) => {
-      setZones(z);
-      setTables(t);
-    });
-  }, [showPlan, zones.length, restaurantId]);
+    listZones(supabase, restaurantId).then(setZones);
+  }, [restaurantId]);
+
+  useEffect(() => {
+    if (!showPlan || tables.length > 0) return;
+    listTables(supabase, restaurantId).then(setTables);
+  }, [showPlan, tables.length, restaurantId]);
+
+  const zoneNameById = new Map(zones.map((z) => [z.id, z.name]));
 
   if (candidates === null) {
     return <p className="text-xs text-ink-faint">Buscando la mejor mesa…</p>;
@@ -131,6 +137,9 @@ export function TableAssignmentPicker({
               </span>
               <span className="text-xs text-ink-faint">{recommended!.capacityMax}p</span>
             </div>
+            <p className="text-xs text-ink-faint mt-0.5">
+              {zoneNameById.get(recommended!.zoneId) ?? "…"}
+            </p>
             <p className="text-xs text-ink-faint mt-1">{recommended!.reasons.join(" · ")}</p>
           </button>
 
@@ -144,9 +153,12 @@ export function TableAssignmentPicker({
                     type="button"
                     onClick={() => onSelect(c, false)}
                     title={c.reasons.join(" · ")}
-                    className="rounded-lg bg-ground border border-line px-2.5 py-1.5 text-xs hover:border-accent"
+                    className="rounded-lg bg-ground border border-line px-2.5 py-1.5 text-xs hover:border-accent text-left"
                   >
-                    {c.tableNames.join("+")} · {c.capacityMax}p
+                    <span>
+                      {c.tableNames.join("+")} · {c.capacityMax}p
+                    </span>
+                    <span className="block text-ink-faint text-[10px]">{zoneNameById.get(c.zoneId) ?? "…"}</span>
                   </button>
                 ))}
               </div>

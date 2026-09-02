@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getAveragePurchaseByCustomer, listCustomers, updateCustomer } from "@reservia/api-client";
+import { getAveragePurchaseByCustomer, listCustomers, setCustomerBlacklisted, updateCustomer } from "@reservia/api-client";
 import { customerFullName, type Customer } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
@@ -107,6 +107,11 @@ export function ClientesPage() {
                             Riesgo no-show
                           </span>
                         )}
+                        {c.blacklisted && (
+                          <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-status-occupied/15 text-status-occupied border border-status-occupied/40">
+                            🚫 Bloqueado
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-ink-faint">{c.phone ?? "—"}</td>
@@ -154,6 +159,7 @@ function CustomerDetailPanel({
   const [phone, setPhone] = useState(customer.phone ?? "");
   const [email, setEmail] = useState(customer.email ?? "");
   const [notes, setNotes] = useState(customer.notes ?? "");
+  const [blacklistReason, setBlacklistReason] = useState(customer.blacklistedReason ?? "");
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -166,6 +172,11 @@ function CustomerDetailPanel({
     });
     setSaving(false);
     onSaved(updated);
+  }
+
+  async function handleToggleBlacklist(blacklisted: boolean) {
+    await setCustomerBlacklisted(supabase, customer.id, blacklisted, blacklistReason.trim() || null);
+    onSaved({ ...customer, blacklisted, blacklistedReason: blacklisted ? blacklistReason.trim() || null : null });
   }
 
   return (
@@ -182,6 +193,32 @@ function CustomerDetailPanel({
         <MiniStat label="No-shows" value={customer.noShowCount} />
         <MiniStat label="Cancelaciones" value={customer.cancellationCount} />
         <MiniStat label="Promedio compra" value={averagePurchase != null ? formatCLP(averagePurchase) : "—"} />
+      </div>
+
+      <div className="rounded-lg border border-line bg-ground p-3 mb-4 space-y-2">
+        <label className="flex items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            checked={customer.blacklisted}
+            onChange={(e) => handleToggleBlacklist(e.target.checked)}
+          />
+          <span className={customer.blacklisted ? "text-status-occupied font-medium" : ""}>
+            🚫 No aceptar reservas de este cliente (portal público)
+          </span>
+        </label>
+        {customer.blacklisted ? (
+          <input
+            value={blacklistReason}
+            onChange={(e) => setBlacklistReason(e.target.value)}
+            onBlur={() => handleToggleBlacklist(true)}
+            placeholder="Motivo (opcional)"
+            className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-xs outline-none focus:border-accent"
+          />
+        ) : (
+          <p className="text-[10px] text-ink-faint">
+            El staff igual puede cargarle una reserva a mano desde el Centro de Control si hace falta.
+          </p>
+        )}
       </div>
 
       <div className="space-y-3">
