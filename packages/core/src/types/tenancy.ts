@@ -44,6 +44,37 @@ export const restaurantUserSchema = z.object({
 });
 export type RestaurantUser = z.infer<typeof restaurantUserSchema>;
 
+/** A member of the team, enriched with the bits of auth.users/profiles the UI needs — never fetched by querying those tables directly. */
+export const teamMemberSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  email: z.string().email(),
+  fullName: z.string().nullable(),
+  role: z.enum(RESTAURANT_ROLES),
+  status: z.enum(RESTAURANT_USER_STATUSES),
+  invitedAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type TeamMember = z.infer<typeof teamMemberSchema>;
+
+/** Roles an owner/administrator can hand out via invite_staff_member — 'owner' is never granted this way. */
+export const INVITABLE_ROLES = ["administrator", "host", "waiter", "viewer"] as const;
+export type InvitableRole = (typeof INVITABLE_ROLES)[number];
+
+export const RESTAURANT_INVITATION_STATUSES = ["pending", "accepted", "revoked"] as const;
+export type RestaurantInvitationStatus = (typeof RESTAURANT_INVITATION_STATUSES)[number];
+
+export const restaurantInvitationSchema = z.object({
+  id: z.string().uuid(),
+  restaurantId: z.string().uuid(),
+  email: z.string().email(),
+  role: z.enum(INVITABLE_ROLES),
+  status: z.enum(RESTAURANT_INVITATION_STATUSES),
+  invitedBy: z.string().uuid(),
+  createdAt: z.string(),
+});
+export type RestaurantInvitation = z.infer<typeof restaurantInvitationSchema>;
+
 /** True for roles allowed to edit zones, tables and restaurant configuration. */
 export function canEditFloorplan(role: RestaurantRole): boolean {
   return role === "owner" || role === "administrator";

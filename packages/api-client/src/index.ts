@@ -10,3 +10,4 @@ export * from "./hours";
 export * from "./waitlist";
 export * from "./tableGroups";
 export * from "./publicBooking";
+export * from "./team";

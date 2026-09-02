@@ -3,11 +3,13 @@ import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZonasTab } from "./ZonasTab";
 import { HorariosTab } from "./HorariosTab";
 import { ReglasTab } from "./ReglasTab";
+import { EquipoTab } from "./EquipoTab";
 
 const TABS = [
   { id: "zonas", label: "Zonas" },
   { id: "horarios", label: "Horarios" },
   { id: "reglas", label: "Reglas de reserva" },
+  { id: "equipo", label: "Equipo" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -19,12 +21,15 @@ export function ConfiguracionPage() {
 
   if (!restaurantId) return null;
 
+  const canManageTeam = current?.role === "owner" || current?.role === "administrator";
+  const visibleTabs = TABS.filter((t) => t.id !== "equipo" || canManageTeam);
+
   return (
     <div className="p-6">
       <h1 className="text-xl font-semibold mb-4">Configuración</h1>
 
       <div className="flex gap-1.5 mb-5">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -40,6 +45,7 @@ export function ConfiguracionPage() {
       {tab === "zonas" && <ZonasTab restaurantId={restaurantId} />}
       {tab === "horarios" && <HorariosTab restaurantId={restaurantId} />}
       {tab === "reglas" && <ReglasTab restaurantId={restaurantId} />}
+      {tab === "equipo" && canManageTeam && <EquipoTab restaurantId={restaurantId} />}
     </div>
   );
 }
