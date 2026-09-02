@@ -1,11 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PosConnection, PosProvider, PosTableMapping } from "@reservia/core";
+import type { PosCheck, PosCheckItem, PosCheckStatus, PosConnection, PosProvider, PosTableMapping } from "@reservia/core";
 
 /**
- * Fase 1: infraestructura únicamente. Sin proveedor real conectado, estas
- * funciones no tienen ningún caller en la UI todavía — quedan listas para
- * cuando exista una pantalla de Configuración → Integraciones (Fase 3+) y un
- * `PosAdapter` real (Fase 2+, ver `./integrations/pos/adapter`).
+ * CRUD genérico sobre las tablas de POS — independiente de qué proveedor
+ * (mock o real) haya escrito cada fila. La lógica específica de MockPOS
+ * (abrir/cerrar cuentas, sumar consumo) vive en `./integrations/pos/mock`.
  */
 
 export async function listPosConnections(supabase: SupabaseClient, restaurantId: string): Promise<PosConnection[]> {
@@ -63,5 +62,40 @@ export function mapPosTableMapping(row: Record<string, unknown>): PosTableMappin
     posConnectionId: row.pos_connection_id as string,
     tableId: row.table_id as string,
     externalTableId: row.external_table_id as string,
+  };
+}
+
+/** Columnas `numeric` de Postgres vuelven como string por PostgREST — nunca castear directo, siempre convertir. */
+export function mapPosCheck(row: Record<string, unknown>): PosCheck {
+  return {
+    id: row.id as string,
+    restaurantId: row.restaurant_id as string,
+    posConnectionId: (row.pos_connection_id as string) ?? null,
+    visitId: (row.visit_id as string) ?? null,
+    externalCheckId: row.external_check_id as string,
+    externalTableId: (row.external_table_id as string) ?? null,
+    openedAt: row.opened_at as string,
+    closedAt: (row.closed_at as string) ?? null,
+    subtotal: Number(row.subtotal),
+    taxes: Number(row.taxes),
+    discounts: Number(row.discounts),
+    total: Number(row.total),
+    paidAmount: Number(row.paid_amount),
+    guestCount: (row.guest_count as number) ?? null,
+    status: row.status as PosCheckStatus,
+  };
+}
+
+export function mapPosCheckItem(row: Record<string, unknown>): PosCheckItem {
+  return {
+    id: row.id as string,
+    restaurantId: row.restaurant_id as string,
+    checkId: row.check_id as string,
+    externalItemId: (row.external_item_id as string) ?? null,
+    name: row.name as string,
+    category: (row.category as string) ?? null,
+    quantity: Number(row.quantity),
+    unitPrice: Number(row.unit_price),
+    total: Number(row.total),
   };
 }

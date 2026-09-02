@@ -140,7 +140,7 @@ export function TableDetailPanel({
   }
 
   return (
-    <aside className="w-72 shrink-0 rounded-xl border border-line bg-surface p-4">
+    <aside className="w-72 shrink-0 h-full overflow-y-auto rounded-xl border border-line bg-surface p-4">
       <div className="flex items-start justify-between mb-3">
         <div>
           <p className="text-xs text-ink-faint uppercase tracking-wide">{zoneName}</p>
