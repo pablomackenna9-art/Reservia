@@ -11,6 +11,14 @@ export function createReservationClient(url: string, anonKey: string): SupabaseC
       persistSession: true,
       autoRefreshToken: true,
     },
+    global: {
+      // Next.js patches the global fetch to cache requests by default in
+      // Server Components. supabase-js never sets its own `cache` option, so
+      // without this every query made from a Server Component (e.g. the
+      // booking portal's restaurant lookup) can silently keep serving the
+      // response from the very first request instead of live data.
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+    },
   });
 }
 
