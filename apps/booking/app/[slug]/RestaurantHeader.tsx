@@ -13,10 +13,33 @@ function formatHM(time: string, localeTag: string): string {
   return d.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit" });
 }
 
+const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+/**
+ * Día de la semana y minutos desde medianoche, en la zona horaria del
+ * restaurante -- no la del server ni la del visitante. Sin esto, `now.getDay()`
+ * / `now.getHours()` leen la zona local del runtime (el server de Vercel corre
+ * en UTC, el browser en la del visitante), así que el render inicial del
+ * server y la hidratación en el cliente pueden calcular un "abierto/cerrado"
+ * distinto para el mismo instante real -- eso es lo que dispara el mismatch.
+ */
+function restaurantLocalParts(timezone: string, at: Date): { dayOfWeek: number; minutes: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    weekday: "short",
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "Sun";
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+  return { dayOfWeek: WEEKDAY_INDEX[weekday] ?? 0, minutes: hour * 60 + minute };
+}
+
 /** ¿Hay algún service de `hours` que cubra el momento actual? Si sí, devuelve hasta cuándo. */
-function currentOpenService(hours: RestaurantHours[], now: Date): RestaurantHours | null {
-  const dow = now.getDay();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+function currentOpenService(hours: RestaurantHours[], now: Date, timezone: string): RestaurantHours | null {
+  const { dayOfWeek: dow, minutes: nowMinutes } = restaurantLocalParts(timezone, now);
   for (const h of hours) {
     if (h.dayOfWeek !== dow) continue;
     const [oh, om] = h.opensAt.split(":").map(Number);
@@ -42,7 +65,7 @@ export function RestaurantHeader({
   const [showHours, setShowHours] = useState(false);
   const t = DICTIONARIES[locale];
   const now = new Date();
-  const openService = currentOpenService(hours, now);
+  const openService = currentOpenService(hours, now, restaurant.timezone);
 
   const groupedHours = [0, 1, 2, 3, 4, 5, 6]
     .map((dow) => ({ dow, services: hours.filter((h) => h.dayOfWeek === dow) }))
