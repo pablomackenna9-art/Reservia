@@ -14,14 +14,10 @@ import { ConfiguracionPage } from "./features/config/ConfiguracionPage";
 import { ListaDeEsperaPage } from "./features/waitlist/ListaDeEsperaPage";
 import { ReportesPage } from "./features/reports/ReportesPage";
 import { IntegracionesPage } from "./features/integrations/IntegracionesPage";
-import { ComingSoonPage } from "./components/ComingSoonPage";
+import { MarketingPage } from "./features/marketing/MarketingPage";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { RequireRestaurant } from "./routes/RequireRestaurant";
-
-const COMING_SOON_ROUTES = [
-  { path: "/marketing", title: "Marketing", description: "Campañas y recuperación de clientes. Todavía no construido." },
-];
 
 function Protected({ children }: { children: ReactNode }) {
   return (
@@ -121,17 +117,14 @@ export function App() {
                 </Protected>
               }
             />
-            {COMING_SOON_ROUTES.map((route) => (
-              <Route
-                key={route.path}
-                path={route.path}
-                element={
-                  <Protected>
-                    <ComingSoonPage title={route.title} description={route.description} />
-                  </Protected>
-                }
-              />
-            ))}
+            <Route
+              path="/marketing"
+              element={
+                <Protected>
+                  <MarketingPage />
+                </Protected>
+              }
+            />
           </Routes>
         </BrowserRouter>
       </RestaurantProvider>

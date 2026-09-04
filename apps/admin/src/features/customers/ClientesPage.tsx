@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { createCustomer, getAveragePurchaseByCustomer, listCustomers, setCustomerBlacklisted, updateCustomer } from "@reservia/api-client";
+import {
+  createCustomer,
+  getAveragePurchaseByCustomer,
+  getCustomerConsumptionStats,
+  listCustomers,
+  setCustomerBlacklisted,
+  updateCustomer,
+  type CustomerConsumptionStats,
+} from "@reservia/api-client";
 import { customerFullName, type Customer } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
@@ -19,6 +27,7 @@ export function ClientesPage() {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [avgPurchase, setAvgPurchase] = useState<Map<string, number>>(new Map());
+  const [consumption, setConsumption] = useState<Map<string, CustomerConsumptionStats>>(new Map());
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -26,12 +35,14 @@ export function ClientesPage() {
 
   async function reload() {
     if (!restaurantId) return;
-    const [c, avg] = await Promise.all([
+    const [c, avg, cons] = await Promise.all([
       listCustomers(supabase, restaurantId),
       getAveragePurchaseByCustomer(supabase, restaurantId),
+      getCustomerConsumptionStats(supabase, restaurantId),
     ]);
     setCustomers(c);
     setAvgPurchase(avg);
+    setConsumption(cons);
     setLoading(false);
   }
 
@@ -88,6 +99,7 @@ export function ClientesPage() {
                   <th className="text-right font-normal px-4 py-2.5">Visitas</th>
                   <th className="text-right font-normal px-4 py-2.5">No-shows</th>
                   <th className="text-right font-normal px-4 py-2.5">Promedio compra</th>
+                  <th className="text-right font-normal px-4 py-2.5">Consumo total</th>
                   <th className="text-left font-normal px-4 py-2.5">Última visita</th>
                 </tr>
               </thead>
@@ -131,6 +143,9 @@ export function ClientesPage() {
                     <td className="px-4 py-2.5 text-right tabular-nums text-ink-faint">
                       {avgPurchase.has(c.id) ? formatCLP(avgPurchase.get(c.id)!) : "—"}
                     </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">
+                      {consumption.has(c.id) ? formatCLP(consumption.get(c.id)!.totalSpent) : "—"}
+                    </td>
                     <td className="px-4 py-2.5 text-ink-faint">{formatDate(c.lastVisitAt)}</td>
                   </tr>
                 ))}
@@ -143,6 +158,7 @@ export function ClientesPage() {
           <CustomerDetailPanel
             customer={selected}
             averagePurchase={avgPurchase.get(selected.id) ?? null}
+            consumption={consumption.get(selected.id) ?? null}
             onClose={() => setSelectedId(null)}
             onSaved={(updated) => {
               setCustomers((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
@@ -169,11 +185,13 @@ export function ClientesPage() {
 function CustomerDetailPanel({
   customer,
   averagePurchase,
+  consumption,
   onClose,
   onSaved,
 }: {
   customer: Customer;
   averagePurchase: number | null;
+  consumption: CustomerConsumptionStats | null;
   onClose: () => void;
   onSaved: (c: Customer) => void;
 }) {
@@ -181,6 +199,7 @@ function CustomerDetailPanel({
   const [phone, setPhone] = useState(customer.phone ?? "");
   const [email, setEmail] = useState(customer.email ?? "");
   const [notes, setNotes] = useState(customer.notes ?? "");
+  const [birthday, setBirthday] = useState(customer.birthday ?? "");
   const [blacklistReason, setBlacklistReason] = useState(customer.blacklistedReason ?? "");
   const [saving, setSaving] = useState(false);
 
@@ -191,6 +210,7 @@ function CustomerDetailPanel({
       phone: phone.trim() || null,
       email: email.trim() || null,
       notes: notes.trim() || null,
+      birthday: birthday.trim() || null,
     });
     setSaving(false);
     onSaved(updated);
@@ -215,7 +235,22 @@ function CustomerDetailPanel({
         <MiniStat label="No-shows" value={customer.noShowCount} />
         <MiniStat label="Cancelaciones" value={customer.cancellationCount} />
         <MiniStat label="Promedio compra" value={averagePurchase != null ? formatCLP(averagePurchase) : "—"} />
+        <MiniStat label="Consumo total" value={consumption ? formatCLP(consumption.totalSpent) : "—"} />
       </div>
+
+      {consumption && consumption.topProducts.length > 0 && (
+        <div className="rounded-lg border border-line bg-ground p-3 mb-4">
+          <p className="text-xs text-ink-faint uppercase tracking-wide mb-2">Productos favoritos</p>
+          <ul className="space-y-1">
+            {consumption.topProducts.map((p) => (
+              <li key={p.name} className="flex items-center justify-between text-sm">
+                <span className="truncate">{p.name}</span>
+                <span className="text-xs text-ink-faint tabular-nums shrink-0 ml-2">×{p.quantity}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="rounded-lg border border-line bg-ground p-3 mb-4 space-y-2">
         <label className="flex items-center gap-2 text-xs">
@@ -265,6 +300,15 @@ function CustomerDetailPanel({
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            className="w-full rounded-lg bg-ground border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-ink-faint mb-1">Cumpleaños</label>
+          <input
+            type="date"
+            value={birthday}
+            onChange={(e) => setBirthday(e.target.value)}
             className="w-full rounded-lg bg-ground border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
           />
         </div>

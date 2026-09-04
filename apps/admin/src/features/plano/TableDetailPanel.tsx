@@ -69,7 +69,7 @@ export function TableDetailPanel({
   onDelete: () => void;
   onDuplicate?: () => void;
   onChangeReservationStatus: (reservationId: string, status: ReservationStatus) => void;
-  onSeatWalkIn: (partySize: number, name: string) => void;
+  onSeatWalkIn: (partySize: number, name: string, phone: string, email: string) => void;
   onMoveReservation: (reservationId: string, tableId: string, source?: TableAssignmentSource) => void;
   onStartJoin: () => void;
   onCancelJoin: () => void;
@@ -81,6 +81,8 @@ export function TableDetailPanel({
   const reservation = currentOrNextReservation(reservationsToday);
   const [showWalkIn, setShowWalkIn] = useState(false);
   const [walkInName, setWalkInName] = useState("Walk-in");
+  const [walkInPhone, setWalkInPhone] = useState("");
+  const [walkInEmail, setWalkInEmail] = useState("");
   const [walkInSize, setWalkInSize] = useState(Math.min(2, table.capacityMax));
   const [showMoveTo, setShowMoveTo] = useState(false);
   const [viewReservation, setViewReservation] = useState<ReservationWithDetails | null>(null);
@@ -237,6 +239,18 @@ export function TableDetailPanel({
             placeholder="Nombre (opcional)"
             className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
           />
+          <input
+            value={walkInPhone}
+            onChange={(e) => setWalkInPhone(e.target.value)}
+            placeholder="Teléfono (opcional)"
+            className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+          />
+          <input
+            value={walkInEmail}
+            onChange={(e) => setWalkInEmail(e.target.value)}
+            placeholder="Mail (opcional)"
+            className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+          />
           <div className="flex items-center gap-2">
             <label className="text-xs text-ink-faint">Personas</label>
             <input
@@ -251,7 +265,7 @@ export function TableDetailPanel({
           <div className="flex gap-1.5">
             <button
               onClick={() => {
-                onSeatWalkIn(walkInSize, walkInName.trim() || "Walk-in");
+                onSeatWalkIn(walkInSize, walkInName.trim() || "Walk-in", walkInPhone.trim(), walkInEmail.trim());
                 setShowWalkIn(false);
               }}
               className="rounded-lg bg-accent text-accent-ink px-2.5 py-1.5 text-xs font-medium"

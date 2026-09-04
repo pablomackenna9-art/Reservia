@@ -146,7 +146,7 @@ export function PlanoDeMesasPage() {
               if (newId) setSelectedTableId(newId);
             }}
             onChangeReservationStatus={changeReservationStatus}
-            onSeatWalkIn={(partySize, name) => seatWalkIn(selectedTable.id, partySize, name)}
+            onSeatWalkIn={(partySize, name, phone, email) => seatWalkIn(selectedTable.id, partySize, name, phone, email)}
             onMoveReservation={moveReservationToTable}
             onSaveNotes={saveReservationNotes}
             onStartJoin={() => setJoinSourceId(selectedTable.id)}

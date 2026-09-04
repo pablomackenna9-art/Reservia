@@ -197,14 +197,19 @@ export function useFloorPlan(restaurantId: string | undefined) {
     await reload();
   }
 
-  async function seatWalkIn(tableId: string, partySize: number, name: string) {
+  async function seatWalkIn(tableId: string, partySize: number, name: string, phone?: string, email?: string) {
     if (!restaurantId || !user) return;
     const table = tables.find((t) => t.id === tableId);
     const duration = rules?.defaultDurationMinutes ?? 90;
     const startsAt = new Date().toISOString();
     const endsAt = new Date(Date.now() + duration * 60_000).toISOString();
 
-    const customer = await createCustomer(supabase, { restaurantId, firstName: name });
+    const customer = await createCustomer(supabase, {
+      restaurantId,
+      firstName: name,
+      phone: phone || undefined,
+      email: email || undefined,
+    });
     await createReservation(supabase, {
       restaurantId,
       customerId: customer.id,

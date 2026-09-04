@@ -1,9 +1,7 @@
 #!/usr/bin/env node
-// Resetea y repuebla Restaurante Demo así siempre se ve "vivo": borra toda
-// la actividad anterior (reservas, clientes, lista de espera) y genera todo
-// de nuevo relativo a "ahora" -- sin eso, cada corrida se sumaba sobre la
-// anterior y terminaba con horarios viejos e inconsistentes mezclados con
-// los nuevos. Correr cuando el demo se vea vacío o desactualizado.
+// Refresca la actividad "en vivo" de Restaurante Demo -- reservas de hoy en
+// adelante y lista de espera -- sin tocar nunca a los clientes ni su
+// historial de consumo, que se acumulan día a día.
 //
 // Uso:
 //   pnpm run seed:refresh
@@ -21,6 +19,14 @@
 //   - Ninguna mesa recibe dos reservas que se pisen en el tiempo -- se
 //     respeta un colchón de 15 min entre una y la siguiente, igual que el
 //     buffer real del motor de disponibilidad.
+//
+// Clientes: NUNCA se borran. Cada corrida reutiliza el pool existente la
+// mayoría de las veces (en vez de inventar gente nueva siempre), así los
+// clientes van acumulando visitas, consumo total y productos favoritos
+// reales en vez de perder todo cada día. Solo se borra actividad transitoria
+// (reservas no completadas -- pendientes/confirmadas/sentadas/etc. de
+// corridas anteriores -- y la lista de espera). Las reservas 'completed' son
+// historial real y jamás se tocan.
 
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -69,6 +75,27 @@ const LAST_NAMES = [
   "Araya", "Cortés", "Herrera", "Guzmán", "Pizarro", "Sepúlveda", "Flores", "Cárdenas", "Farías", "Lagos",
 ];
 
+// Menú de referencia para generar consumo realista (visitas -> cuenta ->
+// productos) -- alimenta "consumo total" y "productos favoritos" por cliente.
+const MENU = [
+  { name: "Empanada de pino", category: "Entradas", price: 3500 },
+  { name: "Ceviche de reineta", category: "Entradas", price: 8500 },
+  { name: "Tabla de quesos", category: "Entradas", price: 9500 },
+  { name: "Pastel de choclo", category: "Principales", price: 9500 },
+  { name: "Lomo a lo pobre", category: "Principales", price: 12500 },
+  { name: "Congrio frito", category: "Principales", price: 13500 },
+  { name: "Cazuela de vacuno", category: "Principales", price: 9000 },
+  { name: "Pique macho", category: "Principales", price: 14000 },
+  { name: "Papas fritas", category: "Acompañamientos", price: 3500 },
+  { name: "Ensalada chilena", category: "Acompañamientos", price: 3000 },
+  { name: "Copa de vino Carmenère", category: "Bebidas", price: 5000 },
+  { name: "Pisco Sour", category: "Bebidas", price: 5500 },
+  { name: "Cerveza artesanal", category: "Bebidas", price: 4500 },
+  { name: "Jugo natural", category: "Bebidas", price: 3000 },
+  { name: "Mote con huesillo", category: "Postres", price: 3500 },
+  { name: "Leche asada", category: "Postres", price: 4000 },
+];
+
 function randomName() {
   return {
     firstName: FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)],
@@ -78,6 +105,11 @@ function randomName() {
 
 function randomPhone() {
   return "+569" + String(Math.floor(10000000 + Math.random() * 89999999));
+}
+
+function randomEmail(firstName, lastName) {
+  const slug = `${firstName}.${lastName}`.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return `${slug}${Math.floor(Math.random() * 900 + 100)}@example.com`;
 }
 
 function shuffle(arr) {
@@ -98,13 +130,94 @@ function snapToSlot(date) {
 // Colchón entre reservas de la misma mesa -- misma idea que bufferMinutes.
 const BUFFER_MS = 15 * 60_000;
 
-async function createCustomer(restaurantId, firstName, lastName) {
+async function createNewCustomer(restaurantId) {
+  const { firstName, lastName } = randomName();
   const [customer] = await rest("customers", {
     method: "POST",
     headers: { Prefer: "return=representation" },
-    body: JSON.stringify({ restaurant_id: restaurantId, first_name: firstName, last_name: lastName, phone: randomPhone() }),
+    body: JSON.stringify({
+      restaurant_id: restaurantId,
+      first_name: firstName,
+      last_name: lastName,
+      phone: randomPhone(),
+      email: randomEmail(firstName, lastName),
+    }),
   });
   return customer;
+}
+
+/**
+ * Devuelve un cliente para usar en una nueva reserva/visita -- la mayoría de
+ * las veces reutiliza a alguien del pool existente (así acumula visitas e
+ * historial real), y de vez en cuando crea a alguien nuevo. `pool` se
+ * actualiza in-place para que las corridas dentro de la misma ejecución
+ * también puedan reutilizar a los recién creados.
+ */
+async function pickCustomer(restaurantId, pool, reuseChance = 0.65) {
+  if (pool.length > 0 && Math.random() < reuseChance) {
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  const created = await createNewCustomer(restaurantId);
+  pool.push(created);
+  return created;
+}
+
+/** Arma y guarda una visita + cuenta + ítems de consumo real para un cliente -- devuelve el total. */
+async function recordConsumption(restaurantId, customerId, tableId, startsAt, endsAt, partySize) {
+  const [visit] = await rest("visits", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      restaurant_id: restaurantId,
+      table_id: tableId,
+      customer_id: customerId,
+      party_size: partySize,
+      started_at: startsAt.toISOString(),
+      ended_at: endsAt.toISOString(),
+      status: "closed",
+    }),
+  });
+
+  const itemCount = 2 + Math.floor(Math.random() * 3); // 2 a 4 productos
+  const picks = shuffle(MENU).slice(0, itemCount);
+  let total = 0;
+  const items = picks.map((item) => {
+    const quantity = 1 + (Math.random() < 0.25 ? 1 : 0);
+    const lineTotal = item.price * quantity;
+    total += lineTotal;
+    return {
+      name: item.name,
+      category: item.category,
+      quantity,
+      unit_price: item.price,
+      total: lineTotal,
+    };
+  });
+
+  const [check] = await rest("pos_checks", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      restaurant_id: restaurantId,
+      visit_id: visit.id,
+      external_check_id: `seed-${visit.id}`,
+      external_table_id: tableId,
+      opened_at: startsAt.toISOString(),
+      closed_at: endsAt.toISOString(),
+      subtotal: total,
+      total,
+      paid_amount: total,
+      guest_count: partySize,
+      status: "closed",
+    }),
+  });
+
+  await rest("pos_check_items", {
+    method: "POST",
+    body: JSON.stringify(items.map((item) => ({ restaurant_id: restaurantId, check_id: check.id, ...item }))),
+  });
+
+  return total;
 }
 
 async function main() {
@@ -113,13 +226,15 @@ async function main() {
   const restaurantId = restaurant.id;
   const ownerId = restaurant.created_by;
 
-  // --- Reset: nunca acumular sobre corridas anteriores. reservations y
-  // waitlist_entries van antes que customers porque ambas la referencian
-  // con "on delete restrict".
-  console.log("Limpiando actividad anterior...");
-  await rest(`reservations?restaurant_id=eq.${restaurantId}`, { method: "DELETE" });
+  // --- Reset: solo actividad transitoria. 'completed' es historial real y
+  // nunca se borra; los clientes tampoco.
+  console.log("Limpiando actividad transitoria (no toca clientes ni historial completado)...");
+  await rest(`reservations?restaurant_id=eq.${restaurantId}&status=neq.completed`, { method: "DELETE" });
   await rest(`waitlist_entries?restaurant_id=eq.${restaurantId}`, { method: "DELETE" });
-  await rest(`customers?restaurant_id=eq.${restaurantId}`, { method: "DELETE" });
+
+  const customerPool = await rest(
+    `customers?restaurant_id=eq.${restaurantId}&select=id,first_name,last_name,total_visits`,
+  );
 
   const tables = await rest(
     `tables?restaurant_id=eq.${restaurantId}&active=eq.true&select=id,name,capacity_max&order=name`,
@@ -148,8 +263,7 @@ async function main() {
   const freeTables = shuffledTables.slice(seatedCount);
 
   for (const table of seatedTables) {
-    const { firstName, lastName } = randomName();
-    const customer = await createCustomer(restaurantId, firstName, lastName);
+    const customer = await pickCustomer(restaurantId, customerPool);
     const isWalkIn = Math.random() < 0.5;
     const startedMinutesAgo = 10 + Math.floor(Math.random() * 90);
     const durationMinutes = 75 + Math.floor(Math.random() * 45);
@@ -195,8 +309,7 @@ async function main() {
     const partySize = Math.max(1, table.capacity_max - (Math.random() < 0.4 ? 1 : 0));
     const status = minutesFromNow <= 20 ? "arriving" : "confirmed";
     const source = ["public_portal", "admin", "phone"][Math.floor(Math.random() * 3)];
-    const { firstName, lastName } = randomName();
-    const customer = await createCustomer(restaurantId, firstName, lastName);
+    const customer = await pickCustomer(restaurantId, customerPool);
 
     book(table.id, startsAt.getTime(), endsAt.getTime());
     await rest("reservations", {
@@ -222,8 +335,7 @@ async function main() {
     { minutesFromNow: 300, partySize: 5, notes: "Cumpleaños, si se puede mesa tranquila" },
   ];
   for (const slot of pendingSlots) {
-    const { firstName, lastName } = randomName();
-    const customer = await createCustomer(restaurantId, firstName, lastName);
+    const customer = await pickCustomer(restaurantId, customerPool);
     const startsAt = snapToSlot(new Date(now + slot.minutesFromNow * 60_000));
     const endsAt = new Date(startsAt.getTime() + 90 * 60_000);
     await rest("reservations", {
@@ -246,8 +358,7 @@ async function main() {
   // --- Lista de espera ---
   const waitlistCount = 2;
   for (let i = 0; i < waitlistCount; i++) {
-    const { firstName, lastName } = randomName();
-    const customer = await createCustomer(restaurantId, firstName, lastName);
+    const customer = await pickCustomer(restaurantId, customerPool);
     await rest("waitlist_entries", {
       method: "POST",
       body: JSON.stringify({
@@ -259,9 +370,58 @@ async function main() {
     });
   }
 
+  // --- Historial de consumo: un puñado de visitas ya completadas y pagadas,
+  // repartidas en los últimos 30 días, mayoritariamente sobre clientes que ya
+  // existen -- esto es lo que hace crecer "consumo total" y "productos
+  // favoritos" de cada cliente con el tiempo, en vez de perderse cada día.
+  const historicalVisits = 6;
+  let historicalTotal = 0;
+  for (let i = 0; i < historicalVisits; i++) {
+    const customer = await pickCustomer(restaurantId, customerPool, 0.8);
+    const table = tables[Math.floor(Math.random() * tables.length)];
+    const daysAgo = 1 + Math.floor(Math.random() * 30);
+    const hour = 13 + Math.floor(Math.random() * 8); // 13:00–20:00
+    const startsAt = new Date(now - daysAgo * 24 * 60 * 60_000);
+    startsAt.setHours(hour, Math.random() < 0.5 ? 0 : 30, 0, 0);
+    const durationMinutes = 75 + Math.floor(Math.random() * 45);
+    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
+    const partySize = Math.max(1, (table?.capacity_max ?? 4) - (Math.random() < 0.4 ? 1 : 0));
+
+    const total = await recordConsumption(restaurantId, customer.id, table?.id ?? null, startsAt, endsAt, partySize);
+    historicalTotal += total;
+
+    await rest("reservations", {
+      method: "POST",
+      body: JSON.stringify({
+        restaurant_id: restaurantId,
+        customer_id: customer.id,
+        table_id: table?.id ?? null,
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+        party_size: partySize,
+        status: "completed",
+        source: "admin",
+        total_amount: total,
+        created_by: ownerId,
+      }),
+    });
+
+    // Insertar directo en 'completed' no dispara handle_reservation_status_change
+    // (esa trigger reacciona a un *cambio* de estado, no a un insert ya en su
+    // estado final) -- así que replicamos a mano lo que haría: sumar la
+    // visita y actualizar la última visita del cliente.
+    customer.total_visits = (customer.total_visits ?? 0) + 1;
+    await rest(`customers?id=eq.${customer.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ total_visits: customer.total_visits, last_visit_at: endsAt.toISOString() }),
+    });
+  }
+
   console.log(
     `Listo: ${seatedTables.length} mesas sentadas ahora, ${created - seatedTables.length - pendingSlots.length} ` +
-      `reservas confirmadas más tarde, ${pendingSlots.length} solicitudes pendientes sin mesa, ${waitlistCount} en lista de espera.`,
+      `reservas confirmadas más tarde, ${pendingSlots.length} solicitudes pendientes sin mesa, ${waitlistCount} en lista de espera, ` +
+      `${historicalVisits} visitas de historial agregadas (~$${historicalTotal.toLocaleString("es-CL")} en consumo nuevo). ` +
+      `${customerPool.length} clientes en el pool (se reutilizan, nunca se borran).`,
   );
 }
 

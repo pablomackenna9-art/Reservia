@@ -58,10 +58,42 @@ export async function getAveragePurchaseByCustomer(
   return averages;
 }
 
+export interface CustomerConsumptionStats {
+  totalSpent: number;
+  visitCount: number;
+  topProducts: { name: string; quantity: number }[];
+}
+
+/** Consumo real por cliente -- calculado desde visits/pos_checks/pos_check_items (get_customer_consumption_stats). */
+export async function getCustomerConsumptionStats(
+  supabase: SupabaseClient,
+  restaurantId: string,
+): Promise<Map<string, CustomerConsumptionStats>> {
+  const { data, error } = await supabase.rpc("get_customer_consumption_stats", { p_restaurant_id: restaurantId });
+  if (error) throw error;
+
+  const stats = new Map<string, CustomerConsumptionStats>();
+  for (const row of data ?? []) {
+    stats.set(row.customer_id as string, {
+      totalSpent: Number(row.total_spent),
+      visitCount: Number(row.visit_count),
+      topProducts: (row.top_products as { name: string; quantity: number }[]) ?? [],
+    });
+  }
+  return stats;
+}
+
 export async function updateCustomer(
   supabase: SupabaseClient,
   id: string,
-  patch: { firstName?: string; lastName?: string | null; phone?: string | null; email?: string | null; notes?: string | null },
+  patch: {
+    firstName?: string;
+    lastName?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    notes?: string | null;
+    birthday?: string | null;
+  },
 ): Promise<Customer> {
   const { data, error } = await supabase
     .from("customers")
@@ -71,6 +103,7 @@ export async function updateCustomer(
       ...(patch.phone !== undefined && { phone: patch.phone }),
       ...(patch.email !== undefined && { email: patch.email }),
       ...(patch.notes !== undefined && { notes: patch.notes }),
+      ...(patch.birthday !== undefined && { birthday: patch.birthday }),
     })
     .eq("id", id)
     .select("*")

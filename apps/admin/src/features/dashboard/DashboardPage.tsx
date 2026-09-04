@@ -54,6 +54,7 @@ export function DashboardPage() {
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [joinSourceId, setJoinSourceId] = useState<string | null>(null);
   const [showNewReservation, setShowNewReservation] = useState(false);
+  const [planoExpanded, setPlanoExpanded] = useState(false);
   const [editingTicket, setEditingTicket] = useState(false);
   const [waitlist, setWaitlist] = useState<WaitlistEntryWithCustomer[]>([]);
   const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
@@ -213,19 +214,30 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="mb-3 flex gap-1.5">
-        <ZoneTab label="Todo" active={effectiveZoneId === "all"} onClick={() => setActiveZoneId("all")} />
-        {sortedZones.map((zone) => (
-          <ZoneTab
-            key={zone.id}
-            label={zone.name}
-            active={effectiveZoneId === zone.id}
-            onClick={() => setActiveZoneId(zone.id)}
-          />
-        ))}
+      <div className="mb-3 flex items-center justify-between gap-1.5">
+        <div className="flex gap-1.5">
+          <ZoneTab label="Todo" active={effectiveZoneId === "all"} onClick={() => setActiveZoneId("all")} />
+          {sortedZones.map((zone) => (
+            <ZoneTab
+              key={zone.id}
+              label={zone.name}
+              active={effectiveZoneId === zone.id}
+              onClick={() => setActiveZoneId(zone.id)}
+            />
+          ))}
+        </div>
+        <button
+          onClick={() => setPlanoExpanded((v) => !v)}
+          className="rounded-lg px-3 py-1.5 text-sm bg-surface text-ink-muted hover:text-ink border border-line transition-colors shrink-0"
+        >
+          {planoExpanded ? "↙ Achicar plano" : "↗ Agrandar plano"}
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 mb-4" style={{ height: "48vh" }}>
+      <div
+        className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 mb-4 transition-[height] duration-200"
+        style={{ height: planoExpanded ? "82vh" : "48vh" }}
+      >
         <div className="rounded-xl border border-line overflow-hidden bg-surface-2">
           {zones.length === 0 ? (
             <div className="h-full grid place-items-center">
@@ -260,7 +272,7 @@ export function DashboardPage() {
             }}
             onDelete={() => {}}
             onChangeReservationStatus={changeReservationStatus}
-            onSeatWalkIn={(partySize, name) => seatWalkIn(selectedTable.id, partySize, name)}
+            onSeatWalkIn={(partySize, name, phone, email) => seatWalkIn(selectedTable.id, partySize, name, phone, email)}
             onMoveReservation={moveReservationToTable}
             onSaveNotes={saveReservationNotes}
             onStartJoin={() => setJoinSourceId(selectedTable.id)}
