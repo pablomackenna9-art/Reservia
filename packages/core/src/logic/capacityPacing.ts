@@ -32,7 +32,10 @@ export function computeCapacityPacing(
 
   const active = reservations.filter((r) => r.tableId && ACTIVE_RESERVATION_STATUSES.includes(r.status));
 
-  const firstSlotStart = Math.ceil(now.getTime() / slotMs) * slotMs;
+  // floor, no ceil -- la franja en curso tiene que ser la primera de la
+  // lista, no solo las que vienen (si son las 13:47 con slots de 30min, el
+  // primer bloque debe ser 13:30, no saltar directo a 14:00).
+  const firstSlotStart = Math.floor(now.getTime() / slotMs) * slotMs;
   const slotCount = Math.max(0, Math.floor(horizonMinutes / slotMinutes));
 
   const slots: CapacitySlot[] = [];

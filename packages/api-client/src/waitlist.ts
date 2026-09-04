@@ -5,14 +5,21 @@ import { mapCustomer } from "./customers";
 export interface WaitlistEntryWithCustomer extends WaitlistEntry {
   customerName: string;
   customerPhone: string | null;
+  /** Para poder anteponer clientes frecuentes en la lista -- mismo umbral que "Frecuente" en Notificaciones. */
+  customerTotalVisits: number;
 }
 
-export async function listWaitlist(supabase: SupabaseClient, restaurantId: string): Promise<WaitlistEntryWithCustomer[]> {
+/** `statuses` por default solo trae lo activo (esperando/notificado) -- pasar la lista completa para incluir canceladas/atendidas. */
+export async function listWaitlist(
+  supabase: SupabaseClient,
+  restaurantId: string,
+  statuses: WaitlistStatus[] = ["waiting", "notified"],
+): Promise<WaitlistEntryWithCustomer[]> {
   const { data, error } = await supabase
     .from("waitlist_entries")
     .select("*, customers(*)")
     .eq("restaurant_id", restaurantId)
-    .in("status", ["waiting", "notified"])
+    .in("status", statuses)
     .order("priority", { ascending: false })
     .order("requested_at", { ascending: true });
 
@@ -24,6 +31,7 @@ export async function listWaitlist(supabase: SupabaseClient, restaurantId: strin
       ...mapWaitlistEntry(row),
       customerName: [customer.firstName, customer.lastName].filter(Boolean).join(" "),
       customerPhone: customer.phone,
+      customerTotalVisits: customer.totalVisits,
     };
   });
 }
@@ -63,6 +71,21 @@ export async function updateWaitlistStatus(supabase: SupabaseClient, id: string,
 
 export async function setWaitlistPriority(supabase: SupabaseClient, id: string, priority: number): Promise<void> {
   const { error } = await supabase.from("waitlist_entries").update({ priority }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateWaitlistEntry(
+  supabase: SupabaseClient,
+  id: string,
+  patch: { partySize?: number; notes?: string | null },
+): Promise<void> {
+  const { error } = await supabase
+    .from("waitlist_entries")
+    .update({
+      ...(patch.partySize !== undefined && { party_size: patch.partySize }),
+      ...(patch.notes !== undefined && { notes: patch.notes }),
+    })
+    .eq("id", id);
   if (error) throw error;
 }
 

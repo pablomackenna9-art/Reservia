@@ -1,12 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  listWaitlist,
-  setAverageTicketPerPerson,
-  type ReservationWithDetails,
-  type WaitlistEntryWithCustomer,
-} from "@reservia/api-client";
-import { computeCapacityPacing } from "@reservia/core";
+import { setAverageTicketPerPerson, type ReservationWithDetails } from "@reservia/api-client";
+import { computeCapacityPacing, findLateArrivals, minutesSince } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas } from "../plano/ZoneCanvas";
@@ -16,6 +11,8 @@ import { NewReservationForm } from "../reservations/NewReservationForm";
 import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
 import { CompleteReservationModal } from "../reservations/CompleteReservationModal";
 import { RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
+import { WaitlistPanel } from "../waitlist/WaitlistPanel";
+import { ReservationsTimeline } from "./ReservationsTimeline";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
@@ -61,20 +58,25 @@ export function DashboardPage() {
   const [joinSourceId, setJoinSourceId] = useState<string | null>(null);
   const [showNewReservation, setShowNewReservation] = useState(false);
   const [planoExpanded, setPlanoExpanded] = useState(false);
+  const [viewMode, setViewMode] = useState<"plano" | "timeline">("plano");
   const [editingTicket, setEditingTicket] = useState(false);
-  const [waitlist, setWaitlist] = useState<WaitlistEntryWithCustomer[]>([]);
   const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
-
-  useEffect(() => {
-    if (!restaurantId) return;
-    listWaitlist(supabase, restaurantId).then(setWaitlist);
-  }, [restaurantId, reservationsToday]);
   const [ticketInput, setTicketInput] = useState("");
 
   const now = new Date();
   const active = reservationsToday.filter((r) => r.status !== "cancelled");
-  const occupiedNow = tables.filter((t) => getTableStatus(t.id) === "occupied").length;
-  const availableNow = tables.length - occupiedNow;
+
+  // Un conteo por los 4 estados reales, no solo "ocupada vs. el resto" --
+  // una mesa reservada para más tarde no está libre, aunque nadie esté
+  // sentado ahí todavía. Todo lo que se muestra como "libre" en el
+  // dashboard sale de este mismo cálculo para que no se contradigan entre sí.
+  const tableStatusCounts = { occupied: 0, arriving: 0, reserved: 0, available: 0, paying: 0, blocked: 0 };
+  for (const t of tables) tableStatusCounts[getTableStatus(t.id)]++;
+  const occupiedNow = tableStatusCounts.occupied;
+  const availableNow = tableStatusCounts.available;
+
+  const lateArrivals = findLateArrivals(active, now);
+
   const cubiertosReservados = active.reduce((sum, r) => sum + r.partySize, 0);
   const estimatedRevenue = (rules?.averageTicketPerPerson ?? 0) * cubiertosReservados;
 
@@ -98,7 +100,11 @@ export function DashboardPage() {
 
   const insights: string[] = [];
   if (active.length > 0) insights.push(`Tenés ${active.length} reserva${active.length === 1 ? "" : "s"} activa${active.length === 1 ? "" : "s"} hoy.`);
-  if (tables.length > 0) insights.push(`${availableNow} de ${tables.length} mesas están libres ahora mismo.`);
+  if (tables.length > 0) insights.push(`${availableNow} de ${tables.length} mesas están libres de verdad ahora mismo (sin contar las reservadas o por llegar).`);
+  if (lateArrivals.length > 0)
+    insights.push(
+      `${lateArrivals.length} reserva${lateArrivals.length === 1 ? "" : "s"} no ${lateArrivals.length === 1 ? "ha" : "han"} llegado a la hora — ver aviso arriba.`,
+    );
   if (upcoming.length > 0) insights.push(`La próxima reserva es a las ${formatTime(upcoming[0]!.startsAt)} — ${upcoming[0]!.customerName}.`);
   if (insights.length === 0) insights.push("Sin reservas todavía — se llena a medida que entren.");
 
@@ -129,6 +135,15 @@ export function DashboardPage() {
   }, [reservationsToday]);
 
   const sortedZones = [...zones].sort((a, b) => a.sortOrder - b.sortOrder);
+  const zoneBreakdown = sortedZones.map((zone) => {
+    const counts = { occupied: 0, arriving: 0, reserved: 0, available: 0 };
+    for (const t of tables) {
+      if (t.zoneId !== zone.id) continue;
+      const status = getTableStatus(t.id);
+      if (status in counts) counts[status as keyof typeof counts]++;
+    }
+    return { zone, counts };
+  });
   // No manual pick yet -> land on the owner's first zone, not every zone at once.
   const effectiveZoneId = activeZoneId ?? sortedZones[0]?.id ?? "all";
   const visibleZones = effectiveZoneId === "all" ? zones : zones.filter((z) => z.id === effectiveZoneId);
@@ -185,6 +200,37 @@ export function DashboardPage() {
           </button>
         </div>
       </header>
+
+      {lateArrivals.length > 0 && (
+        <div className="rounded-xl border border-status-occupied/50 bg-status-occupied/10 px-4 py-3 mb-4">
+          <p className="text-sm font-medium text-status-occupied mb-2">
+            ⚠ {lateArrivals.length} reserva{lateArrivals.length === 1 ? "" : "s"} sin presentarse a la hora
+          </p>
+          <ul className="space-y-1.5">
+            {lateArrivals.slice(0, 6).map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-3 text-sm">
+                <button onClick={() => setDetailReservation(r)} className="text-left hover:underline min-w-0">
+                  <span className="font-medium">{r.customerName}</span>
+                  <span className="text-ink-muted">
+                    {" "}
+                    · {r.partySize}p{r.tableName ? ` · Mesa ${r.tableName}` : ""} · debía llegar a las{" "}
+                    {formatTime(r.startsAt)} (hace {minutesSince(r.startsAt, now)} min)
+                  </span>
+                </button>
+                <button
+                  onClick={() => changeReservationStatus(r.id, "no_show")}
+                  className="shrink-0 rounded-lg border border-status-occupied/50 text-status-occupied px-2.5 py-1 text-xs hover:bg-status-occupied/10"
+                >
+                  Marcar no-show
+                </button>
+              </li>
+            ))}
+          </ul>
+          {lateArrivals.length > 6 && (
+            <p className="text-xs text-status-occupied/80 mt-1.5">+{lateArrivals.length - 6} más</p>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-4">
         {indicators.map((indicator) => (
@@ -246,13 +292,46 @@ export function DashboardPage() {
             />
           ))}
         </div>
-        <button
-          onClick={() => setPlanoExpanded((v) => !v)}
-          className="rounded-lg px-3 py-1.5 text-sm bg-surface text-ink-muted hover:text-ink border border-line transition-colors shrink-0"
-        >
-          {planoExpanded ? "↙ Achicar plano" : "↗ Agrandar plano"}
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex rounded-lg border border-line overflow-hidden">
+            <button
+              onClick={() => setViewMode("plano")}
+              className={`px-3 py-1.5 text-sm ${viewMode === "plano" ? "bg-accent text-accent-ink" : "bg-surface text-ink-muted hover:text-ink"}`}
+            >
+              Plano
+            </button>
+            <button
+              onClick={() => setViewMode("timeline")}
+              className={`px-3 py-1.5 text-sm ${viewMode === "timeline" ? "bg-accent text-accent-ink" : "bg-surface text-ink-muted hover:text-ink"}`}
+            >
+              Vista de reservas
+            </button>
+          </div>
+          <button
+            onClick={() => setPlanoExpanded((v) => !v)}
+            className="rounded-lg px-3 py-1.5 text-sm bg-surface text-ink-muted hover:text-ink border border-line transition-colors"
+          >
+            {planoExpanded ? "↙ Achicar" : "↗ Agrandar"}
+          </button>
+        </div>
       </div>
+
+      {zoneBreakdown.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-4 text-xs text-ink-faint">
+          {zoneBreakdown.map(({ zone, counts }) => (
+            <p key={zone.id}>
+              <span className="text-ink-muted font-medium">{zone.name}</span>
+              {" — "}
+              <span className="text-status-occupied">{counts.occupied} ocupadas</span>
+              {" · "}
+              <span className="text-status-arriving">{counts.arriving} por llegar</span>
+              {" · "}
+              {counts.reserved} reservadas{" · "}
+              <span className="text-status-available">{counts.available} libres</span>
+            </p>
+          ))}
+        </div>
+      )}
 
       <div
         className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 mb-4 transition-[height] duration-200"
@@ -263,6 +342,14 @@ export function DashboardPage() {
             <div className="h-full grid place-items-center">
               <p className="text-sm text-ink-muted">Este restaurante todavía no tiene zonas configuradas.</p>
             </div>
+          ) : viewMode === "timeline" ? (
+            <ReservationsTimeline
+              zones={visibleZones}
+              visibleTables={visibleTables}
+              reservationsToday={reservationsToday}
+              now={now}
+              onSelectReservation={setDetailReservation}
+            />
           ) : (
             <ZoneCanvas
               zones={visibleZones}
@@ -300,81 +387,45 @@ export function DashboardPage() {
             onUnjoin={() => unjoinTable(selectedTable.id)}
           />
         ) : (
-          <div className="flex flex-col gap-4 min-h-0">
-            <div className="rounded-xl border border-line bg-surface p-4 flex-1 min-h-0 overflow-y-auto">
-              <h2 className="text-sm font-semibold mb-3">Próximas reservas</h2>
-              {upcoming.length === 0 ? (
-                <p className="text-xs text-ink-faint">No hay reservas próximas.</p>
-              ) : (
-                <ul className="space-y-1">
-                  {upcoming.map((r) => {
-                    const zoneName = zones.find((z) => z.id === tables.find((t) => t.id === r.tableId)?.zoneId)?.name;
-                    return (
-                      <li key={r.id}>
-                        <button
-                          onClick={() => setDetailReservation(r)}
-                          className="w-full flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-surface-2"
+          <div className="rounded-xl border border-line bg-surface p-4 min-h-0 overflow-y-auto">
+            <h2 className="text-sm font-semibold mb-3">Próximas reservas</h2>
+            {upcoming.length === 0 ? (
+              <p className="text-xs text-ink-faint">No hay reservas próximas.</p>
+            ) : (
+              <ul className="space-y-1">
+                {upcoming.map((r) => {
+                  const zoneName = zones.find((z) => z.id === tables.find((t) => t.id === r.tableId)?.zoneId)?.name;
+                  return (
+                    <li key={r.id}>
+                      <button
+                        onClick={() => setDetailReservation(r)}
+                        className="w-full flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-surface-2"
+                      >
+                        <span className="w-12 text-xs tabular-nums text-ink-muted shrink-0">{formatTime(r.startsAt)}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="truncate">{r.customerName}</p>
+                          <p className="text-xs text-ink-faint truncate">
+                            {r.partySize}p · {r.tableName ? `${zoneName ? `${zoneName} · ` : ""}Mesa ${r.tableName}` : "Sin mesa"}
+                          </p>
+                        </div>
+                        <span
+                          className="text-[10px] rounded-full px-2 py-0.5 border shrink-0"
+                          style={{ color: RESERVATION_STATUS_COLOR[r.status], borderColor: RESERVATION_STATUS_COLOR[r.status] }}
                         >
-                          <span className="w-12 text-xs tabular-nums text-ink-muted shrink-0">{formatTime(r.startsAt)}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="truncate">{r.customerName}</p>
-                            <p className="text-xs text-ink-faint truncate">
-                              {r.partySize}p · {r.tableName ? `${zoneName ? `${zoneName} · ` : ""}Mesa ${r.tableName}` : "Sin mesa"}
-                            </p>
-                          </div>
-                          <span
-                            className="text-[10px] rounded-full px-2 py-0.5 border shrink-0"
-                            style={{ color: RESERVATION_STATUS_COLOR[r.status], borderColor: RESERVATION_STATUS_COLOR[r.status] }}
-                          >
-                            {RESERVATION_STATUS_LABEL[r.status]}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-
-            <div className="rounded-xl border border-line bg-surface p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold">Lista de espera</h2>
-                <Link to="/lista-de-espera" className="text-xs text-accent">
-                  Ver todas
-                </Link>
-              </div>
-              {waitlist.length === 0 ? (
-                <p className="text-xs text-ink-faint">Nadie está esperando ahora mismo.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {waitlist.slice(0, 4).map((w) => (
-                    <li key={w.id} className="flex items-center justify-between text-sm">
-                      <span className="truncate">{w.customerName}</span>
-                      <span className="text-xs text-ink-faint shrink-0 ml-2">{w.partySize}p</span>
+                          {RESERVATION_STATUS_LABEL[r.status]}
+                        </span>
+                      </button>
                     </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         )}
       </div>
 
       <div className="rounded-xl border border-line bg-surface p-4 mb-4">
-        <div className="flex items-start justify-between gap-3 mb-1">
-          <h2 className="text-sm font-semibold">Capacidad por horario</h2>
-          <span className="text-xs text-ink-faint shrink-0">
-            📋 {waitlist.length} en lista de espera
-            {waitlist.length > 0 && (
-              <>
-                {" — "}
-                <Link to="/lista-de-espera" className="text-accent">
-                  ver
-                </Link>
-              </>
-            )}
-          </span>
-        </div>
+        <h2 className="text-sm font-semibold mb-1">Capacidad por horario</h2>
         <p className="text-xs text-ink-faint mb-3">
           Mesas ocupadas de verdad en cada franja — cuenta tanto lo que ya está sentado y todavía no debería
           liberarse (con el colchón de {rules?.bufferMinutes ?? 15} min) como lo que arranca ahí.
@@ -383,20 +434,23 @@ export function DashboardPage() {
           <p className="text-xs text-ink-faint">Sin mesas o sin datos todavía.</p>
         ) : (
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {pacing.map((slot) => {
+            {pacing.map((slot, i) => {
               const colorClass =
                 slot.pctOccupied >= 90
                   ? "text-status-occupied"
                   : slot.pctOccupied >= 70
                     ? "text-status-arriving"
                     : "text-status-available";
+              const isNow = i === 0;
               return (
                 <div
                   key={slot.startsAt}
-                  className="shrink-0 w-24 rounded-lg border border-line bg-ground px-2 py-2 text-center"
+                  className={`shrink-0 w-24 rounded-lg border px-2 py-2 text-center ${
+                    isNow ? "border-accent bg-accent/10" : "border-line bg-ground"
+                  }`}
                 >
-                  <p className="text-[11px] text-ink-faint tabular-nums">
-                    {new Date(slot.startsAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                  <p className={`text-[11px] tabular-nums ${isNow ? "text-accent font-medium" : "text-ink-faint"}`}>
+                    {isNow ? "Ahora" : new Date(slot.startsAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
                   </p>
                   <p className={`text-lg font-semibold tabular-nums mt-0.5 ${colorClass}`}>{slot.pctOccupied}%</p>
                   <p className="text-[10px] text-ink-faint tabular-nums">
@@ -411,6 +465,12 @@ export function DashboardPage() {
           </div>
         )}
       </div>
+
+      {restaurantId && (
+        <div className="rounded-xl border border-line bg-surface p-4 mb-4">
+          <WaitlistPanel restaurantId={restaurantId} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="rounded-xl border border-line bg-surface p-4">

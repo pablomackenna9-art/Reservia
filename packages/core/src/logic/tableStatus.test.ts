@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findTurnoverConflict } from "./tableStatus";
+import { findLateArrivals, findTurnoverConflict } from "./tableStatus";
 import type { Reservation } from "../types/reservations";
 
 let idCounter = 0;
@@ -53,5 +53,35 @@ describe("findTurnoverConflict", () => {
     const seated = makeReservation({ id: "seated", status: "seated", startsAt: "2026-01-01T09:30:00.000Z" });
     const cancelled = makeReservation({ id: "cancelled", status: "cancelled", startsAt: "2026-01-01T11:00:00.000Z" });
     expect(findTurnoverConflict([seated, cancelled], NOW)).toBeNull();
+  });
+});
+
+describe("findLateArrivals", () => {
+  it("flags a confirmed reservation whose start time is past the threshold (10:55 now, 10:30 confirmed)", () => {
+    const late = makeReservation({ id: "late", status: "confirmed", startsAt: "2026-01-01T10:30:00.000Z" });
+    expect(findLateArrivals([late], NOW).map((r) => r.id)).toEqual(["late"]);
+  });
+
+  it("does not flag a reservation still within the threshold", () => {
+    const almostLate = makeReservation({ id: "almost", status: "confirmed", startsAt: "2026-01-01T10:45:00.000Z" });
+    expect(findLateArrivals([almostLate], NOW)).toEqual([]);
+  });
+
+  it("does not flag a reservation that's already seated", () => {
+    const seated = makeReservation({ id: "seated", status: "seated", startsAt: "2026-01-01T10:00:00.000Z" });
+    expect(findLateArrivals([seated], NOW)).toEqual([]);
+  });
+
+  it("ignores cancelled, no_show and completed reservations", () => {
+    const cancelled = makeReservation({ id: "cancelled", status: "cancelled", startsAt: "2026-01-01T10:00:00.000Z" });
+    const noShow = makeReservation({ id: "no_show", status: "no_show", startsAt: "2026-01-01T10:00:00.000Z" });
+    const completed = makeReservation({ id: "completed", status: "completed", startsAt: "2026-01-01T10:00:00.000Z" });
+    expect(findLateArrivals([cancelled, noShow, completed], NOW)).toEqual([]);
+  });
+
+  it("sorts the latest arrivals first by scheduled time", () => {
+    const a = makeReservation({ id: "a", status: "pending", startsAt: "2026-01-01T10:00:00.000Z" });
+    const b = makeReservation({ id: "b", status: "confirmed", startsAt: "2026-01-01T10:20:00.000Z" });
+    expect(findLateArrivals([b, a], NOW).map((r) => r.id)).toEqual(["a", "b"]);
   });
 });

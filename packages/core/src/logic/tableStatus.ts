@@ -79,3 +79,21 @@ export function findTurnoverConflict<T extends Reservation>(
   const minutesUntil = (new Date(next.startsAt).getTime() - now.getTime()) / 60_000;
   return minutesUntil <= thresholdMinutes ? next : null;
 }
+
+export const LATE_ARRIVAL_THRESHOLD_MINUTES = 15;
+
+/**
+ * Reservas cuya hora de llegada ya pasó y todavía nadie las sentó -- el
+ * admin necesita un aviso para decidir si liberar la mesa o seguir
+ * esperando, en vez de darse cuenta solo cuando alguien reclama la mesa.
+ */
+export function findLateArrivals<T extends Reservation>(
+  reservations: T[],
+  now: Date = new Date(),
+  thresholdMinutes: number = LATE_ARRIVAL_THRESHOLD_MINUTES,
+): T[] {
+  return reservations
+    .filter((r) => ["pending", "confirmed", "arriving"].includes(r.status))
+    .filter((r) => minutesSince(r.startsAt, now) >= thresholdMinutes)
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+}
