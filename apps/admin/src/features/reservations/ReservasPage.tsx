@@ -89,7 +89,7 @@ export function ReservasPage() {
 
   async function skipCompletion() {
     if (!pendingCompletion) return;
-    await updateReservationStatus(supabase, pendingCompletion.id, "completed");
+    await completeReservationWithConsumption(supabase, pendingCompletion, []);
     setPendingCompletion(null);
     reload();
   }
@@ -218,6 +218,7 @@ export function ReservasPage() {
 
       {pendingCompletion && (
         <CompleteReservationModal
+          reservationId={pendingCompletion.id}
           customerName={pendingCompletion.customerName}
           onCancel={() => setPendingCompletion(null)}
           onConfirm={confirmCompletion}

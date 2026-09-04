@@ -467,6 +467,7 @@ export function DashboardPage() {
 
       {pendingCompletion && (
         <CompleteReservationModal
+          reservationId={pendingCompletion.id}
           customerName={pendingCompletion.customerName}
           onCancel={cancelCompletion}
           onConfirm={confirmCompletion}

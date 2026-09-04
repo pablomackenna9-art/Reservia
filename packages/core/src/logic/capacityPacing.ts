@@ -65,3 +65,44 @@ export function computeCapacityPacing(
 
   return slots;
 }
+
+export interface OccupancyEstimate {
+  occupiedTables: number;
+  totalTables: number;
+  freeTables: number;
+  pctOccupied: number;
+}
+
+/**
+ * Cuántas mesas van a estar ocupadas por otra actividad ya confirmada en un
+ * horario puntual -- para evaluar una solicitud pendiente antes de
+ * aceptarla, sin tener que mirar franja por franja.
+ */
+export function estimateOccupancyAt(
+  totalTables: number,
+  reservations: Pick<Reservation, "tableId" | "startsAt" | "endsAt" | "status">[],
+  targetStart: Date,
+  targetEnd: Date,
+  bufferMinutes = 15,
+): OccupancyEstimate {
+  const bufferMs = bufferMinutes * 60_000;
+  const active = reservations.filter((r) => r.tableId && ACTIVE_RESERVATION_STATUSES.includes(r.status));
+
+  const occupiedTableIds = new Set<string>();
+  const targetStartMs = targetStart.getTime();
+  const targetEndMs = targetEnd.getTime();
+  for (const r of active) {
+    const startMs = new Date(r.startsAt).getTime();
+    const endMs = new Date(r.endsAt).getTime();
+    if (startMs < targetEndMs && endMs + bufferMs > targetStartMs) occupiedTableIds.add(r.tableId!);
+  }
+
+  const occupiedTables = occupiedTableIds.size;
+  const freeTables = Math.max(0, totalTables - occupiedTables);
+  return {
+    occupiedTables,
+    totalTables,
+    freeTables,
+    pctOccupied: totalTables > 0 ? Math.round((occupiedTables / totalTables) * 100) : 0,
+  };
+}

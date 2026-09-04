@@ -13,6 +13,7 @@ import {
 import { mapCustomer } from "./customers";
 import { mapTable } from "./tables";
 import { joinTables } from "./tableGroups";
+import { ensureOpenCheck } from "./consumption";
 
 export interface ReservationWithDetails extends Reservation {
   customerName: string;
@@ -298,54 +299,26 @@ export interface ConsumptionItemInput {
 }
 
 /**
- * Cierra una reserva con lo que realmente consumió esa mesa -- crea la
- * visita + cuenta + ítems (misma infraestructura que MockPOS) para que el
- * consumo total y los productos favoritos del cliente sigan creciendo con
- * cada visita real, no solo con datos de demo. `total_amount` en la reserva
- * queda igual a la suma, así "promedio de compra" (que lee de ahí) nunca se
- * desincroniza de "consumo total" (que lee de los ítems).
+ * Cierra una reserva con lo que realmente consumió esa mesa. `items` es la
+ * lista final completa -- si ya había una cuenta abierta (el staff fue
+ * cargando consumo mientras la mesa estaba sentada, ver `./consumption`),
+ * reemplaza sus ítems por esta lista en vez de sumarse a ellos, porque el
+ * modal que llama a esto ya viene precargado con lo que había más lo que se
+ * haya editado. Reutiliza esa misma cuenta -- misma infraestructura que
+ * MockPOS -- para que el consumo total y los productos favoritos del
+ * cliente sigan creciendo con cada visita real. `total_amount` en la
+ * reserva queda igual a la suma, así "promedio de compra" (que lee de ahí)
+ * nunca se desincroniza de "consumo total" (que lee de los ítems).
  */
 export async function completeReservationWithConsumption(
   supabase: SupabaseClient,
   reservation: Pick<ReservationWithDetails, "id" | "restaurantId" | "customerId" | "tableId" | "partySize" | "startsAt">,
   items: ConsumptionItemInput[],
 ): Promise<void> {
-  const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  const now = new Date().toISOString();
+  const check = await ensureOpenCheck(supabase, reservation);
 
-  const { data: visit, error: visitError } = await supabase
-    .from("visits")
-    .insert({
-      restaurant_id: reservation.restaurantId,
-      table_id: reservation.tableId,
-      reservation_id: reservation.id,
-      customer_id: reservation.customerId,
-      party_size: reservation.partySize,
-      started_at: reservation.startsAt,
-      ended_at: now,
-      status: "closed",
-    })
-    .select("id")
-    .single();
-  if (visitError) throw visitError;
-
-  const { data: check, error: checkError } = await supabase
-    .from("pos_checks")
-    .insert({
-      restaurant_id: reservation.restaurantId,
-      visit_id: visit.id,
-      external_check_id: `manual-${reservation.id}`,
-      opened_at: reservation.startsAt,
-      closed_at: now,
-      subtotal: total,
-      total,
-      paid_amount: total,
-      guest_count: reservation.partySize,
-      status: "closed",
-    })
-    .select("id")
-    .single();
-  if (checkError) throw checkError;
+  const { error: deleteError } = await supabase.from("pos_check_items").delete().eq("check_id", check.id);
+  if (deleteError) throw deleteError;
 
   if (items.length > 0) {
     const { error: itemsError } = await supabase.from("pos_check_items").insert(
@@ -360,6 +333,27 @@ export async function completeReservationWithConsumption(
     );
     if (itemsError) throw itemsError;
   }
+
+  const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+
+  const now = new Date().toISOString();
+  const { error: checkError } = await supabase
+    .from("pos_checks")
+    .update({ subtotal: total, total, paid_amount: total, status: "closed", closed_at: now })
+    .eq("id", check.id);
+  if (checkError) throw checkError;
+
+  const { data: checkRow, error: visitLookupError } = await supabase
+    .from("pos_checks")
+    .select("visit_id")
+    .eq("id", check.id)
+    .single();
+  if (visitLookupError) throw visitLookupError;
+  const { error: visitError } = await supabase
+    .from("visits")
+    .update({ status: "closed", ended_at: now })
+    .eq("id", checkRow.visit_id);
+  if (visitError) throw visitError;
 
   await updateReservationStatus(supabase, reservation.id, "completed", total);
 }
@@ -417,5 +411,40 @@ export function mapReservation(row: Record<string, unknown>): Reservation {
     createdAt: row.created_at as string,
     suggestedTableId: (row.suggested_table_id as string) ?? null,
     tableAssignmentSource: (row.table_assignment_source as TableAssignmentSource) ?? null,
+    feedbackRating: (row.feedback_rating as number) ?? null,
+    feedbackComment: (row.feedback_comment as string) ?? null,
   };
+}
+
+/** Reservas completadas recientes sin feedback cargado todavía -- para que el staff sepa a quién preguntarle. */
+export async function listReservationsMissingFeedback(
+  supabase: SupabaseClient,
+  restaurantId: string,
+  sinceDays = 14,
+): Promise<ReservationWithDetails[]> {
+  const since = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("*, customers(*), tables!reservations_table_id_fkey(name)")
+    .eq("restaurant_id", restaurantId)
+    .eq("status", "completed")
+    .is("feedback_rating", null)
+    .gte("ends_at", since)
+    .order("ends_at", { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  return (data ?? []).map(mapReservationWithDetails);
+}
+
+export async function submitReservationFeedback(
+  supabase: SupabaseClient,
+  reservationId: string,
+  rating: number,
+  comment?: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("reservations")
+    .update({ feedback_rating: rating, feedback_comment: comment?.trim() || null })
+    .eq("id", reservationId);
+  if (error) throw error;
 }

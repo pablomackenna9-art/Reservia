@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeCapacityPacing } from "./capacityPacing";
+import { computeCapacityPacing, estimateOccupancyAt } from "./capacityPacing";
 import type { Reservation } from "../types/reservations";
 
 let idCounter = 0;
@@ -21,6 +21,8 @@ function makeReservation(overrides: Partial<Reservation>): Reservation {
     createdAt: "2026-01-01T09:00:00.000Z",
     suggestedTableId: null,
     tableAssignmentSource: null,
+    feedbackRating: null,
+    feedbackComment: null,
     ...overrides,
   };
 }
@@ -66,5 +68,27 @@ describe("computeCapacityPacing", () => {
     const noTable = makeReservation({ tableId: null });
     const slots = computeCapacityPacing(1, [noTable], NOW, { slotMinutes: 30, horizonMinutes: 30 });
     expect(slots[0]!.occupiedTables).toBe(0);
+  });
+});
+
+describe("estimateOccupancyAt", () => {
+  it("counts tables whose reservation overlaps the target window", () => {
+    const overlapping = makeReservation({ tableId: "t1", startsAt: "2026-01-01T20:00:00.000Z", endsAt: "2026-01-01T21:30:00.000Z" });
+    const notOverlapping = makeReservation({ tableId: "t2", startsAt: "2026-01-01T22:00:00.000Z", endsAt: "2026-01-01T23:00:00.000Z" });
+    const est = estimateOccupancyAt(
+      4,
+      [overlapping, notOverlapping],
+      new Date("2026-01-01T20:30:00.000Z"),
+      new Date("2026-01-01T22:00:00.000Z"),
+      0,
+    );
+    expect(est.occupiedTables).toBe(1);
+    expect(est.freeTables).toBe(3);
+    expect(est.pctOccupied).toBe(25);
+  });
+
+  it("returns 0% when there are no tables", () => {
+    const est = estimateOccupancyAt(0, [], new Date("2026-01-01T20:00:00.000Z"), new Date("2026-01-01T21:00:00.000Z"));
+    expect(est.pctOccupied).toBe(0);
   });
 });

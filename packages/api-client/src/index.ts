@@ -13,4 +13,5 @@ export * from "./publicBooking";
 export * from "./team";
 export * from "./visits";
 export * from "./pos";
+export * from "./consumption";
 export * from "./integrations";

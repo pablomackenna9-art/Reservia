@@ -156,7 +156,9 @@ export function useFloorPlan(restaurantId: string | undefined) {
 
   async function skipCompletion() {
     if (!pendingCompletion) return;
-    await updateReservationStatus(supabase, pendingCompletion.id, "completed");
+    // Sin ítems nuevos -- si ya había una cuenta en curso (ver ./consumption)
+    // la cierra con lo que ya tenía en vez de descartarlo; si no, cierra en $0.
+    await completeReservationWithConsumption(supabase, pendingCompletion, []);
     setPendingCompletion(null);
     await reload();
   }

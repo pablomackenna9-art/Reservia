@@ -35,6 +35,9 @@ export const reservationSchema = z
     /** The Smart Table Engine's top pick at assignment time — kept even if staff later override it. */
     suggestedTableId: z.string().uuid().nullable().default(null),
     tableAssignmentSource: z.enum(TABLE_ASSIGNMENT_SOURCES).nullable().default(null),
+    /** Post-visita, cargado a mano por el staff hasta que exista un canal para pedirlo automático. */
+    feedbackRating: z.number().int().min(1).max(5).nullable().default(null),
+    feedbackComment: z.string().nullable().default(null),
   })
   .refine((r) => new Date(r.endsAt) > new Date(r.startsAt), {
     message: "endsAt debe ser posterior a startsAt",

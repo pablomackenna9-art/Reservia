@@ -1,14 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   currentOrNextReservation,
   findTurnoverConflict,
   minutesSince,
   tableStatusLabel,
+  type PosCheck,
+  type PosCheckItem,
   type ReservationStatus,
   type Table,
   type TableLiveStatusValue,
 } from "@reservia/core";
-import { joinTables, type ReservationWithDetails, type TableGroupInfo } from "@reservia/api-client";
+import {
+  addConsumptionItem,
+  ensureOpenCheck,
+  getOpenCheckForReservation,
+  joinTables,
+  listConsumptionItems,
+  removeConsumptionItem,
+  type ReservationWithDetails,
+  type TableGroupInfo,
+} from "@reservia/api-client";
 import type { TableAssignmentSource, TableCandidate } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { STATUS_COLORS } from "./statusColors";
@@ -289,6 +300,10 @@ export function TableDetailPanel({
         </div>
       )}
 
+      {reservation && reservation.status === "seated" && (
+        <CurrentCheckSection key={reservation.id} reservation={reservation} restaurantId={restaurantId} />
+      )}
+
       {todaysSchedule.length > 0 && (
         <div className="mb-4">
           <p className="text-xs text-ink-faint uppercase tracking-wide mb-1.5">Reservas de hoy en esta mesa</p>
@@ -490,6 +505,112 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between gap-2">
       <dt className="text-ink-faint">{label}</dt>
       <dd className="text-ink text-right">{value}</dd>
+    </div>
+  );
+}
+
+function formatCLP(amount: number): string {
+  return amount.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
+}
+
+/**
+ * "En cuánto va la cuenta" mientras la mesa sigue sentada -- no hace falta
+ * esperar a completar la reserva para ver el consumo acumulado. La primera
+ * vez que se agrega un ítem crea la cuenta (visits + pos_checks); a partir
+ * de ahí el modal de "Completar reserva" la reutiliza tal cual quedó.
+ */
+function CurrentCheckSection({ reservation, restaurantId }: { reservation: ReservationWithDetails; restaurantId: string }) {
+  const [check, setCheck] = useState<PosCheck | null>(null);
+  const [items, setItems] = useState<PosCheckItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [itemName, setItemName] = useState("");
+  const [itemPrice, setItemPrice] = useState("");
+
+  async function reload() {
+    const c = await getOpenCheckForReservation(supabase, reservation.id);
+    setCheck(c);
+    setItems(c ? await listConsumptionItems(supabase, c.id) : []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reservation.id]);
+
+  async function handleStart() {
+    const c = await ensureOpenCheck(supabase, reservation);
+    setCheck(c);
+  }
+
+  async function handleAdd() {
+    const price = Number(itemPrice);
+    if (!check || !itemName.trim() || !price) return;
+    await addConsumptionItem(supabase, { restaurantId, checkId: check.id, name: itemName.trim(), quantity: 1, unitPrice: price });
+    setItemName("");
+    setItemPrice("");
+    await reload();
+  }
+
+  async function handleRemove(itemId: string) {
+    if (!check) return;
+    await removeConsumptionItem(supabase, itemId, check.id);
+    await reload();
+  }
+
+  if (loading) return null;
+
+  return (
+    <div className="rounded-lg border border-line bg-ground p-3 mb-4">
+      <p className="text-xs text-ink-faint uppercase tracking-wide mb-2">Cuenta actual</p>
+
+      {!check ? (
+        <button onClick={handleStart} className="text-xs text-accent">
+          + Registrar consumo
+        </button>
+      ) : (
+        <>
+          {items.length > 0 && (
+            <ul className="space-y-1 mb-2">
+              {items.map((item) => (
+                <li key={item.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate text-ink-muted">{item.name}</span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <span className="tabular-nums">{formatCLP(item.total)}</span>
+                    <button onClick={() => handleRemove(item.id)} className="text-ink-faint hover:text-status-occupied" aria-label="Quitar">
+                      ✕
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex items-center justify-between text-sm pt-2 border-t border-line mb-2">
+            <span className="text-ink-faint">Total</span>
+            <span className="font-semibold tabular-nums">{formatCLP(check.total)}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <input
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              placeholder="Producto"
+              className="flex-1 min-w-0 rounded-lg bg-surface border border-line px-2 py-1.5 text-xs outline-none focus:border-accent"
+            />
+            <input
+              type="number"
+              value={itemPrice}
+              onChange={(e) => setItemPrice(e.target.value)}
+              placeholder="$"
+              className="w-20 rounded-lg bg-surface border border-line px-2 py-1.5 text-xs outline-none focus:border-accent"
+            />
+            <button onClick={handleAdd} className="rounded-lg bg-surface-2 border border-line px-2 py-1.5 text-xs hover:border-accent shrink-0">
+              + Agregar
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

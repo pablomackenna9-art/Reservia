@@ -178,6 +178,7 @@ export function PlanoDeMesasPage() {
 
       {pendingCompletion && (
         <CompleteReservationModal
+          reservationId={pendingCompletion.id}
           customerName={pendingCompletion.customerName}
           onCancel={cancelCompletion}
           onConfirm={confirmCompletion}

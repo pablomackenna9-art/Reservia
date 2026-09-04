@@ -21,6 +21,8 @@ function makeReservation(overrides: Partial<Reservation>): Reservation {
     createdAt: "2026-01-01T09:00:00.000Z",
     suggestedTableId: null,
     tableAssignmentSource: null,
+    feedbackRating: null,
+    feedbackComment: null,
     ...overrides,
   };
 }

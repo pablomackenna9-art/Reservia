@@ -1,5 +1,6 @@
-import { useState } from "react";
-import type { ConsumptionItemInput } from "@reservia/api-client";
+import { useEffect, useState } from "react";
+import { getOpenCheckForReservation, listConsumptionItems, type ConsumptionItemInput } from "@reservia/api-client";
+import { supabase } from "../../lib/supabase";
 
 function formatCLP(amount: number): string {
   return amount.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
@@ -13,18 +14,38 @@ function formatCLP(amount: number): string {
  * el monto ahí; "+ agregar producto" es solo para quien quiera itemizar.
  */
 export function CompleteReservationModal({
+  reservationId,
   customerName,
   onCancel,
   onConfirm,
   onSkip,
 }: {
+  reservationId: string;
   customerName: string;
   onCancel: () => void;
   onConfirm: (items: ConsumptionItemInput[]) => Promise<void> | void;
   onSkip: () => Promise<void> | void;
 }) {
   const [items, setItems] = useState<ConsumptionItemInput[]>([{ name: "Consumo", quantity: 1, unitPrice: 0 }]);
+  const [alreadyTracked, setAlreadyTracked] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [loadingPrefill, setLoadingPrefill] = useState(true);
+
+  useEffect(() => {
+    getOpenCheckForReservation(supabase, reservationId).then(async (check) => {
+      if (!check) {
+        setLoadingPrefill(false);
+        return;
+      }
+      const existingItems = await listConsumptionItems(supabase, check.id);
+      if (existingItems.length > 0) {
+        setItems(existingItems.map((i) => ({ name: i.name, quantity: i.quantity, unitPrice: i.unitPrice })));
+        setAlreadyTracked(check.total);
+      }
+      setLoadingPrefill(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reservationId]);
 
   const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
@@ -51,7 +72,10 @@ export function CompleteReservationModal({
     <div className="fixed inset-0 bg-black/60 grid place-items-center z-50 px-4" onClick={onCancel}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-xl border border-line bg-surface p-5">
         <h2 className="text-lg font-semibold mb-1">Completar reserva</h2>
-        <p className="text-xs text-ink-faint mb-4">{customerName} — qué consumió, para llevar historial real.</p>
+        <p className="text-xs text-ink-faint mb-4">
+          {customerName} — qué consumió, para llevar historial real.
+          {alreadyTracked > 0 && " Ya venía con consumo cargado desde \"Cuenta actual\" — revisalo antes de confirmar."}
+        </p>
 
         <div className="space-y-2 mb-2">
           {items.map((item, i) => (
