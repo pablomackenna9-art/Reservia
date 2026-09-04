@@ -15,6 +15,8 @@ export default {
         accent: "#de9a4c",
         "accent-ink": "#1c1512",
         status: {
+          available: "#4cae83",
+          arriving: "#e0ac4e",
           occupied: "#dd7c68",
         },
       },

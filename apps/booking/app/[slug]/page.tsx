@@ -1,6 +1,11 @@
 import { createReservationClient, getReservationRules, getRestaurantBySlug, listHours } from "@reservia/api-client";
 import { BookingFlow } from "./BookingFlow";
 
+// Supabase's client fetches under the hood; without this, Next.js caches those
+// fetch() calls at build/first-request time and keeps serving stale restaurant
+// data (logo, hours, rules) instead of the live row.
+export const dynamic = "force-dynamic";
+
 export default async function RestaurantBookingPage({ params }: { params: { slug: string } }) {
   // Created per-request, not at module scope, so this route only needs
   // Supabase env vars when it's actually hit — not whenever Next evaluates

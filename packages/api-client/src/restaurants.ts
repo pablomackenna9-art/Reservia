@@ -52,6 +52,42 @@ export async function createRestaurant(
   return mapRestaurant(data);
 }
 
+export async function updateRestaurant(
+  supabase: SupabaseClient,
+  id: string,
+  patch: { name?: string; address?: string | null; phone?: string | null; logoUrl?: string | null },
+): Promise<Restaurant> {
+  const { data, error } = await supabase
+    .from("restaurants")
+    .update({
+      ...(patch.name !== undefined && { name: patch.name }),
+      ...(patch.address !== undefined && { address: patch.address }),
+      ...(patch.phone !== undefined && { phone: patch.phone }),
+      ...(patch.logoUrl !== undefined && { logo_url: patch.logoUrl }),
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return mapRestaurant(data);
+}
+
+/** Sube el logo al bucket público "restaurant-logos" (ver 0018) y devuelve la URL pública -- no actualiza `restaurants.logo_url` sola, el caller decide cuándo guardarla. */
+export async function uploadRestaurantLogo(supabase: SupabaseClient, restaurantId: string, file: File): Promise<string> {
+  const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+  const path = `${restaurantId}/logo.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("restaurant-logos")
+    .upload(path, file, { upsert: true, contentType: file.type });
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from("restaurant-logos").getPublicUrl(path);
+  // Cache-bust: mismo nombre de archivo en cada reemplazo, así que sin esto
+  // el navegador (o un CDN) podría seguir sirviendo el logo viejo.
+  return `${data.publicUrl}?v=${Date.now()}`;
+}
+
 function mapRestaurant(row: Record<string, unknown>): Restaurant {
   return {
     id: row.id as string,

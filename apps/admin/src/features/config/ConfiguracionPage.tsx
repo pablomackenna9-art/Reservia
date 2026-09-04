@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
+import { GeneralTab } from "./GeneralTab";
 import { ZonasTab } from "./ZonasTab";
 import { HorariosTab } from "./HorariosTab";
 import { ReglasTab } from "./ReglasTab";
 import { EquipoTab } from "./EquipoTab";
 
 const TABS = [
+  { id: "general", label: "General" },
   { id: "zonas", label: "Zonas" },
   { id: "horarios", label: "Horarios" },
   { id: "reglas", label: "Reglas de reserva" },
@@ -17,7 +19,7 @@ type TabId = (typeof TABS)[number]["id"];
 export function ConfiguracionPage() {
   const { current } = useRestaurant();
   const restaurantId = current?.restaurant.id;
-  const [tab, setTab] = useState<TabId>("zonas");
+  const [tab, setTab] = useState<TabId>("general");
 
   if (!restaurantId) return null;
 
@@ -42,6 +44,7 @@ export function ConfiguracionPage() {
         ))}
       </div>
 
+      {tab === "general" && current && <GeneralTab restaurant={current.restaurant} />}
       {tab === "zonas" && <ZonasTab restaurantId={restaurantId} />}
       {tab === "horarios" && <HorariosTab restaurantId={restaurantId} />}
       {tab === "reglas" && <ReglasTab restaurantId={restaurantId} />}
