@@ -13,6 +13,7 @@ export async function listWaitlist(supabase: SupabaseClient, restaurantId: strin
     .select("*, customers(*)")
     .eq("restaurant_id", restaurantId)
     .in("status", ["waiting", "notified"])
+    .order("priority", { ascending: false })
     .order("requested_at", { ascending: true });
 
   if (error) throw error;
@@ -29,7 +30,14 @@ export async function listWaitlist(supabase: SupabaseClient, restaurantId: strin
 
 export async function addToWaitlist(
   supabase: SupabaseClient,
-  input: { restaurantId: string; customerId: string; partySize: number; estimatedWaitMinutes?: number; notes?: string },
+  input: {
+    restaurantId: string;
+    customerId: string;
+    partySize: number;
+    estimatedWaitMinutes?: number;
+    notes?: string;
+    priority?: number;
+  },
 ): Promise<WaitlistEntry> {
   const { data, error } = await supabase
     .from("waitlist_entries")
@@ -39,6 +47,7 @@ export async function addToWaitlist(
       party_size: input.partySize,
       estimated_wait_minutes: input.estimatedWaitMinutes ?? null,
       notes: input.notes ?? null,
+      priority: input.priority ?? 0,
     })
     .select("*")
     .single();
@@ -52,7 +61,12 @@ export async function updateWaitlistStatus(supabase: SupabaseClient, id: string,
   if (error) throw error;
 }
 
-function mapWaitlistEntry(row: Record<string, unknown>): WaitlistEntry {
+export async function setWaitlistPriority(supabase: SupabaseClient, id: string, priority: number): Promise<void> {
+  const { error } = await supabase.from("waitlist_entries").update({ priority }).eq("id", id);
+  if (error) throw error;
+}
+
+export function mapWaitlistEntry(row: Record<string, unknown>): WaitlistEntry {
   return {
     id: row.id as string,
     restaurantId: row.restaurant_id as string,
@@ -63,5 +77,6 @@ function mapWaitlistEntry(row: Record<string, unknown>): WaitlistEntry {
     status: row.status as WaitlistStatus,
     preferredZoneId: (row.preferred_zone_id as string) ?? null,
     notes: (row.notes as string) ?? null,
+    priority: (row.priority as number) ?? 0,
   };
 }

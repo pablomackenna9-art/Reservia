@@ -58,6 +58,8 @@ export const waitlistEntrySchema = z.object({
   status: z.enum(WAITLIST_STATUSES),
   preferredZoneId: z.string().uuid().nullable(),
   notes: z.string().nullable(),
+  /** Mayor = se atiende primero. 0 = normal. */
+  priority: z.number().int().default(0),
 });
 export type WaitlistEntry = z.infer<typeof waitlistEntrySchema>;
 

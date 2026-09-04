@@ -6,6 +6,7 @@ import {
   listAvailableTables,
   listWaitlist,
   searchCustomers,
+  setWaitlistPriority,
   updateWaitlistStatus,
   type WaitlistEntryWithCustomer,
 } from "@reservia/api-client";
@@ -50,6 +51,11 @@ export function ListaDeEsperaPage() {
 
   async function handleCancel(id: string) {
     await updateWaitlistStatus(supabase, id, "cancelled");
+    reload();
+  }
+
+  async function handleTogglePriority(entry: WaitlistEntryWithCustomer) {
+    await setWaitlistPriority(supabase, entry.id, entry.priority > 0 ? 0 : 1);
     reload();
   }
 
@@ -113,12 +119,25 @@ export function ListaDeEsperaPage() {
             <div key={entry.id} className="px-4 py-3">
               <div className="flex items-center gap-4">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{entry.customerName}</p>
+                  <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                    {entry.priority > 0 && <span title="Prioritaria">⭐</span>}
+                    {entry.customerName}
+                  </p>
                   <p className="text-xs text-ink-faint">
                     {entry.partySize} personas · esperando hace {minutesWaiting(entry.requestedAt)} min
                     {entry.customerPhone ? ` · ${entry.customerPhone}` : ""}
                   </p>
                 </div>
+                <button
+                  onClick={() => handleTogglePriority(entry)}
+                  className={`text-xs rounded-full px-2 py-0.5 border shrink-0 ${
+                    entry.priority > 0
+                      ? "text-accent border-accent bg-accent/10"
+                      : "text-ink-faint border-line hover:border-accent hover:text-accent"
+                  }`}
+                >
+                  {entry.priority > 0 ? "★ Prioritaria" : "Marcar prioritaria"}
+                </button>
                 <span
                   className={`text-[10px] rounded-full px-2 py-0.5 border ${
                     entry.status === "notified" ? "text-status-arriving border-status-arriving" : "text-ink-faint border-line"
@@ -192,6 +211,7 @@ function AddToWaitlistForm({
   const [email, setEmail] = useState("");
   const [duplicateMatches, setDuplicateMatches] = useState<Customer[]>([]);
   const [partySize, setPartySize] = useState(2);
+  const [priority, setPriority] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // While loading a "new" customer, check if the phone/email they just typed
@@ -228,7 +248,7 @@ function AddToWaitlistForm({
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
       }));
-    await addToWaitlist(supabase, { restaurantId, customerId: customer.id, partySize });
+    await addToWaitlist(supabase, { restaurantId, customerId: customer.id, partySize, priority: priority ? 1 : 0 });
     setSubmitting(false);
     onAdded();
   }
@@ -286,7 +306,12 @@ function AddToWaitlistForm({
         )}
 
         <label className="block text-sm text-ink-muted mb-1">Personas</label>
-        <input type="number" min={1} max={30} value={partySize} onChange={(e) => setPartySize(Number(e.target.value))} className="w-full mb-4 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent" />
+        <input type="number" min={1} max={30} value={partySize} onChange={(e) => setPartySize(Number(e.target.value))} className="w-full mb-3 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent" />
+
+        <label className="flex items-center gap-2 text-sm text-ink-muted mb-4">
+          <input type="checkbox" checked={priority} onChange={(e) => setPriority(e.target.checked)} />
+          ⭐ Prioritaria (se atiende antes que el resto)
+        </label>
 
         <div className="flex gap-2 justify-end">
           <button onClick={onCancel} className="rounded-lg px-4 py-2 text-sm text-ink-muted">Cancelar</button>

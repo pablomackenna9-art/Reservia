@@ -292,41 +292,141 @@ async function main() {
     created++;
   }
 
-  // --- Reservas confirmadas más tarde -- se busca una mesa realmente libre
-  // para ese horario antes de asignar, no cualquiera. ---
-  const upcomingSlots = 14;
-  for (let i = 0; i < upcomingSlots; i++) {
-    const minutesFromNow = 30 + i * 20 + Math.floor(Math.random() * 15);
-    const startsAt = snapToSlot(new Date(now + minutesFromNow * 60_000));
+  // --- Curva de ocupación de la noche: a las 19:30 ~15% del restaurante
+  // reservado, a las 20:00 ~85-90%. No es azar disperso -- se apunta a esos
+  // dos números explícitamente, mesa por mesa, respetando la disponibilidad
+  // real (nunca se fuerza un choque). Si "ahora" ya pasó esas horas hoy,
+  // apunta a las mismas horas de mañana, para que el refresh sirva sin
+  // importar a qué hora del día se corra.
+  function targetClockTime(hour, minute) {
+    const d = new Date(now);
+    d.setHours(hour, minute, 0, 0);
+    if (d.getTime() <= now) d.setDate(d.getDate() + 1);
+    return d.getTime();
+  }
+
+  function occupiedTablesAt(targetMs) {
+    let count = 0;
+    for (const list of bookings.values()) {
+      if (list.some(([s, e]) => s <= targetMs && e + BUFFER_MS > targetMs)) count++;
+    }
+    return count;
+  }
+
+  const DINNER_CHECKPOINTS = [
+    { hour: 19, minute: 30, targetPct: 0.15 },
+    { hour: 20, minute: 0, targetPct: 0.875 }, // punto medio de 85-90%
+  ];
+
+  let dinnerCurveCreated = 0;
+  for (const { hour, minute, targetPct } of DINNER_CHECKPOINTS) {
+    const targetMs = targetClockTime(hour, minute);
+    const targetCount = Math.round(tables.length * targetPct);
+    let guard = 0;
+    while (occupiedTablesAt(targetMs) < targetCount && guard < tables.length * 3) {
+      guard++;
+      const durationMinutes = 75 + Math.floor(Math.random() * 45);
+      const startsAt = new Date(targetMs);
+      const endsAt = new Date(targetMs + durationMinutes * 60_000);
+      const table = shuffle(tables).find((t) => !overlaps(t.id, startsAt.getTime(), endsAt.getTime()));
+      if (!table) break; // ninguna mesa sirve ya para esa hora -- se corta, no se fuerza
+
+      const partySize = Math.max(1, table.capacity_max - (Math.random() < 0.4 ? 1 : 0));
+      const status = startsAt.getTime() - now <= 20 * 60_000 ? "arriving" : "confirmed";
+      const source = ["public_portal", "admin", "phone"][Math.floor(Math.random() * 3)];
+      const customer = await pickCustomer(restaurantId, customerPool);
+
+      book(table.id, startsAt.getTime(), endsAt.getTime());
+      await rest("reservations", {
+        method: "POST",
+        body: JSON.stringify({
+          restaurant_id: restaurantId,
+          customer_id: customer.id,
+          table_id: table.id,
+          starts_at: startsAt.toISOString(),
+          ends_at: endsAt.toISOString(),
+          party_size: partySize,
+          status,
+          source,
+          created_by: ownerId,
+        }),
+      });
+      created++;
+      dinnerCurveCreated++;
+    }
+  }
+
+  // --- Después de las 20:00 la gente sigue queriendo reservar. Acá está lo
+  // importante: si ya no queda ninguna mesa que sirva para ese horario, NO
+  // se fuerza un choque -- la solicitud cae a pendiente sin mesa (para que
+  // el staff decida en Notificaciones) o directo a lista de espera (a veces
+  // con prioridad), mostrando los dos caminos reales de "no hay disponibilidad".
+  const laterAttempts = [
+    { hour: 20, minute: 30 },
+    { hour: 21, minute: 0 },
+    { hour: 21, minute: 30 },
+    { hour: 22, minute: 0 },
+  ];
+  let waitlistFromCapacity = 0;
+  let pendingFromCapacity = 0;
+  let laterConfirmed = 0;
+  for (const { hour, minute } of laterAttempts) {
+    const targetMs = targetClockTime(hour, minute);
     const durationMinutes = 75 + Math.floor(Math.random() * 45);
-    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
-
-    const table = shuffle([...seatedTables, ...freeTables]).find(
-      (t) => !overlaps(t.id, startsAt.getTime(), endsAt.getTime()),
-    );
-    if (!table) continue; // ninguna mesa libre para ese horario -- se salta, no se fuerza un choque
-
-    const partySize = Math.max(1, table.capacity_max - (Math.random() < 0.4 ? 1 : 0));
-    const status = minutesFromNow <= 20 ? "arriving" : "confirmed";
-    const source = ["public_portal", "admin", "phone"][Math.floor(Math.random() * 3)];
+    const startsAt = new Date(targetMs);
+    const endsAt = new Date(targetMs + durationMinutes * 60_000);
+    const table = shuffle(tables).find((t) => !overlaps(t.id, startsAt.getTime(), endsAt.getTime()));
     const customer = await pickCustomer(restaurantId, customerPool);
+    const partySize = 2 + Math.floor(Math.random() * 4);
 
-    book(table.id, startsAt.getTime(), endsAt.getTime());
-    await rest("reservations", {
-      method: "POST",
-      body: JSON.stringify({
-        restaurant_id: restaurantId,
-        customer_id: customer.id,
-        table_id: table.id,
-        starts_at: startsAt.toISOString(),
-        ends_at: endsAt.toISOString(),
-        party_size: partySize,
-        status,
-        source,
-        created_by: ownerId,
-      }),
-    });
-    created++;
+    if (table) {
+      book(table.id, startsAt.getTime(), endsAt.getTime());
+      await rest("reservations", {
+        method: "POST",
+        body: JSON.stringify({
+          restaurant_id: restaurantId,
+          customer_id: customer.id,
+          table_id: table.id,
+          starts_at: startsAt.toISOString(),
+          ends_at: endsAt.toISOString(),
+          party_size: Math.max(1, table.capacity_max - 1),
+          status: "confirmed",
+          source: "public_portal",
+          created_by: ownerId,
+        }),
+      });
+      created++;
+      laterConfirmed++;
+    } else if (Math.random() < 0.5) {
+      await rest("reservations", {
+        method: "POST",
+        body: JSON.stringify({
+          restaurant_id: restaurantId,
+          customer_id: customer.id,
+          table_id: null,
+          starts_at: startsAt.toISOString(),
+          ends_at: endsAt.toISOString(),
+          party_size: partySize,
+          status: "pending",
+          source: "public_portal",
+          notes: "Sin mesa disponible a esa hora al momento de la solicitud",
+        }),
+      });
+      pendingFromCapacity++;
+      created++;
+    } else {
+      await rest("waitlist_entries", {
+        method: "POST",
+        body: JSON.stringify({
+          restaurant_id: restaurantId,
+          customer_id: customer.id,
+          party_size: partySize,
+          status: "waiting",
+          priority: Math.random() < 0.25 ? 1 : 0,
+        }),
+      });
+      waitlistFromCapacity++;
+    }
   }
 
   // --- Solicitudes pendientes sin mesa (portal público, esperando aprobación) ---
@@ -418,8 +518,10 @@ async function main() {
   }
 
   console.log(
-    `Listo: ${seatedTables.length} mesas sentadas ahora, ${created - seatedTables.length - pendingSlots.length} ` +
-      `reservas confirmadas más tarde, ${pendingSlots.length} solicitudes pendientes sin mesa, ${waitlistCount} en lista de espera, ` +
+    `Listo: ${seatedTables.length} mesas sentadas ahora, ${dinnerCurveCreated} reservas armando la curva de la noche ` +
+      `(19:30 ~15%, 20:00 ~85-90%), ${laterConfirmed} confirmadas más tarde con mesa real, ` +
+      `${pendingFromCapacity + pendingSlots.length} solicitudes pendientes sin mesa, ` +
+      `${waitlistCount + waitlistFromCapacity} en lista de espera (${waitlistFromCapacity} por falta de capacidad), ` +
       `${historicalVisits} visitas de historial agregadas (~$${historicalTotal.toLocaleString("es-CL")} en consumo nuevo). ` +
       `${customerPool.length} clientes en el pool (se reutilizan, nunca se borran).`,
   );

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { createPublicReservation, isSlotAvailable } from "@reservia/api-client";
-import type { Reservation, ReservationRules, RestaurantHours, Restaurant } from "@reservia/core";
+import { createPublicReservation, createPublicWaitlistEntry, isSlotAvailable } from "@reservia/api-client";
+import type { Reservation, ReservationRules, RestaurantHours, Restaurant, WaitlistEntry } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 
-type Step = "party" | "date" | "time" | "details" | "confirmed";
+type Step = "party" | "date" | "time" | "details" | "confirmed" | "waitlist" | "waitlist-confirmed";
 
 interface Slot {
   startsAt: string;
@@ -44,6 +44,7 @@ export function BookingFlow({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<Reservation | null>(null);
+  const [waitlistConfirmed, setWaitlistConfirmed] = useState<WaitlistEntry | null>(null);
 
   const minDate = dateToISO(new Date());
   const maxDate = dateToISO(new Date(Date.now() + rules.maxAdvanceDays * 86_400_000));
@@ -135,6 +136,34 @@ export function BookingFlow({
     }
   }
 
+  async function handleWaitlistConfirm() {
+    if (!partySize) return;
+    if (!firstName.trim() || !phone.trim()) {
+      setError("Nombre y teléfono son obligatorios.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const entry = await createPublicWaitlistEntry(supabase, {
+        restaurantSlug: restaurant.slug,
+        partySize,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: phone.trim(),
+        email: email.trim() || undefined,
+        notes: notes.trim() || undefined,
+      });
+      setWaitlistConfirmed(entry);
+      setStep("waitlist-confirmed");
+    } catch (err) {
+      const message = err && typeof err === "object" && "message" in err ? String(err.message) : null;
+      setError(message ?? "No pudimos anotarte en la lista de espera. Probá de nuevo.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="w-full max-w-sm">
       <div className="mb-6 text-center">
@@ -179,7 +208,15 @@ export function BookingFlow({
           ) : closedToday ? (
             <p className="text-sm text-ink-muted">El restaurante está cerrado ese día — probá otra fecha.</p>
           ) : slots.length === 0 ? (
-            <p className="text-sm text-ink-muted">No queda disponibilidad ese día para {partySize} personas.</p>
+            <div>
+              <p className="text-sm text-ink-muted mb-3">No queda disponibilidad ese día para {partySize} personas.</p>
+              <button
+                onClick={() => setStep("waitlist")}
+                className="w-full rounded-lg border border-accent text-accent py-2.5 text-sm font-medium hover:bg-accent/10"
+              >
+                Anotarme en la lista de espera
+              </button>
+            </div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {slots.map((slot) => (
@@ -265,6 +302,71 @@ export function BookingFlow({
           <p className="text-xs text-ink-faint mt-4">
             El restaurante todavía tiene que confirmarla — te avisamos por teléfono si hay algún cambio.
           </p>
+        </div>
+      )}
+
+      {step === "waitlist" && (
+        <StepCard title="Lista de espera" onBack={() => setStep("time")}>
+          <p className="text-xs text-ink-faint mb-3">
+            {partySize} personas · {new Date(`${date}T12:00:00`).toLocaleDateString("es-CL", { day: "numeric", month: "long" })} — te
+            avisamos por teléfono apenas se libere una mesa.
+          </p>
+          <div className="space-y-2.5">
+            <input
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Nombre"
+              className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent"
+            />
+            <input
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Apellido"
+              className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent"
+            />
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Teléfono"
+              className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent"
+            />
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Correo (opcional)"
+              className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent"
+            />
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Algo que debamos saber (opcional)"
+              rows={2}
+              className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent resize-none"
+            />
+          </div>
+
+          {error && <p className="text-sm text-status-occupied mt-3">{error}</p>}
+
+          <button
+            onClick={handleWaitlistConfirm}
+            disabled={submitting}
+            className="w-full mt-4 rounded-lg bg-accent text-accent-ink py-2.5 text-sm font-medium disabled:opacity-60"
+          >
+            {submitting ? "Enviando…" : "Anotarme"}
+          </button>
+        </StepCard>
+      )}
+
+      {step === "waitlist-confirmed" && waitlistConfirmed && (
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-full bg-accent/15 border border-accent/40 grid place-items-center mx-auto mb-4 text-accent text-xl">
+            ✓
+          </div>
+          <h2 className="text-lg font-semibold mb-1">Anotado en la lista de espera</h2>
+          <p className="text-sm text-ink-muted">
+            {partySize} personas en {restaurant.name}
+          </p>
+          <p className="text-xs text-ink-faint mt-4">Te avisamos por teléfono apenas se libere una mesa.</p>
         </div>
       )}
     </div>
