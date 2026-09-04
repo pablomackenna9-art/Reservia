@@ -36,6 +36,7 @@ export function DashboardPage() {
     loading,
     reload,
     getTableStatus,
+    getTurnoverWarning,
     moveTable,
     changeReservationStatus,
     pendingCompletion,
@@ -358,6 +359,7 @@ export function DashboardPage() {
               onSelectTable={handleSelectTable}
               onMoveTable={moveTable}
               getTableStatus={getTableStatus}
+              getTurnoverWarning={getTurnoverWarning}
             />
           )}
         </div>

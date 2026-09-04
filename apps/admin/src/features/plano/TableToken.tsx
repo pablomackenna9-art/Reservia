@@ -17,11 +17,14 @@ interface TableTokenProps {
   /** Fired with the new position in zone-local units (not %) so the caller converts once. */
   onDragEnd?: (x: number, y: number) => void;
   highlightState?: TableHighlightState;
+  /** Alguien está sentado ahora y hay otra reserva por llegar pronto -- ver findTurnoverConflict. */
+  turnoverWarning?: boolean;
 }
 
 const SEAT_RADIUS = 4;
 const RING_WIDTH = 3;
 const RECOMMENDED_COLOR = "#4cae83";
+const TURNOVER_BADGE_COLOR = "#e0ac4e";
 
 export function TableToken({
   table,
@@ -32,6 +35,7 @@ export function TableToken({
   draggable = false,
   onDragEnd,
   highlightState,
+  turnoverWarning = false,
 }: TableTokenProps) {
   const seats = computeSeats({
     shape: table.shape,
@@ -146,6 +150,32 @@ export function TableToken({
           y={-table.height / 2 - 22}
           rotation={-table.rotation}
         />
+      )}
+
+      {turnoverWarning && (
+        <Group x={table.width / 2} y={-table.height / 2} rotation={-table.rotation}>
+          <Circle
+            radius={9}
+            fill={TURNOVER_BADGE_COLOR}
+            stroke="#2c2419"
+            strokeWidth={1.5}
+            shadowColor="#000"
+            shadowBlur={4}
+            shadowOpacity={0.4}
+          />
+          <Text
+            text="!"
+            fontSize={12}
+            fontStyle="700"
+            fill="#2c2419"
+            width={18}
+            height={18}
+            align="center"
+            verticalAlign="middle"
+            offsetX={9}
+            offsetY={9}
+          />
+        </Group>
       )}
 
       {selected && (

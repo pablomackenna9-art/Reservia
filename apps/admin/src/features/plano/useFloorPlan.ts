@@ -25,6 +25,7 @@ import {
 } from "@reservia/api-client";
 import {
   deriveTableStatus,
+  findTurnoverConflict,
   type ReservationStatus,
   type ReservationRules,
   type Table,
@@ -85,6 +86,10 @@ export function useFloorPlan(restaurantId: string | undefined) {
 
   function getTableStatus(tableId: string) {
     return deriveTableStatus(reservationsByTable.get(tableId) ?? []);
+  }
+
+  function getTurnoverWarning(tableId: string): boolean {
+    return findTurnoverConflict(reservationsByTable.get(tableId) ?? []) !== null;
   }
 
   async function moveTable(tableId: string, positionX: number, positionY: number) {
@@ -260,6 +265,7 @@ export function useFloorPlan(restaurantId: string | undefined) {
     loading,
     reload,
     getTableStatus,
+    getTurnoverWarning,
     moveTable,
     updateTableProps,
     toggleTableBlocked,

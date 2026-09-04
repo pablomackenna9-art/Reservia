@@ -18,6 +18,7 @@ export function PlanoDeMesasPage() {
     loading,
     reload,
     getTableStatus,
+    getTurnoverWarning,
     moveTable,
     updateTableProps,
     toggleTableBlocked,
@@ -124,6 +125,7 @@ export function PlanoDeMesasPage() {
             onSelectTable={handleSelectTable}
             onMoveTable={moveTable}
             getTableStatus={getTableStatus}
+            getTurnoverWarning={getTurnoverWarning}
           />
         </div>
 

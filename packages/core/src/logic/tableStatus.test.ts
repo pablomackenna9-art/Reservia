@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findLateArrivals, findTurnoverConflict } from "./tableStatus";
+import { deriveTableStatus, findLateArrivals, findTurnoverConflict } from "./tableStatus";
 import type { Reservation } from "../types/reservations";
 
 let idCounter = 0;
@@ -28,6 +28,39 @@ function makeReservation(overrides: Partial<Reservation>): Reservation {
 }
 
 const NOW = new Date("2026-01-01T10:55:00.000Z");
+
+describe("deriveTableStatus", () => {
+  it("returns occupied when someone is seated", () => {
+    const seated = makeReservation({ status: "seated", startsAt: "2026-01-01T10:00:00.000Z" });
+    expect(deriveTableStatus([seated], NOW)).toBe("occupied");
+  });
+
+  it("returns arriving when the reservation starts within 15 minutes (10:55 now, 11:05 confirmed)", () => {
+    const soon = makeReservation({ status: "confirmed", startsAt: "2026-01-01T11:05:00.000Z" });
+    expect(deriveTableStatus([soon], NOW)).toBe("arriving");
+  });
+
+  it("returns reserved when the reservation starts within the hour but past the arriving window (10:55 now, 11:45 confirmed)", () => {
+    const withinHour = makeReservation({ status: "confirmed", startsAt: "2026-01-01T11:45:00.000Z" });
+    expect(deriveTableStatus([withinHour], NOW)).toBe("reserved");
+  });
+
+  it("returns available when the reservation is more than an hour out -- a table shouldn't look claimed hours ahead of time (10:55 now, 15:00 confirmed)", () => {
+    const hoursOut = makeReservation({ status: "confirmed", startsAt: "2026-01-01T15:00:00.000Z" });
+    expect(deriveTableStatus([hoursOut], NOW)).toBe("available");
+  });
+
+  it("returns available with no reservations at all", () => {
+    expect(deriveTableStatus([], NOW)).toBe("available");
+  });
+
+  it("ignores cancelled, no_show and completed reservations", () => {
+    const cancelled = makeReservation({ status: "cancelled", startsAt: "2026-01-01T11:05:00.000Z" });
+    const noShow = makeReservation({ status: "no_show", startsAt: "2026-01-01T09:00:00.000Z" });
+    const completed = makeReservation({ status: "completed", startsAt: "2026-01-01T09:00:00.000Z" });
+    expect(deriveTableStatus([cancelled, noShow, completed], NOW)).toBe("available");
+  });
+});
 
 describe("findTurnoverConflict", () => {
   it("flags a seated table with a reservation starting within the threshold (10:55 now, 11:30 reserved)", () => {

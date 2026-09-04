@@ -28,6 +28,8 @@ interface ZoneCanvasProps {
   getTableStatus?: (tableId: string) => TableLiveStatusValue;
   /** Smart Table Engine floor-plan picker only — leave undefined for the normal plano. */
   getHighlightState?: (tableId: string) => TableHighlightState | undefined;
+  /** Alguien sentado ahí y otra reserva por llegar pronto -- ver findTurnoverConflict. */
+  getTurnoverWarning?: (tableId: string) => boolean;
 }
 
 export function ZoneCanvas({
@@ -38,6 +40,7 @@ export function ZoneCanvas({
   onMoveTable,
   getTableStatus,
   getHighlightState,
+  getTurnoverWarning,
 }: ZoneCanvasProps) {
   const { ref: containerRef, width, height } = useContainerSize<HTMLDivElement>();
   const stageRef = useRef<Konva.Stage | null>(null);
@@ -193,6 +196,7 @@ export function ZoneCanvas({
                   selected={table.id === selectedTableId}
                   onSelect={() => onSelectTable(table.id)}
                   highlightState={getHighlightState?.(table.id)}
+                  turnoverWarning={getTurnoverWarning?.(table.id)}
                   draggable={Boolean(onMoveTable)}
                   onDragEnd={
                     onMoveTable

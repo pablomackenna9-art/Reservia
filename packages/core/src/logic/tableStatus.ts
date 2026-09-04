@@ -2,11 +2,18 @@ import type { TableLiveStatusValue } from "../types/floorplan";
 import type { Reservation } from "../types/reservations";
 
 export const ARRIVING_WINDOW_MINUTES = 15;
+export const RESERVED_WINDOW_MINUTES = 60;
 
 /** True once a confirmed reservation's start time falls within the "arriving soon" window. */
 export function isArrivingSoon(startsAt: string, now: Date = new Date()): boolean {
   const minutesUntil = (new Date(startsAt).getTime() - now.getTime()) / 60_000;
   return minutesUntil <= ARRIVING_WINDOW_MINUTES && minutesUntil >= 0;
+}
+
+/** True once a reservation's start time falls within the "shows as reserved" window -- a table with nothing else going on shouldn't look claimed hours ahead of time. */
+export function isReservedSoon(startsAt: string, now: Date = new Date()): boolean {
+  const minutesUntil = (new Date(startsAt).getTime() - now.getTime()) / 60_000;
+  return minutesUntil <= RESERVED_WINDOW_MINUTES && minutesUntil >= 0;
 }
 
 export function minutesSince(timestamp: string, now: Date = new Date()): number {
@@ -37,7 +44,7 @@ export function deriveTableStatus(reservationsForTable: Reservation[], now: Date
 
   if (active.some((r) => r.status === "seated")) return "occupied";
   if (active.some((r) => r.status === "arriving" || isArrivingSoon(r.startsAt, now))) return "arriving";
-  if (active.some((r) => new Date(r.startsAt) > now)) return "reserved";
+  if (active.some((r) => isReservedSoon(r.startsAt, now))) return "reserved";
   return "available";
 }
 
