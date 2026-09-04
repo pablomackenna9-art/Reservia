@@ -291,6 +291,79 @@ export async function updateReservationStatus(
   if (error) throw error;
 }
 
+export interface ConsumptionItemInput {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+/**
+ * Cierra una reserva con lo que realmente consumió esa mesa -- crea la
+ * visita + cuenta + ítems (misma infraestructura que MockPOS) para que el
+ * consumo total y los productos favoritos del cliente sigan creciendo con
+ * cada visita real, no solo con datos de demo. `total_amount` en la reserva
+ * queda igual a la suma, así "promedio de compra" (que lee de ahí) nunca se
+ * desincroniza de "consumo total" (que lee de los ítems).
+ */
+export async function completeReservationWithConsumption(
+  supabase: SupabaseClient,
+  reservation: Pick<ReservationWithDetails, "id" | "restaurantId" | "customerId" | "tableId" | "partySize" | "startsAt">,
+  items: ConsumptionItemInput[],
+): Promise<void> {
+  const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const now = new Date().toISOString();
+
+  const { data: visit, error: visitError } = await supabase
+    .from("visits")
+    .insert({
+      restaurant_id: reservation.restaurantId,
+      table_id: reservation.tableId,
+      reservation_id: reservation.id,
+      customer_id: reservation.customerId,
+      party_size: reservation.partySize,
+      started_at: reservation.startsAt,
+      ended_at: now,
+      status: "closed",
+    })
+    .select("id")
+    .single();
+  if (visitError) throw visitError;
+
+  const { data: check, error: checkError } = await supabase
+    .from("pos_checks")
+    .insert({
+      restaurant_id: reservation.restaurantId,
+      visit_id: visit.id,
+      external_check_id: `manual-${reservation.id}`,
+      opened_at: reservation.startsAt,
+      closed_at: now,
+      subtotal: total,
+      total,
+      paid_amount: total,
+      guest_count: reservation.partySize,
+      status: "closed",
+    })
+    .select("id")
+    .single();
+  if (checkError) throw checkError;
+
+  if (items.length > 0) {
+    const { error: itemsError } = await supabase.from("pos_check_items").insert(
+      items.map((item) => ({
+        restaurant_id: reservation.restaurantId,
+        check_id: check.id,
+        name: item.name,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        total: item.quantity * item.unitPrice,
+      })),
+    );
+    if (itemsError) throw itemsError;
+  }
+
+  await updateReservationStatus(supabase, reservation.id, "completed", total);
+}
+
 /**
  * Confirms a pending reservation and, when the restaurant's mode is
  * 'automatic', immediately assigns it the Smart Table Engine's top pick

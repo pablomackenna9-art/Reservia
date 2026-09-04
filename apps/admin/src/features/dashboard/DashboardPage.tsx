@@ -6,6 +6,7 @@ import {
   type ReservationWithDetails,
   type WaitlistEntryWithCustomer,
 } from "@reservia/api-client";
+import { computeCapacityPacing } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas } from "../plano/ZoneCanvas";
@@ -13,6 +14,7 @@ import { TableDetailPanel } from "../plano/TableDetailPanel";
 import { useFloorPlan, todayISO } from "../plano/useFloorPlan";
 import { NewReservationForm } from "../reservations/NewReservationForm";
 import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
+import { CompleteReservationModal } from "../reservations/CompleteReservationModal";
 import { RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
 
 function formatTime(iso: string): string {
@@ -39,6 +41,10 @@ export function DashboardPage() {
     getTableStatus,
     moveTable,
     changeReservationStatus,
+    pendingCompletion,
+    confirmCompletion,
+    skipCompletion,
+    cancelCompletion,
     seatWalkIn,
     joinTablesTogether,
     unjoinTable,
@@ -95,6 +101,12 @@ export function DashboardPage() {
   if (tables.length > 0) insights.push(`${availableNow} de ${tables.length} mesas están libres ahora mismo.`);
   if (upcoming.length > 0) insights.push(`La próxima reserva es a las ${formatTime(upcoming[0]!.startsAt)} — ${upcoming[0]!.customerName}.`);
   if (insights.length === 0) insights.push("Sin reservas todavía — se llena a medida que entren.");
+
+  const pacing = useMemo(
+    () => computeCapacityPacing(tables.length, reservationsToday, now, { slotMinutes: 30, horizonMinutes: 240 }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tables.length, reservationsToday],
+  );
 
   const hourly = useMemo(() => {
     const buckets = new Map<number, number>();
@@ -340,6 +352,43 @@ export function DashboardPage() {
         )}
       </div>
 
+      <div className="rounded-xl border border-line bg-surface p-4 mb-4">
+        <h2 className="text-sm font-semibold mb-1">Capacidad por horario</h2>
+        <p className="text-xs text-ink-faint mb-3">
+          Mesas ocupadas de verdad en cada franja — cuenta tanto lo que ya está sentado y todavía no debería
+          liberarse (con el colchón de {rules?.bufferMinutes ?? 15} min) como lo que arranca ahí.
+        </p>
+        {pacing.length === 0 || tables.length === 0 ? (
+          <p className="text-xs text-ink-faint">Sin mesas o sin datos todavía.</p>
+        ) : (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {pacing.map((slot) => {
+              const colorClass =
+                slot.pctOccupied >= 90
+                  ? "text-status-occupied"
+                  : slot.pctOccupied >= 70
+                    ? "text-status-arriving"
+                    : "text-status-available";
+              return (
+                <div
+                  key={slot.startsAt}
+                  className="shrink-0 w-20 rounded-lg border border-line bg-ground px-2 py-2 text-center"
+                >
+                  <p className="text-[11px] text-ink-faint tabular-nums">
+                    {new Date(slot.startsAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                  <p className={`text-lg font-semibold tabular-nums mt-0.5 ${colorClass}`}>{slot.pctOccupied}%</p>
+                  <p className="text-[10px] text-ink-faint tabular-nums">{slot.freeTables} libres</p>
+                  {slot.newArrivals > 0 && (
+                    <p className="text-[10px] text-accent tabular-nums">+{slot.newArrivals} nuevas</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="rounded-xl border border-line bg-surface p-4">
           <h2 className="text-sm font-semibold mb-3">Cubiertos por hora</h2>
@@ -413,6 +462,15 @@ export function DashboardPage() {
             await moveReservationToTable(id, tableId, source);
           }}
           onSaveNotes={saveReservationNotes}
+        />
+      )}
+
+      {pendingCompletion && (
+        <CompleteReservationModal
+          customerName={pendingCompletion.customerName}
+          onCancel={cancelCompletion}
+          onConfirm={confirmCompletion}
+          onSkip={skipCompletion}
         />
       )}
     </div>

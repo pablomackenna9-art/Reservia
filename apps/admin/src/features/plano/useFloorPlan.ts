@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   acceptReservation,
+  completeReservationWithConsumption,
   createCustomer,
   createReservation,
   createTable,
@@ -18,6 +19,7 @@ import {
   updateReservationTable,
   updateTable,
   updateTablePosition,
+  type ConsumptionItemInput,
   type ReservationWithDetails,
   type TableGroupInfo,
 } from "@reservia/api-client";
@@ -31,7 +33,6 @@ import {
 } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
-import { promptTotalAmountIfCompleting } from "../reservations/promptTotalAmount";
 
 export function todayISO(): string {
   const d = new Date();
@@ -48,6 +49,7 @@ export function useFloorPlan(restaurantId: string | undefined) {
   const [rules, setRules] = useState<ReservationRules | null>(null);
   const [tableGroups, setTableGroups] = useState<Map<string, TableGroupInfo>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [pendingCompletion, setPendingCompletion] = useState<ReservationWithDetails | null>(null);
 
   async function reload() {
     if (!restaurantId) return;
@@ -134,11 +136,33 @@ export function useFloorPlan(restaurantId: string | undefined) {
     const reservation = reservationsToday.find((r) => r.id === reservationId);
     if (status === "confirmed" && reservation?.status === "pending" && rules) {
       await acceptReservation(supabase, reservation, rules.tableAssignmentMode);
-    } else {
-      const totalAmount = promptTotalAmountIfCompleting(status);
-      await updateReservationStatus(supabase, reservationId, status, totalAmount);
+      await reload();
+      return;
     }
+    if (status === "completed" && reservation) {
+      setPendingCompletion(reservation); // el checkout real corre en confirmCompletion/skipCompletion
+      return;
+    }
+    await updateReservationStatus(supabase, reservationId, status);
     await reload();
+  }
+
+  async function confirmCompletion(items: ConsumptionItemInput[]) {
+    if (!pendingCompletion) return;
+    await completeReservationWithConsumption(supabase, pendingCompletion, items);
+    setPendingCompletion(null);
+    await reload();
+  }
+
+  async function skipCompletion() {
+    if (!pendingCompletion) return;
+    await updateReservationStatus(supabase, pendingCompletion.id, "completed");
+    setPendingCompletion(null);
+    await reload();
+  }
+
+  function cancelCompletion() {
+    setPendingCompletion(null);
   }
 
   /**
@@ -240,6 +264,10 @@ export function useFloorPlan(restaurantId: string | undefined) {
     duplicateTable,
     deleteTable,
     changeReservationStatus,
+    pendingCompletion,
+    confirmCompletion,
+    skipCompletion,
+    cancelCompletion,
     seatWalkIn,
     joinTablesTogether,
     unjoinTable,

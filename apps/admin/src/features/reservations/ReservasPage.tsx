@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import {
   acceptReservation,
+  completeReservationWithConsumption,
   getReservationRules,
   listReservationsForDate,
   updateReservationNotes,
   updateReservationStatus,
   updateReservationTable,
+  type ConsumptionItemInput,
   type ReservationWithDetails,
 } from "@reservia/api-client";
 import { RESERVATION_STATUSES, type ReservationRules, type ReservationStatus } from "@reservia/core";
@@ -13,7 +15,7 @@ import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { NewReservationForm } from "./NewReservationForm";
 import { ReservationDetailModal } from "./ReservationDetailModal";
-import { promptTotalAmountIfCompleting } from "./promptTotalAmount";
+import { CompleteReservationModal } from "./CompleteReservationModal";
 import { RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "./statusStyles";
 
 function dateToISO(d: Date): string {
@@ -44,6 +46,7 @@ export function ReservasPage() {
   const [showForm, setShowForm] = useState(false);
   const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
   const [rules, setRules] = useState<ReservationRules | null>(null);
+  const [pendingCompletion, setPendingCompletion] = useState<ReservationWithDetails | null>(null);
 
   async function reload() {
     if (!restaurantId) return;
@@ -66,10 +69,28 @@ export function ReservasPage() {
     const reservation = reservations.find((r) => r.id === id);
     if (status === "confirmed" && reservation?.status === "pending" && rules) {
       await acceptReservation(supabase, reservation, rules.tableAssignmentMode);
-    } else {
-      const totalAmount = promptTotalAmountIfCompleting(status);
-      await updateReservationStatus(supabase, id, status, totalAmount);
+      reload();
+      return;
     }
+    if (status === "completed" && reservation) {
+      setPendingCompletion(reservation); // el checkout real corre en confirmCompletion/skipCompletion
+      return;
+    }
+    await updateReservationStatus(supabase, id, status);
+    reload();
+  }
+
+  async function confirmCompletion(items: ConsumptionItemInput[]) {
+    if (!pendingCompletion) return;
+    await completeReservationWithConsumption(supabase, pendingCompletion, items);
+    setPendingCompletion(null);
+    reload();
+  }
+
+  async function skipCompletion() {
+    if (!pendingCompletion) return;
+    await updateReservationStatus(supabase, pendingCompletion.id, "completed");
+    setPendingCompletion(null);
     reload();
   }
 
@@ -192,6 +213,15 @@ export function ReservasPage() {
             await updateReservationNotes(supabase, id, notes);
             await reload();
           }}
+        />
+      )}
+
+      {pendingCompletion && (
+        <CompleteReservationModal
+          customerName={pendingCompletion.customerName}
+          onCancel={() => setPendingCompletion(null)}
+          onConfirm={confirmCompletion}
+          onSkip={skipCompletion}
         />
       )}
     </div>

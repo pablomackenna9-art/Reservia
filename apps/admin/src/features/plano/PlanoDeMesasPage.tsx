@@ -4,6 +4,7 @@ import { ZoneCanvas } from "./ZoneCanvas";
 import { TableDetailPanel } from "./TableDetailPanel";
 import { NewTableForm } from "./NewTableForm";
 import { useFloorPlan } from "./useFloorPlan";
+import { CompleteReservationModal } from "../reservations/CompleteReservationModal";
 
 export function PlanoDeMesasPage() {
   const { current } = useRestaurant();
@@ -23,6 +24,10 @@ export function PlanoDeMesasPage() {
     duplicateTable,
     deleteTable,
     changeReservationStatus,
+    pendingCompletion,
+    confirmCompletion,
+    skipCompletion,
+    cancelCompletion,
     seatWalkIn,
     joinTablesTogether,
     unjoinTable,
@@ -168,6 +173,15 @@ export function PlanoDeMesasPage() {
             setShowNewTable(false);
             reload();
           }}
+        />
+      )}
+
+      {pendingCompletion && (
+        <CompleteReservationModal
+          customerName={pendingCompletion.customerName}
+          onCancel={cancelCompletion}
+          onConfirm={confirmCompletion}
+          onSkip={skipCompletion}
         />
       )}
     </div>
