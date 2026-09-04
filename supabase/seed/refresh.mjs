@@ -292,11 +292,12 @@ async function main() {
     created++;
   }
 
-  // --- Curva de ocupación de la noche: a las 19:30 ~15% del restaurante
-  // reservado, a las 20:00 ~85-90%. No es azar disperso -- se apunta a esos
-  // dos números explícitamente, mesa por mesa, respetando la disponibilidad
-  // real (nunca se fuerza un choque). Si "ahora" ya pasó esas horas hoy,
-  // apunta a las mismas horas de mañana, para que el refresh sirva sin
+  // --- Curva de ocupación del almuerzo y la comida: mediodía sube hasta un
+  // pico razonable, y en la noche 19:30 ~15% del restaurante reservado,
+  // 20:00 ~85-90%. No es azar disperso -- se apunta a estos números
+  // explícitamente, mesa por mesa, respetando la disponibilidad real (nunca
+  // se fuerza un choque). Si "ahora" ya pasó alguna de estas horas hoy,
+  // apunta a la misma hora de mañana, para que el refresh sirva sin
   // importar a qué hora del día se corra.
   function targetClockTime(hour, minute) {
     const d = new Date(now);
@@ -313,13 +314,15 @@ async function main() {
     return count;
   }
 
-  const DINNER_CHECKPOINTS = [
+  const MEAL_CHECKPOINTS = [
+    { hour: 13, minute: 0, targetPct: 0.4 },
+    { hour: 13, minute: 30, targetPct: 0.7 },
     { hour: 19, minute: 30, targetPct: 0.15 },
     { hour: 20, minute: 0, targetPct: 0.875 }, // punto medio de 85-90%
   ];
 
   let dinnerCurveCreated = 0;
-  for (const { hour, minute, targetPct } of DINNER_CHECKPOINTS) {
+  for (const { hour, minute, targetPct } of MEAL_CHECKPOINTS) {
     const targetMs = targetClockTime(hour, minute);
     const targetCount = Math.round(tables.length * targetPct);
     let guard = 0;
@@ -362,6 +365,8 @@ async function main() {
   // el staff decida en Notificaciones) o directo a lista de espera (a veces
   // con prioridad), mostrando los dos caminos reales de "no hay disponibilidad".
   const laterAttempts = [
+    { hour: 14, minute: 0 },
+    { hour: 14, minute: 30 },
     { hour: 20, minute: 30 },
     { hour: 21, minute: 0 },
     { hour: 21, minute: 30 },
@@ -518,8 +523,8 @@ async function main() {
   }
 
   console.log(
-    `Listo: ${seatedTables.length} mesas sentadas ahora, ${dinnerCurveCreated} reservas armando la curva de la noche ` +
-      `(19:30 ~15%, 20:00 ~85-90%), ${laterConfirmed} confirmadas más tarde con mesa real, ` +
+    `Listo: ${seatedTables.length} mesas sentadas ahora, ${dinnerCurveCreated} reservas armando la curva de almuerzo y cena ` +
+      `(13:00 ~40%, 13:30 ~70%, 19:30 ~15%, 20:00 ~85-90%), ${laterConfirmed} confirmadas más tarde con mesa real, ` +
       `${pendingFromCapacity + pendingSlots.length} solicitudes pendientes sin mesa, ` +
       `${waitlistCount + waitlistFromCapacity} en lista de espera (${waitlistFromCapacity} por falta de capacidad), ` +
       `${historicalVisits} visitas de historial agregadas (~$${historicalTotal.toLocaleString("es-CL")} en consumo nuevo). ` +

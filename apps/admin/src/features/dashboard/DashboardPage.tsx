@@ -102,10 +102,18 @@ export function DashboardPage() {
   if (upcoming.length > 0) insights.push(`La próxima reserva es a las ${formatTime(upcoming[0]!.startsAt)} — ${upcoming[0]!.customerName}.`);
   if (insights.length === 0) insights.push("Sin reservas todavía — se llena a medida que entren.");
 
+  // Hasta medianoche (con un piso de 4h y techo de 12h) -- si mirás esto a
+  // mediodía tiene que alcanzar a mostrar la cena, no cortarse 4 horas antes.
+  const minutesUntilMidnight = (() => {
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 0, 0);
+    return Math.max(240, Math.min(720, Math.round((endOfDay.getTime() - now.getTime()) / 60_000)));
+  })();
+
   const pacing = useMemo(
-    () => computeCapacityPacing(tables.length, reservationsToday, now, { slotMinutes: 30, horizonMinutes: 240 }),
+    () => computeCapacityPacing(tables.length, reservationsToday, now, { slotMinutes: 30, horizonMinutes: minutesUntilMidnight }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tables.length, reservationsToday],
+    [tables.length, reservationsToday, minutesUntilMidnight],
   );
 
   const hourly = useMemo(() => {
@@ -353,7 +361,20 @@ export function DashboardPage() {
       </div>
 
       <div className="rounded-xl border border-line bg-surface p-4 mb-4">
-        <h2 className="text-sm font-semibold mb-1">Capacidad por horario</h2>
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <h2 className="text-sm font-semibold">Capacidad por horario</h2>
+          <span className="text-xs text-ink-faint shrink-0">
+            📋 {waitlist.length} en lista de espera
+            {waitlist.length > 0 && (
+              <>
+                {" — "}
+                <Link to="/lista-de-espera" className="text-accent">
+                  ver
+                </Link>
+              </>
+            )}
+          </span>
+        </div>
         <p className="text-xs text-ink-faint mb-3">
           Mesas ocupadas de verdad en cada franja — cuenta tanto lo que ya está sentado y todavía no debería
           liberarse (con el colchón de {rules?.bufferMinutes ?? 15} min) como lo que arranca ahí.
@@ -372,15 +393,17 @@ export function DashboardPage() {
               return (
                 <div
                   key={slot.startsAt}
-                  className="shrink-0 w-20 rounded-lg border border-line bg-ground px-2 py-2 text-center"
+                  className="shrink-0 w-24 rounded-lg border border-line bg-ground px-2 py-2 text-center"
                 >
                   <p className="text-[11px] text-ink-faint tabular-nums">
                     {new Date(slot.startsAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
                   </p>
                   <p className={`text-lg font-semibold tabular-nums mt-0.5 ${colorClass}`}>{slot.pctOccupied}%</p>
-                  <p className="text-[10px] text-ink-faint tabular-nums">{slot.freeTables} libres</p>
+                  <p className="text-[10px] text-ink-faint tabular-nums">
+                    {slot.occupiedTables} reservas · {slot.freeTables} libres
+                  </p>
                   {slot.newArrivals > 0 && (
-                    <p className="text-[10px] text-accent tabular-nums">+{slot.newArrivals} nuevas</p>
+                    <p className="text-[10px] text-accent tabular-nums">+{slot.newArrivals} nuevas ahí</p>
                   )}
                 </div>
               );
