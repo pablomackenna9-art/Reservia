@@ -16,7 +16,15 @@ import {
   type CustomerConsumptionStats,
   type ReservationWithDetails,
 } from "@reservia/api-client";
-import { estimateOccupancyAt, type Customer, type ReservationRules, type TableAssignmentSource, type TableCandidate, type Zone } from "@reservia/core";
+import {
+  estimateOccupancyAt,
+  reservationsActiveInWindow,
+  type Customer,
+  type ReservationRules,
+  type TableAssignmentSource,
+  type TableCandidate,
+  type Zone,
+} from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
@@ -41,10 +49,14 @@ function dateToISO(d: Date): string {
 
 interface RequestInsight {
   topCandidate: TableCandidate | null;
+  /** Todo lo que devolvió el motor de recomendación, no solo la primera -- para mostrar "las mesas libres para este grupo". */
+  candidates: TableCandidate[];
   zoneName: string | null;
   occupiedPct: number;
   freeTables: number;
   totalTables: number;
+  /** Quién más tiene mesa a esa misma hora, para revisar antes de aceptar. */
+  reservationsAtThatHour: ReservationWithDetails[];
 }
 
 /** Cuánto se demoró en cargar cada solicitud -- las que caen en la misma fecha comparten el fetch de reservas/mesas de ese día. */
@@ -68,12 +80,25 @@ async function buildInsight(
 
   const dayReservations = reservationsByDate.get(dateISO) ?? [];
   const totalTables = tablesCountByDate.get(dateISO) ?? 0;
-  const occ = estimateOccupancyAt(totalTables, dayReservations, new Date(reservation.startsAt), new Date(reservation.endsAt));
+  const startsAt = new Date(reservation.startsAt);
+  const endsAt = new Date(reservation.endsAt);
+  const occ = estimateOccupancyAt(totalTables, dayReservations, startsAt, endsAt);
+  const reservationsAtThatHour = reservationsActiveInWindow(dayReservations, startsAt, endsAt).filter(
+    (r) => r.id !== reservation.id,
+  );
 
   const top = candidates[0] ?? null;
   const zoneName = top ? zones.find((z) => z.id === top.zoneId)?.name ?? null : null;
 
-  return { topCandidate: top, zoneName, occupiedPct: occ.pctOccupied, freeTables: occ.freeTables, totalTables: occ.totalTables };
+  return {
+    topCandidate: top,
+    candidates,
+    zoneName,
+    occupiedPct: occ.pctOccupied,
+    freeTables: occ.freeTables,
+    totalTables: occ.totalTables,
+    reservationsAtThatHour,
+  };
 }
 
 export function NotificacionesPage() {
@@ -268,6 +293,51 @@ export function NotificacionesPage() {
                     {spend != null && <span>💰 Gasta ~{formatCLP(spend)} en promedio</span>}
                     {customer?.blacklisted && <span className="text-status-occupied">🚫 Cliente bloqueado</span>}
                   </div>
+
+                  {insight && (insight.reservationsAtThatHour.length > 0 || insight.candidates.length > 0) && (
+                    <div className="mt-2 pt-2 border-t border-line grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">
+                          Reservas a esa hora ({insight.reservationsAtThatHour.length})
+                        </p>
+                        {insight.reservationsAtThatHour.length === 0 ? (
+                          <p className="text-[11px] text-ink-faint">Ninguna otra mesa ocupada a esa hora.</p>
+                        ) : (
+                          <ul className="flex flex-wrap gap-1">
+                            {insight.reservationsAtThatHour.map((other) => (
+                              <li
+                                key={other.id}
+                                className="rounded-md bg-ground border border-line px-1.5 py-0.5 text-[11px]"
+                                title={`${other.customerName} · ${other.partySize}p`}
+                              >
+                                {other.customerName}
+                                {other.tableName ? ` · Mesa ${other.tableName}` : ""}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">
+                          Mesas libres para {r.partySize}p ({insight.candidates.length})
+                        </p>
+                        {insight.candidates.length === 0 ? (
+                          <p className="text-[11px] text-ink-faint">Ninguna mesa libre para ese grupo a esa hora.</p>
+                        ) : (
+                          <ul className="flex flex-wrap gap-1">
+                            {insight.candidates.map((c) => (
+                              <li
+                                key={c.tableIds.join("+")}
+                                className="rounded-md bg-ground border border-line px-1.5 py-0.5 text-[11px]"
+                              >
+                                Mesa {c.tableNames.join("+")} · {c.capacityMax}p
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

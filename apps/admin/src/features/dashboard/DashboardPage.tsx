@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { setAverageTicketPerPerson, type ReservationWithDetails } from "@reservia/api-client";
-import { computeCapacityPacing, findLateArrivals, minutesSince } from "@reservia/core";
+import { computeCapacityPacing, findLateArrivals, minutesSince, reservationsActiveInWindow } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas } from "../plano/ZoneCanvas";
@@ -63,6 +63,7 @@ export function DashboardPage() {
   const [editingTicket, setEditingTicket] = useState(false);
   const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
   const [ticketInput, setTicketInput] = useState("");
+  const [expandedSlotStart, setExpandedSlotStart] = useState<string | null>(null);
 
   const now = new Date();
   const active = reservationsToday.filter((r) => r.status !== "cancelled");
@@ -109,18 +110,25 @@ export function DashboardPage() {
   if (upcoming.length > 0) insights.push(`La próxima reserva es a las ${formatTime(upcoming[0]!.startsAt)} — ${upcoming[0]!.customerName}.`);
   if (insights.length === 0) insights.push("Sin reservas todavía — se llena a medida que entren.");
 
-  // Hasta medianoche (con un piso de 4h y techo de 12h) -- si mirás esto a
-  // mediodía tiene que alcanzar a mostrar la cena, no cortarse 4 horas antes.
-  const minutesUntilMidnight = (() => {
-    const endOfDay = new Date(now);
-    endOfDay.setHours(23, 59, 0, 0);
-    return Math.max(240, Math.min(720, Math.round((endOfDay.getTime() - now.getTime()) / 60_000)));
+  // Ventana fija de almuerzo+cena (13:00–22:00), no "desde ahora" -- si son
+  // las 4pm, el dueño igual quiere ver cómo vino el almuerzo, no solo lo que
+  // falta del día.
+  const CAPACITY_SLOT_MINUTES = 30;
+  const CAPACITY_WINDOW_MINUTES = 9 * 60;
+  const capacityWindowStart = (() => {
+    const d = new Date(now);
+    d.setHours(13, 0, 0, 0);
+    return d;
   })();
 
   const pacing = useMemo(
-    () => computeCapacityPacing(tables.length, reservationsToday, now, { slotMinutes: 30, horizonMinutes: minutesUntilMidnight }),
+    () =>
+      computeCapacityPacing(tables.length, reservationsToday, capacityWindowStart, {
+        slotMinutes: CAPACITY_SLOT_MINUTES,
+        horizonMinutes: CAPACITY_WINDOW_MINUTES,
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tables.length, reservationsToday, minutesUntilMidnight],
+    [tables.length, reservationsToday],
   );
 
   const hourly = useMemo(() => {
@@ -436,19 +444,23 @@ export function DashboardPage() {
           <p className="text-xs text-ink-faint">Sin mesas o sin datos todavía.</p>
         ) : (
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {pacing.map((slot, i) => {
+            {pacing.map((slot) => {
               const colorClass =
                 slot.pctOccupied >= 90
                   ? "text-status-occupied"
                   : slot.pctOccupied >= 70
                     ? "text-status-arriving"
                     : "text-status-available";
-              const isNow = i === 0;
+              const slotStartMs = new Date(slot.startsAt).getTime();
+              const slotEndMs = slotStartMs + CAPACITY_SLOT_MINUTES * 60_000;
+              const isNow = now.getTime() >= slotStartMs && now.getTime() < slotEndMs;
+              const isExpanded = expandedSlotStart === slot.startsAt;
               return (
-                <div
+                <button
                   key={slot.startsAt}
+                  onClick={() => setExpandedSlotStart(isExpanded ? null : slot.startsAt)}
                   className={`shrink-0 w-24 rounded-lg border px-2 py-2 text-center ${
-                    isNow ? "border-accent bg-accent/10" : "border-line bg-ground"
+                    isNow ? "border-accent bg-accent/10" : isExpanded ? "border-accent" : "border-line bg-ground"
                   }`}
                 >
                   <p className={`text-[11px] tabular-nums ${isNow ? "text-accent font-medium" : "text-ink-faint"}`}>
@@ -461,11 +473,43 @@ export function DashboardPage() {
                   {slot.newArrivals > 0 && (
                     <p className="text-[10px] text-accent tabular-nums">+{slot.newArrivals} nuevas ahí</p>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
         )}
+
+        {expandedSlotStart &&
+          (() => {
+            const slotStart = new Date(expandedSlotStart);
+            const slotEnd = new Date(slotStart.getTime() + CAPACITY_SLOT_MINUTES * 60_000);
+            const atThatHour = reservationsActiveInWindow(active, slotStart, slotEnd, rules?.bufferMinutes ?? 15);
+            return (
+              <div className="mt-3 pt-3 border-t border-line">
+                <p className="text-xs text-ink-faint mb-2">
+                  Reservas en {slotStart.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })} –{" "}
+                  {slotEnd.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                </p>
+                {atThatHour.length === 0 ? (
+                  <p className="text-xs text-ink-faint">Ninguna mesa ocupada en esa franja.</p>
+                ) : (
+                  <ul className="flex flex-wrap gap-1.5">
+                    {atThatHour.map((r) => (
+                      <li key={r.id}>
+                        <button
+                          onClick={() => setDetailReservation(r)}
+                          className="rounded-lg bg-ground border border-line px-2.5 py-1.5 text-xs hover:border-accent text-left"
+                        >
+                          <span className="font-medium">{r.customerName}</span>
+                          <span className="text-ink-faint"> · {r.partySize}p{r.tableName ? ` · Mesa ${r.tableName}` : ""}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })()}
       </div>
 
       {restaurantId && (

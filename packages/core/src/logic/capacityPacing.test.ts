@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeCapacityPacing, estimateOccupancyAt } from "./capacityPacing";
+import { computeCapacityPacing, estimateOccupancyAt, reservationsActiveInWindow } from "./capacityPacing";
 import type { Reservation } from "../types/reservations";
 
 let idCounter = 0;
@@ -90,5 +90,37 @@ describe("estimateOccupancyAt", () => {
   it("returns 0% when there are no tables", () => {
     const est = estimateOccupancyAt(0, [], new Date("2026-01-01T20:00:00.000Z"), new Date("2026-01-01T21:00:00.000Z"));
     expect(est.pctOccupied).toBe(0);
+  });
+});
+
+describe("reservationsActiveInWindow", () => {
+  it("returns reservations overlapping the window", () => {
+    const overlapping = makeReservation({ id: "in", tableId: "t1", startsAt: "2026-01-01T20:00:00.000Z", endsAt: "2026-01-01T21:30:00.000Z" });
+    const notOverlapping = makeReservation({ id: "out", tableId: "t2", startsAt: "2026-01-01T22:00:00.000Z", endsAt: "2026-01-01T23:00:00.000Z" });
+    const result = reservationsActiveInWindow(
+      [overlapping, notOverlapping],
+      new Date("2026-01-01T20:30:00.000Z"),
+      new Date("2026-01-01T22:00:00.000Z"),
+      0,
+    );
+    expect(result.map((r) => r.id)).toEqual(["in"]);
+  });
+
+  it("excludes reservations without a table or in a non-active status", () => {
+    const noTable = makeReservation({ id: "no-table", tableId: null, startsAt: "2026-01-01T20:00:00.000Z" });
+    const cancelled = makeReservation({ id: "cancelled", tableId: "t1", status: "cancelled", startsAt: "2026-01-01T20:00:00.000Z" });
+    const result = reservationsActiveInWindow(
+      [noTable, cancelled],
+      new Date("2026-01-01T19:00:00.000Z"),
+      new Date("2026-01-01T21:00:00.000Z"),
+    );
+    expect(result).toEqual([]);
+  });
+
+  it("applies the buffer minutes like the other overlap checks", () => {
+    const r = makeReservation({ id: "r", tableId: "t1", startsAt: "2026-01-01T18:00:00.000Z", endsAt: "2026-01-01T18:40:00.000Z" });
+    // Ends 18:40 + 15min buffer = 18:55 -> still overlaps a window starting at 18:50.
+    const result = reservationsActiveInWindow([r], new Date("2026-01-01T18:50:00.000Z"), new Date("2026-01-01T19:20:00.000Z"), 15);
+    expect(result.map((x) => x.id)).toEqual(["r"]);
   });
 });

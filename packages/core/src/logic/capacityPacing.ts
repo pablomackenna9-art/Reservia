@@ -69,6 +69,26 @@ export function computeCapacityPacing(
   return slots;
 }
 
+/**
+ * Igual que el solape que ya usan `computeCapacityPacing`/`estimateOccupancyAt`,
+ * pero devolviendo la lista real de reservas en vez de solo el conteo --
+ * para mostrar quién tiene mesa a esa hora, no solo cuántas.
+ */
+export function reservationsActiveInWindow<
+  T extends Pick<Reservation, "tableId" | "startsAt" | "endsAt" | "status">,
+>(reservations: T[], windowStart: Date, windowEnd: Date, bufferMinutes = 15): T[] {
+  const bufferMs = bufferMinutes * 60_000;
+  const startMs = windowStart.getTime();
+  const endMs = windowEnd.getTime();
+
+  return reservations.filter((r) => {
+    if (!r.tableId || !ACTIVE_RESERVATION_STATUSES.includes(r.status)) return false;
+    const rStart = new Date(r.startsAt).getTime();
+    const rEnd = new Date(r.endsAt).getTime();
+    return rStart < endMs && rEnd + bufferMs > startMs;
+  });
+}
+
 export interface OccupancyEstimate {
   occupiedTables: number;
   totalTables: number;
