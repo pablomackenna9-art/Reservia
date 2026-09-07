@@ -532,7 +532,25 @@ async function main() {
   );
 }
 
-main().catch((err) => {
+// Corre en una tarea programada apenas arranca el día -- si la laptop recién
+// se prendió, la red a veces tarda unos segundos más en estar lista y el
+// primer fetch sale con ECONNABORTED/fetch failed. Un par de reintentos con
+// espera evita que ese hiccup transitorio tire abajo la corrida del día.
+const MAX_ATTEMPTS = 3;
+async function runWithRetries() {
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await main();
+      return;
+    } catch (err) {
+      console.error(`Intento ${attempt}/${MAX_ATTEMPTS} falló:`, err);
+      if (attempt === MAX_ATTEMPTS) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 15_000));
+    }
+  }
+}
+
+runWithRetries().catch((err) => {
   console.error(err);
   process.exit(1);
 });
