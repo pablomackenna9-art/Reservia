@@ -144,17 +144,22 @@ export function DashboardPage() {
   }, [reservationsToday]);
 
   const sortedZones = [...zones].sort((a, b) => a.sortOrder - b.sortOrder);
-  const zoneBreakdown = sortedZones.map((zone) => {
-    const counts = { occupied: 0, arriving: 0, reserved: 0, available: 0 };
-    for (const t of tables) {
-      if (t.zoneId !== zone.id) continue;
-      const status = getTableStatus(t.id);
-      if (status in counts) counts[status as keyof typeof counts]++;
-    }
-    return { zone, counts };
-  });
   // No manual pick yet -> land on the owner's first zone, not every zone at once.
   const effectiveZoneId = activeZoneId ?? sortedZones[0]?.id ?? "all";
+  // Solo la zona puntual que se está mirando -- con "Todo" seleccionado el
+  // plano ya muestra las cuatro zonas juntas, repetir el desglose de las
+  // cuatro a la vez ahí arriba es ruido, no info nueva.
+  const zoneBreakdown = sortedZones
+    .filter((zone) => zone.id === effectiveZoneId)
+    .map((zone) => {
+      const counts = { occupied: 0, arriving: 0, reserved: 0, available: 0 };
+      for (const t of tables) {
+        if (t.zoneId !== zone.id) continue;
+        const status = getTableStatus(t.id);
+        if (status in counts) counts[status as keyof typeof counts]++;
+      }
+      return { zone, counts };
+    });
   const visibleZones = effectiveZoneId === "all" ? zones : zones.filter((z) => z.id === effectiveZoneId);
   const visibleTables = tables
     .filter((t) => effectiveZoneId === "all" || t.zoneId === effectiveZoneId)

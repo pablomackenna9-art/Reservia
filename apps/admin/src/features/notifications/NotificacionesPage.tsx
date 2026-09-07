@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   acceptReservation,
+  addToWaitlist,
   getAveragePurchaseByCustomer,
   getCustomerConsumptionStats,
   getReservationRules,
@@ -204,6 +205,20 @@ export function NotificacionesPage() {
     await reload();
   }
 
+  /** No hay mesa para ese horario -- en vez de rechazar sin más, la pasamos a lista de espera con la hora que quería guardada en las notas (waitlist_entries no tiene columna de horario propia). */
+  async function handleSendToWaitlist(reservation: ReservationWithDetails) {
+    if (!restaurantId) return;
+    if (!confirm(`¿Anotar a ${reservation.customerName} en la lista de espera para ${formatWhen(reservation.startsAt)}?`)) return;
+    await addToWaitlist(supabase, {
+      restaurantId,
+      customerId: reservation.customerId,
+      partySize: reservation.partySize,
+      notes: `Quería venir el ${formatWhen(reservation.startsAt)}`,
+    });
+    await updateReservationStatus(supabase, reservation.id, "cancelled");
+    await reload();
+  }
+
   async function handleChangeStatus(id: string, status: Parameters<typeof updateReservationStatus>[2]) {
     const reservation = [...pendingApproval, ...unassignedTable].find((r) => r.id === id);
     if (status === "confirmed" && reservation?.status === "pending" && rules) {
@@ -296,6 +311,12 @@ export function NotificacionesPage() {
                       className="rounded-lg bg-accent text-accent-ink px-2.5 py-1.5 text-xs font-medium shrink-0"
                     >
                       Aceptar
+                    </button>
+                    <button
+                      onClick={() => handleSendToWaitlist(r)}
+                      className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-xs text-accent hover:border-accent shrink-0"
+                    >
+                      Lista de espera
                     </button>
                     <button
                       onClick={() => handleReject(r.id)}
