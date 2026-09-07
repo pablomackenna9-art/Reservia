@@ -11,7 +11,7 @@ import {
   updateWaitlistStatus,
   type WaitlistEntryWithCustomer,
 } from "@reservia/api-client";
-import type { Customer, Table } from "@reservia/core";
+import { compareTableNames, type Customer, type Table } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
 
@@ -86,14 +86,13 @@ export function WaitlistPanel({ restaurantId }: { restaurantId: string }) {
     setAssigningId(entry.id);
     const now = new Date();
     const endsAt = new Date(now.getTime() + 90 * 60_000);
-    setAvailableTables(
-      await listAvailableTables(supabase, {
-        restaurantId,
-        partySize: entry.partySize,
-        startsAt: now.toISOString(),
-        endsAt: endsAt.toISOString(),
-      }),
-    );
+    const found = await listAvailableTables(supabase, {
+      restaurantId,
+      partySize: entry.partySize,
+      startsAt: now.toISOString(),
+      endsAt: endsAt.toISOString(),
+    });
+    setAvailableTables([...found].sort((a, b) => compareTableNames(a.name, b.name)));
   }
 
   async function assignTable(entry: WaitlistEntryWithCustomer, table: Table) {

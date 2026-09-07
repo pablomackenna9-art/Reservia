@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { setAverageTicketPerPerson, type ReservationWithDetails } from "@reservia/api-client";
-import { computeCapacityPacing, findLateArrivals, minutesSince, reservationsActiveInWindow } from "@reservia/core";
+import { compareTableNames, computeCapacityPacing, findLateArrivals, minutesSince, reservationsActiveInWindow } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas } from "../plano/ZoneCanvas";
@@ -156,7 +156,9 @@ export function DashboardPage() {
   // No manual pick yet -> land on the owner's first zone, not every zone at once.
   const effectiveZoneId = activeZoneId ?? sortedZones[0]?.id ?? "all";
   const visibleZones = effectiveZoneId === "all" ? zones : zones.filter((z) => z.id === effectiveZoneId);
-  const visibleTables = effectiveZoneId === "all" ? tables : tables.filter((t) => t.zoneId === effectiveZoneId);
+  const visibleTables = tables
+    .filter((t) => effectiveZoneId === "all" || t.zoneId === effectiveZoneId)
+    .sort((a, b) => compareTableNames(a.name, b.name));
   const selectedTable = tables.find((t) => t.id === selectedTableId) ?? null;
   const selectedTableZone = selectedTable ? zones.find((z) => z.id === selectedTable.zoneId) ?? null : null;
 
@@ -483,7 +485,9 @@ export function DashboardPage() {
           (() => {
             const slotStart = new Date(expandedSlotStart);
             const slotEnd = new Date(slotStart.getTime() + CAPACITY_SLOT_MINUTES * 60_000);
-            const atThatHour = reservationsActiveInWindow(active, slotStart, slotEnd, rules?.bufferMinutes ?? 15);
+            const atThatHour = reservationsActiveInWindow(active, slotStart, slotEnd, rules?.bufferMinutes ?? 15).sort(
+              (a, b) => compareTableNames(a.tableName ?? "", b.tableName ?? ""),
+            );
             return (
               <div className="mt-3 pt-3 border-t border-line">
                 <p className="text-xs text-ink-faint mb-2">

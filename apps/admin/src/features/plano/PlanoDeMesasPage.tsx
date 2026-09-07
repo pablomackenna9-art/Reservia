@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { compareTableNames } from "@reservia/core";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas } from "./ZoneCanvas";
 import { TableDetailPanel } from "./TableDetailPanel";
@@ -43,7 +44,9 @@ export function PlanoDeMesasPage() {
   const [showNewTable, setShowNewTable] = useState(false);
 
   const visibleZones = activeZoneId === "all" ? zones : zones.filter((z) => z.id === activeZoneId);
-  const visibleTables = activeZoneId === "all" ? tables : tables.filter((t) => t.zoneId === activeZoneId);
+  const visibleTables = tables
+    .filter((t) => activeZoneId === "all" || t.zoneId === activeZoneId)
+    .sort((a, b) => compareTableNames(a.name, b.name));
 
   const selectedTable = tables.find((t) => t.id === selectedTableId) ?? null;
   const selectedTableZone = selectedTable ? zones.find((z) => z.id === selectedTable.zoneId) ?? null : null;

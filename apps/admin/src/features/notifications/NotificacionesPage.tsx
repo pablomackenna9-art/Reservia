@@ -5,6 +5,7 @@ import {
   getCustomerConsumptionStats,
   getReservationRules,
   getSmartTableCandidates,
+  joinTables,
   listCustomers,
   listReservationsForDate,
   listReservationsNeedingAttention,
@@ -17,6 +18,7 @@ import {
   type ReservationWithDetails,
 } from "@reservia/api-client";
 import {
+  compareTableNames,
   estimateOccupancyAt,
   reservationsActiveInWindow,
   type Customer,
@@ -83,16 +85,17 @@ async function buildInsight(
   const startsAt = new Date(reservation.startsAt);
   const endsAt = new Date(reservation.endsAt);
   const occ = estimateOccupancyAt(totalTables, dayReservations, startsAt, endsAt);
-  const reservationsAtThatHour = reservationsActiveInWindow(dayReservations, startsAt, endsAt).filter(
-    (r) => r.id !== reservation.id,
-  );
+  const reservationsAtThatHour = reservationsActiveInWindow(dayReservations, startsAt, endsAt)
+    .filter((r) => r.id !== reservation.id)
+    .sort((a, b) => compareTableNames(a.tableName ?? "", b.tableName ?? ""));
 
   const top = candidates[0] ?? null;
   const zoneName = top ? zones.find((z) => z.id === top.zoneId)?.name ?? null : null;
+  const sortedCandidates = [...candidates].sort((a, b) => compareTableNames(a.tableNames[0]!, b.tableNames[0]!));
 
   return {
     topCandidate: top,
-    candidates,
+    candidates: sortedCandidates,
     zoneName,
     occupiedPct: occ.pctOccupied,
     freeTables: occ.freeTables,
@@ -114,6 +117,17 @@ export function NotificacionesPage() {
   const [customersById, setCustomersById] = useState<Map<string, Customer>>(new Map());
   const [avgPurchase, setAvgPurchase] = useState<Map<string, number>>(new Map());
   const [consumption, setConsumption] = useState<Map<string, CustomerConsumptionStats>>(new Map());
+  const [expandedRequestIds, setExpandedRequestIds] = useState<Set<string>>(new Set());
+  const [selectedCandidateByRequest, setSelectedCandidateByRequest] = useState<Map<string, TableCandidate>>(new Map());
+
+  function toggleExpanded(id: string) {
+    setExpandedRequestIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function reload() {
     if (!restaurantId) return;
@@ -162,9 +176,25 @@ export function NotificacionesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId]);
 
+  /** Acepta con la mesa que el staff eligió (o la recomendada, si no tocó nada) -- no vuelve a pedirle candidatos al motor, ya los tenemos de buildInsight. */
   async function handleAccept(reservation: ReservationWithDetails) {
-    if (rules) await acceptReservation(supabase, reservation, rules.tableAssignmentMode);
-    else await updateReservationStatus(supabase, reservation.id, "confirmed");
+    await updateReservationStatus(supabase, reservation.id, "confirmed");
+
+    const insight = insights.get(reservation.id);
+    const chosen = selectedCandidateByRequest.get(reservation.id) ?? insight?.topCandidate ?? null;
+    if (chosen) {
+      const source: TableAssignmentSource = chosen === insight?.topCandidate ? "suggested" : "manual";
+      await updateReservationTable(supabase, reservation.id, chosen.tableIds[0]!, source);
+      if (chosen.isCombination && chosen.tableIds.length > 1) {
+        await joinTables(
+          supabase,
+          reservation.restaurantId,
+          chosen.tableIds[0]!,
+          chosen.tableIds[1]!,
+          `Mesa ${chosen.tableNames.join("+")}`,
+        );
+      }
+    }
     await reload();
   }
 
@@ -295,47 +325,71 @@ export function NotificacionesPage() {
                   </div>
 
                   {insight && (insight.reservationsAtThatHour.length > 0 || insight.candidates.length > 0) && (
-                    <div className="mt-2 pt-2 border-t border-line grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">
-                          Reservas a esa hora ({insight.reservationsAtThatHour.length})
-                        </p>
-                        {insight.reservationsAtThatHour.length === 0 ? (
-                          <p className="text-[11px] text-ink-faint">Ninguna otra mesa ocupada a esa hora.</p>
-                        ) : (
-                          <ul className="flex flex-wrap gap-1">
-                            {insight.reservationsAtThatHour.map((other) => (
-                              <li
-                                key={other.id}
-                                className="rounded-md bg-ground border border-line px-1.5 py-0.5 text-[11px]"
-                                title={`${other.customerName} · ${other.partySize}p`}
-                              >
-                                {other.customerName}
-                                {other.tableName ? ` · Mesa ${other.tableName}` : ""}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">
-                          Mesas libres para {r.partySize}p ({insight.candidates.length})
-                        </p>
-                        {insight.candidates.length === 0 ? (
-                          <p className="text-[11px] text-ink-faint">Ninguna mesa libre para ese grupo a esa hora.</p>
-                        ) : (
-                          <ul className="flex flex-wrap gap-1">
-                            {insight.candidates.map((c) => (
-                              <li
-                                key={c.tableIds.join("+")}
-                                className="rounded-md bg-ground border border-line px-1.5 py-0.5 text-[11px]"
-                              >
-                                Mesa {c.tableNames.join("+")} · {c.capacityMax}p
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
+                    <div className="mt-2 pt-2 border-t border-line">
+                      <button
+                        onClick={() => toggleExpanded(r.id)}
+                        className="text-[11px] text-accent hover:underline"
+                      >
+                        {expandedRequestIds.has(r.id) ? "▾ Minimizar" : "▸ Ver reservas y mesas de esa hora"}
+                      </button>
+
+                      {expandedRequestIds.has(r.id) && (
+                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">
+                              Reservas a esa hora ({insight.reservationsAtThatHour.length})
+                            </p>
+                            {insight.reservationsAtThatHour.length === 0 ? (
+                              <p className="text-[11px] text-ink-faint">Ninguna otra mesa ocupada a esa hora.</p>
+                            ) : (
+                              <ul className="flex flex-wrap gap-1">
+                                {insight.reservationsAtThatHour.map((other) => (
+                                  <li
+                                    key={other.id}
+                                    className="rounded-md bg-ground border border-line px-1.5 py-0.5 text-[11px]"
+                                    title={`${other.customerName} · ${other.partySize}p`}
+                                  >
+                                    {other.tableName ? `Mesa ${other.tableName}` : "Sin mesa"} · {other.customerName}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">
+                              Mesas libres para {r.partySize}p ({insight.candidates.length}) — clic para elegir cuál asignar
+                            </p>
+                            {insight.candidates.length === 0 ? (
+                              <p className="text-[11px] text-ink-faint">Ninguna mesa libre para ese grupo a esa hora.</p>
+                            ) : (
+                              <ul className="flex flex-wrap gap-1">
+                                {insight.candidates.map((c) => {
+                                  const chosen = selectedCandidateByRequest.get(r.id) ?? insight.topCandidate;
+                                  const isChosen = chosen?.tableIds.join("+") === c.tableIds.join("+");
+                                  return (
+                                    <li key={c.tableIds.join("+")}>
+                                      <button
+                                        onClick={() =>
+                                          setSelectedCandidateByRequest((prev) => new Map(prev).set(r.id, c))
+                                        }
+                                        title={c.reasons.join(" · ")}
+                                        className={`rounded-md border px-1.5 py-0.5 text-[11px] ${
+                                          isChosen
+                                            ? "bg-accent/15 border-accent text-accent"
+                                            : "bg-ground border-line hover:border-accent"
+                                        }`}
+                                      >
+                                        Mesa {c.tableNames.join("+")} · {c.capacityMax}p
+                                        {c.isCombination && " 🔗 combinada"}
+                                      </button>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
