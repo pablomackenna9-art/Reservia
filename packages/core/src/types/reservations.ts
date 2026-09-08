@@ -48,6 +48,9 @@ export type Reservation = z.infer<typeof reservationSchema>;
 export const WAITLIST_STATUSES = ["waiting", "notified", "seated", "cancelled", "left"] as const;
 export type WaitlistStatus = (typeof WAITLIST_STATUSES)[number];
 
+export const WAITLIST_SOURCES = ["walk_in", "public_portal", "reservation"] as const;
+export type WaitlistSource = (typeof WAITLIST_SOURCES)[number];
+
 export const waitlistEntrySchema = z.object({
   id: z.string().uuid(),
   restaurantId: z.string().uuid(),
@@ -60,6 +63,8 @@ export const waitlistEntrySchema = z.object({
   notes: z.string().nullable(),
   /** Mayor = se atiende primero. 0 = normal. */
   priority: z.number().int().default(0),
+  /** De dónde vino: alguien que llegó sin reserva, el portal público, o una reserva que no consiguió mesa. */
+  source: z.enum(WAITLIST_SOURCES).default("walk_in"),
 });
 export type WaitlistEntry = z.infer<typeof waitlistEntrySchema>;
 

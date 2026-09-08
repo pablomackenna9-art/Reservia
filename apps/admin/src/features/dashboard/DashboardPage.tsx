@@ -523,7 +523,7 @@ export function DashboardPage() {
 
       {restaurantId && (
         <div className="rounded-xl border border-line bg-surface p-4 mb-4">
-          <WaitlistPanel restaurantId={restaurantId} />
+          <WaitlistPanel restaurantId={restaurantId} tables={tables} reservationsToday={reservationsToday} />
         </div>
       )}
 

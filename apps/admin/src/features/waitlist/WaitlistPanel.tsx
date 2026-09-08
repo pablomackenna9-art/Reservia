@@ -11,13 +11,20 @@ import {
   updateWaitlistStatus,
   type WaitlistEntryWithCustomer,
 } from "@reservia/api-client";
-import { compareTableNames, type Customer, type Table } from "@reservia/core";
+import type { ReservationWithDetails } from "@reservia/api-client";
+import { compareTableNames, type Customer, type Table, type WaitlistSource } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
 
 /** Mismo umbral que "Frecuente" en Notificaciones -- hace de proxy de "cliente favorito", no hay un flag propio todavía. */
 const FREQUENT_VISITS_THRESHOLD = 5;
 const ALL_STATUSES = ["waiting", "notified", "seated", "cancelled", "left"] as const;
+
+const WAITLIST_SOURCE_LABEL: Record<WaitlistSource, string> = {
+  walk_in: "En el lugar",
+  public_portal: "Portal",
+  reservation: "Desde reserva",
+};
 
 function minutesWaiting(requestedAt: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(requestedAt).getTime()) / 60_000));
@@ -29,7 +36,16 @@ function minutesWaiting(requestedAt: string): number {
  * para no mantener dos implementaciones. Favoritos (clientes frecuentes)
  * arriba, canceladas/abandonadas en una sección aparte al final.
  */
-export function WaitlistPanel({ restaurantId }: { restaurantId: string }) {
+export function WaitlistPanel({
+  restaurantId,
+  tables,
+  reservationsToday,
+}: {
+  restaurantId: string;
+  /** Para el aviso de "esta mesa se liberó por un no-show" -- opcional, solo el dashboard (que ya trae el plano) lo pasa. */
+  tables?: Table[];
+  reservationsToday?: ReservationWithDetails[];
+}) {
   const { user } = useAuth();
 
   const [entries, setEntries] = useState<WaitlistEntryWithCustomer[]>([]);
@@ -125,8 +141,32 @@ export function WaitlistPanel({ restaurantId }: { restaurantId: string }) {
     .sort((a, b) => Number(b.customerTotalVisits >= FREQUENT_VISITS_THRESHOLD) - Number(a.customerTotalVisits >= FREQUENT_VISITS_THRESHOLD))
     .sort((a, b) => b.priority - a.priority);
 
+  // Mesas que un no-show liberó antes de tiempo -- si su reserva original
+  // todavía "debería" estar en curso mirando su endsAt, es que se liberó
+  // recién por eso y no porque el turno ya terminaba solo.
+  const freedByNoShow = (tables ?? []).flatMap((table) => {
+    const now = Date.now();
+    const noShow = (reservationsToday ?? []).find(
+      (r) => r.tableId === table.id && r.status === "no_show" && new Date(r.endsAt).getTime() > now,
+    );
+    if (!noShow) return [];
+    const match = sorted.find((w) => w.partySize <= table.capacityMax);
+    return [{ table, match }];
+  });
+
   return (
     <div>
+      {freedByNoShow.length > 0 && (
+        <div className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 mb-3 space-y-1">
+          {freedByNoShow.map(({ table, match }) => (
+            <p key={table.id} className="text-xs text-accent">
+              ⚡ Mesa {table.name} se liberó por no-show
+              {match ? ` — ${match.customerName} está esperando ${match.partySize}p, ¿la asignamos?` : " — nadie en la lista entra ahí todavía."}
+            </p>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold">Lista de espera</h2>
         <button
@@ -158,6 +198,12 @@ export function WaitlistPanel({ restaurantId }: { restaurantId: string }) {
                       </span>
                     )}
                     {entry.customerName}
+                    <span
+                      className="text-[10px] rounded-full px-1.5 py-0.5 border border-line text-ink-faint shrink-0"
+                      title="De dónde vino esta espera"
+                    >
+                      {WAITLIST_SOURCE_LABEL[entry.source]}
+                    </span>
                   </p>
                   <p className="text-xs text-ink-faint">
                     {entry.partySize} personas · esperando hace {minutesWaiting(entry.requestedAt)} min

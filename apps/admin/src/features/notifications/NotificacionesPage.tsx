@@ -214,6 +214,7 @@ export function NotificacionesPage() {
       customerId: reservation.customerId,
       partySize: reservation.partySize,
       notes: `Quería venir el ${formatWhen(reservation.startsAt)}`,
+      source: "reservation",
     });
     await updateReservationStatus(supabase, reservation.id, "cancelled");
     await reload();

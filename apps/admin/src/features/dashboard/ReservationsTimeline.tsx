@@ -28,18 +28,17 @@ export function ReservationsTimeline({
   const active = reservationsToday.filter((r) => r.status !== "cancelled");
   const unassigned = active.filter((r) => !r.tableId);
 
-  // Rango horario: de la reserva más temprana a la más tardía de hoy, con
-  // 30min de margen a cada lado. Sin reservas, una ventana chica alrededor
-  // de ahora para que la grilla no quede vacía.
+  // Ventana fija de 12:00 a 22:00 -- el rango dinámico (de la reserva más
+  // temprana a la más tardía) quedaba angosto o carecía de horas sin
+  // reservas todavía, y se veía distinto cada vez que se abría.
   const { rangeStart, rangeEnd } = useMemo(() => {
-    if (active.length === 0) {
-      return { rangeStart: now.getTime() - 60 * 60_000, rangeEnd: now.getTime() + 4 * 60 * 60_000 };
-    }
-    const starts = active.map((r) => new Date(r.startsAt).getTime());
-    const ends = active.map((r) => new Date(r.endsAt).getTime());
-    return { rangeStart: Math.min(...starts) - 30 * 60_000, rangeEnd: Math.max(...ends) + 30 * 60_000 };
+    const start = new Date(now);
+    start.setHours(12, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(22, 0, 0, 0);
+    return { rangeStart: start.getTime(), rangeEnd: end.getTime() };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reservationsToday]);
+  }, []);
 
   const totalMs = Math.max(1, rangeEnd - rangeStart);
   function pct(ms: number): number {

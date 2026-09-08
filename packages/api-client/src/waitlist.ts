@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { WaitlistEntry, WaitlistStatus } from "@reservia/core";
+import type { WaitlistEntry, WaitlistSource, WaitlistStatus } from "@reservia/core";
 import { mapCustomer } from "./customers";
 
 export interface WaitlistEntryWithCustomer extends WaitlistEntry {
@@ -45,6 +45,7 @@ export async function addToWaitlist(
     estimatedWaitMinutes?: number;
     notes?: string;
     priority?: number;
+    source?: WaitlistSource;
   },
 ): Promise<WaitlistEntry> {
   const { data, error } = await supabase
@@ -56,6 +57,7 @@ export async function addToWaitlist(
       estimated_wait_minutes: input.estimatedWaitMinutes ?? null,
       notes: input.notes ?? null,
       priority: input.priority ?? 0,
+      source: input.source ?? "walk_in",
     })
     .select("*")
     .single();
@@ -101,5 +103,6 @@ export function mapWaitlistEntry(row: Record<string, unknown>): WaitlistEntry {
     preferredZoneId: (row.preferred_zone_id as string) ?? null,
     notes: (row.notes as string) ?? null,
     priority: (row.priority as number) ?? 0,
+    source: (row.source as WaitlistSource) ?? "walk_in",
   };
 }
