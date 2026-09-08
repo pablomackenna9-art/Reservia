@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type DragEvent } from "react";
 import { Stage, Layer, Rect, Text, Circle, Group } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
@@ -18,6 +18,16 @@ interface ZoneLayout {
   scale: number;
 }
 
+/** Lo mínimo para sentarla -- viaja entero en el dataTransfer del drag, así el drop no necesita ir a buscar nada más. */
+export interface WaitlistDragPayload {
+  waitlistEntryId: string;
+  customerId: string;
+  partySize: number;
+  customerName: string;
+}
+
+export const WAITLIST_DRAG_MIME = "application/x-reservia-waitlist-entry";
+
 interface ZoneCanvasProps {
   /** One zone (a single tab) or several (the unified "Todo" floor) — same component either way. */
   zones: Zone[];
@@ -30,6 +40,8 @@ interface ZoneCanvasProps {
   getHighlightState?: (tableId: string) => TableHighlightState | undefined;
   /** Alguien sentado ahí y otra reserva por llegar pronto -- ver findTurnoverConflict. */
   getTurnoverWarning?: (tableId: string) => boolean;
+  /** Arrastrar una fila de la lista de espera hasta acá -- undefined en el picker del Smart Table Engine. */
+  onDropWaitlistEntry?: (payload: WaitlistDragPayload, tableId: string) => void;
 }
 
 export function ZoneCanvas({
@@ -41,6 +53,7 @@ export function ZoneCanvas({
   getTableStatus,
   getHighlightState,
   getTurnoverWarning,
+  onDropWaitlistEntry,
 }: ZoneCanvasProps) {
   const { ref: containerRef, width, height } = useContainerSize<HTMLDivElement>();
   const stageRef = useRef<Konva.Stage | null>(null);
@@ -146,8 +159,68 @@ export function ZoneCanvas({
     }
   }
 
+  /**
+   * A qué mesa corresponde el punto donde soltaron -- invierte el pan/zoom
+   * del stage y el offset/escala de la zona (el mismo `layout` que ya
+   * posiciona cada `TableToken`) para volver a coordenadas de mesa sin
+   * tocar nada de Konva. Bounding box simple, sin considerar rotación --
+   * alcanza para un drop, no hace falta precisión de píxel.
+   */
+  function handleDrop(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    if (!onDropWaitlistEntry) return;
+    const stage = stageRef.current;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!stage || !rect) return;
+
+    const raw = e.dataTransfer.getData(WAITLIST_DRAG_MIME);
+    if (!raw) return;
+    let payload: WaitlistDragPayload;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      return;
+    }
+
+    const stageX = (e.clientX - rect.left - stage.x()) / stage.scaleX();
+    const stageY = (e.clientY - rect.top - stage.y()) / stage.scaleY();
+
+    for (const { zone, offsetX, scale } of layout) {
+      const zoneWidthScaled = zone.width * scale;
+      const zoneHeightScaled = zone.height * scale;
+      if (stageX < offsetX || stageX > offsetX + zoneWidthScaled || stageY < 0 || stageY > zoneHeightScaled) continue;
+
+      const zoneLocalX = (stageX - offsetX) / scale;
+      const zoneLocalY = stageY / scale;
+      for (const table of tablesByZone.get(zone.id) ?? []) {
+        const cx = (table.positionX / 100) * zone.width;
+        const cy = (table.positionY / 100) * zone.height;
+        const withinX = zoneLocalX >= cx - table.width / 2 && zoneLocalX <= cx + table.width / 2;
+        const withinY = zoneLocalY >= cy - table.height / 2 && zoneLocalY <= cy + table.height / 2;
+        if (!withinX || !withinY) continue;
+
+        const status = getTableStatus?.(table.id) ?? "available";
+        if (status !== "available") {
+          alert(`Mesa ${table.name} no está disponible ahora mismo.`);
+          return;
+        }
+        if (payload.partySize > table.capacityMax) {
+          alert(`Mesa ${table.name} es para máximo ${table.capacityMax} personas.`);
+          return;
+        }
+        onDropWaitlistEntry(payload, table.id);
+        return;
+      }
+    }
+  }
+
   return (
-    <div ref={containerRef} className="relative w-full h-full">
+    <div
+      ref={containerRef}
+      className="relative w-full h-full"
+      onDragOver={onDropWaitlistEntry ? (e) => e.preventDefault() : undefined}
+      onDrop={onDropWaitlistEntry ? handleDrop : undefined}
+    >
       {width > 0 && height > 0 && (
       <Stage
         ref={stageRef}

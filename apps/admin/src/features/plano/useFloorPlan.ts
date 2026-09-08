@@ -12,6 +12,7 @@ import {
   listTableGroups,
   listTables,
   listZones,
+  seatWaitlistEntry,
   setTableBlocked,
   ungroupTables,
   updateReservationNotes,
@@ -255,6 +256,22 @@ export function useFloorPlan(restaurantId: string | undefined) {
     await reload();
   }
 
+  /** Arrastrar una entrada de la lista de espera hasta una mesa del plano -- misma lógica que "Asignar mesa" en WaitlistPanel, un solo reload deja plano y vista de reservas al día. */
+  async function seatFromWaitlist(
+    entry: { id: string; customerId: string; partySize: number },
+    tableId: string,
+  ) {
+    if (!restaurantId || !user) return;
+    await seatWaitlistEntry(supabase, {
+      restaurantId,
+      entry,
+      tableId,
+      createdBy: user.id,
+      durationMinutes: rules?.defaultDurationMinutes,
+    });
+    await reload();
+  }
+
   return {
     zones,
     tables,
@@ -277,6 +294,7 @@ export function useFloorPlan(restaurantId: string | undefined) {
     skipCompletion,
     cancelCompletion,
     seatWalkIn,
+    seatFromWaitlist,
     joinTablesTogether,
     unjoinTable,
     moveReservationToTable,

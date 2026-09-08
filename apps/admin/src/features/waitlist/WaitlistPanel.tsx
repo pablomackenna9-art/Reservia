@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import {
   addToWaitlist,
   createCustomer,
-  createReservation,
   listAvailableTables,
   listWaitlist,
   searchCustomers,
+  seatWaitlistEntry,
   setWaitlistPriority,
   updateWaitlistEntry,
   updateWaitlistStatus,
@@ -113,20 +113,12 @@ export function WaitlistPanel({
 
   async function assignTable(entry: WaitlistEntryWithCustomer, table: Table) {
     if (!user) return;
-    const startsAt = new Date().toISOString();
-    const endsAt = new Date(Date.now() + 90 * 60_000).toISOString();
-    await createReservation(supabase, {
+    await seatWaitlistEntry(supabase, {
       restaurantId,
-      customerId: entry.customerId,
+      entry,
       tableId: table.id,
-      startsAt,
-      endsAt,
-      partySize: entry.partySize,
-      status: "seated",
-      source: "walk_in",
       createdBy: user.id,
     });
-    await updateWaitlistStatus(supabase, entry.id, "seated");
     setAssigningId(null);
     reload();
   }

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { WaitlistEntry, WaitlistSource, WaitlistStatus } from "@reservia/core";
 import { mapCustomer } from "./customers";
+import { createReservation } from "./reservations";
 
 export interface WaitlistEntryWithCustomer extends WaitlistEntry {
   customerName: string;
@@ -69,6 +70,38 @@ export async function addToWaitlist(
 export async function updateWaitlistStatus(supabase: SupabaseClient, id: string, status: WaitlistStatus): Promise<void> {
   const { error } = await supabase.from("waitlist_entries").update({ status }).eq("id", id);
   if (error) throw error;
+}
+
+/**
+ * Sienta a alguien de la lista de espera en una mesa concreta -- crea la
+ * reserva `seated` y cierra la entrada como atendida. Un solo lugar para
+ * esta lógica: la usan tanto el botón "Asignar mesa" de `WaitlistPanel`
+ * como arrastrar y soltar sobre el plano.
+ */
+export async function seatWaitlistEntry(
+  supabase: SupabaseClient,
+  input: {
+    restaurantId: string;
+    entry: { id: string; customerId: string; partySize: number };
+    tableId: string;
+    createdBy: string;
+    durationMinutes?: number;
+  },
+): Promise<void> {
+  const startsAt = new Date().toISOString();
+  const endsAt = new Date(Date.now() + (input.durationMinutes ?? 90) * 60_000).toISOString();
+  await createReservation(supabase, {
+    restaurantId: input.restaurantId,
+    customerId: input.entry.customerId,
+    tableId: input.tableId,
+    startsAt,
+    endsAt,
+    partySize: input.entry.partySize,
+    status: "seated",
+    source: "walk_in",
+    createdBy: input.createdBy,
+  });
+  await updateWaitlistStatus(supabase, input.entry.id, "seated");
 }
 
 export async function setWaitlistPriority(supabase: SupabaseClient, id: string, priority: number): Promise<void> {

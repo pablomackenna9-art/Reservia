@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { setAverageTicketPerPerson, type ReservationWithDetails } from "@reservia/api-client";
+import { listWaitlist, setAverageTicketPerPerson, type ReservationWithDetails, type WaitlistEntryWithCustomer } from "@reservia/api-client";
 import { compareTableNames, computeCapacityPacing, findLateArrivals, minutesSince, reservationsActiveInWindow } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
-import { ZoneCanvas } from "../plano/ZoneCanvas";
+import { ZoneCanvas, WAITLIST_DRAG_MIME, type WaitlistDragPayload } from "../plano/ZoneCanvas";
 import { TableDetailPanel } from "../plano/TableDetailPanel";
 import { useFloorPlan, todayISO } from "../plano/useFloorPlan";
 import { NewReservationForm } from "../reservations/NewReservationForm";
@@ -13,6 +13,8 @@ import { CompleteReservationModal } from "../reservations/CompleteReservationMod
 import { RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
 import { WaitlistPanel } from "../waitlist/WaitlistPanel";
 import { ReservationsTimeline } from "./ReservationsTimeline";
+
+const WAITLIST_SOURCE_LABEL = { walk_in: "En el lugar", public_portal: "Portal", reservation: "Desde reserva" } as const;
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
@@ -44,6 +46,7 @@ export function DashboardPage() {
     skipCompletion,
     cancelCompletion,
     seatWalkIn,
+    seatFromWaitlist,
     joinTablesTogether,
     unjoinTable,
     moveReservationToTable,
@@ -64,6 +67,20 @@ export function DashboardPage() {
   const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
   const [ticketInput, setTicketInput] = useState("");
   const [expandedSlotStart, setExpandedSlotStart] = useState<string | null>(null);
+  const [sidebarWaitlist, setSidebarWaitlist] = useState<WaitlistEntryWithCustomer[]>([]);
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    listWaitlist(supabase, restaurantId).then(setSidebarWaitlist);
+    // Carga liviana propia -- mismo patrón que WaitlistPanel, que también se
+    // trae su propia lista en vez de compartir estado -- se refresca sola
+    // cada vez que reservationsToday cambia (un drop exitoso dispara reload()
+    // del plano, que actualiza reservationsToday, que dispara este efecto).
+  }, [restaurantId, reservationsToday]);
+
+  function handleDropWaitlistEntry(payload: WaitlistDragPayload, tableId: string) {
+    seatFromWaitlist({ id: payload.waitlistEntryId, customerId: payload.customerId, partySize: payload.partySize }, tableId);
+  }
 
   const now = new Date();
   const active = reservationsToday.filter((r) => r.status !== "cancelled");
@@ -86,10 +103,11 @@ export function DashboardPage() {
   const facturacion = completedWithAmount.reduce((sum, r) => sum + (r.totalAmount ?? 0), 0);
   const ticketPromedio = completedWithAmount.length ? facturacion / completedWithAmount.length : null;
 
+  // Sin tope -- el panel lateral tiene su propio scroll, y el pedido fue
+  // específicamente "poder ver todas las reservas que vienen".
   const upcoming = active
     .filter((r) => new Date(r.startsAt) >= now && r.status !== "seated")
-    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
-    .slice(0, 5);
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
 
   const indicators = [
     { label: "Reservas hoy", value: String(active.length) },
@@ -375,6 +393,7 @@ export function DashboardPage() {
               onMoveTable={moveTable}
               getTableStatus={getTableStatus}
               getTurnoverWarning={getTurnoverWarning}
+              onDropWaitlistEntry={handleDropWaitlistEntry}
             />
           )}
         </div>
@@ -404,39 +423,78 @@ export function DashboardPage() {
             onUnjoin={() => unjoinTable(selectedTable.id)}
           />
         ) : (
-          <div className="rounded-xl border border-line bg-surface p-4 min-h-0 overflow-y-auto">
-            <h2 className="text-sm font-semibold mb-3">Próximas reservas</h2>
-            {upcoming.length === 0 ? (
-              <p className="text-xs text-ink-faint">No hay reservas próximas.</p>
-            ) : (
-              <ul className="space-y-1">
-                {upcoming.map((r) => {
-                  const zoneName = zones.find((z) => z.id === tables.find((t) => t.id === r.tableId)?.zoneId)?.name;
-                  return (
-                    <li key={r.id}>
-                      <button
-                        onClick={() => setDetailReservation(r)}
-                        className="w-full flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-surface-2"
-                      >
-                        <span className="w-12 text-xs tabular-nums text-ink-muted shrink-0">{formatTime(r.startsAt)}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="truncate">{r.customerName}</p>
-                          <p className="text-xs text-ink-faint truncate">
-                            {r.partySize}p · {r.tableName ? `${zoneName ? `${zoneName} · ` : ""}Mesa ${r.tableName}` : "Sin mesa"}
-                          </p>
-                        </div>
-                        <span
-                          className="text-[10px] rounded-full px-2 py-0.5 border shrink-0"
-                          style={{ color: RESERVATION_STATUS_COLOR[r.status], borderColor: RESERVATION_STATUS_COLOR[r.status] }}
+          <div className="flex flex-col gap-4 min-h-0">
+            <div className="rounded-xl border border-line bg-surface p-4 flex-1 min-h-0 overflow-y-auto">
+              <h2 className="text-sm font-semibold mb-3">Próximas reservas</h2>
+              {upcoming.length === 0 ? (
+                <p className="text-xs text-ink-faint">No hay reservas próximas.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {upcoming.map((r) => {
+                    const zoneName = zones.find((z) => z.id === tables.find((t) => t.id === r.tableId)?.zoneId)?.name;
+                    return (
+                      <li key={r.id}>
+                        <button
+                          onClick={() => setDetailReservation(r)}
+                          className="w-full flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-surface-2"
                         >
-                          {RESERVATION_STATUS_LABEL[r.status]}
-                        </span>
-                      </button>
+                          <span className="w-12 text-xs tabular-nums text-ink-muted shrink-0">{formatTime(r.startsAt)}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate">{r.customerName}</p>
+                            <p className="text-xs text-ink-faint truncate">
+                              {r.partySize}p · {r.tableName ? `${zoneName ? `${zoneName} · ` : ""}Mesa ${r.tableName}` : "Sin mesa"}
+                            </p>
+                          </div>
+                          <span
+                            className="text-[10px] rounded-full px-2 py-0.5 border shrink-0"
+                            style={{ color: RESERVATION_STATUS_COLOR[r.status], borderColor: RESERVATION_STATUS_COLOR[r.status] }}
+                          >
+                            {RESERVATION_STATUS_LABEL[r.status]}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-line bg-surface p-4 max-h-64 overflow-y-auto shrink-0">
+              <h2 className="text-sm font-semibold mb-1">Lista de espera</h2>
+              <p className="text-[11px] text-ink-faint mb-2">Arrastrá una fila hasta una mesa libre del plano para sentarla ahí.</p>
+              {sidebarWaitlist.length === 0 ? (
+                <p className="text-xs text-ink-faint">Nadie esperando ahora mismo.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {sidebarWaitlist.map((w) => (
+                    <li
+                      key={w.id}
+                      draggable
+                      onDragStart={(e) => {
+                        const payload: WaitlistDragPayload = {
+                          waitlistEntryId: w.id,
+                          customerId: w.customerId,
+                          partySize: w.partySize,
+                          customerName: w.customerName,
+                        };
+                        e.dataTransfer.setData(WAITLIST_DRAG_MIME, JSON.stringify(payload));
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      className="flex items-center gap-2 text-sm rounded-lg px-2 py-1.5 -mx-2 border border-transparent hover:border-line cursor-grab active:cursor-grabbing"
+                      title="Arrastrar hasta una mesa libre"
+                    >
+                      <span className="text-ink-faint">⠿</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate">{w.customerName}</p>
+                        <p className="text-xs text-ink-faint truncate">
+                          {w.partySize}p · {WAITLIST_SOURCE_LABEL[w.source]}
+                        </p>
+                      </div>
                     </li>
-                  );
-                })}
-              </ul>
-            )}
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         )}
       </div>
