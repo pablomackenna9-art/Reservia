@@ -89,6 +89,29 @@ export function reservationsActiveInWindow<
   });
 }
 
+/**
+ * Qué hay en una mesa puntual cerca de un horario de referencia -- si hay
+ * alguien sentado ahí ahora mismo (sin importar cuándo empezó) más lo que
+ * arranca dentro de `windowHours` antes/después, para decidir si conviene
+ * asignarla. Usado tanto en Notificaciones (candidato elegido) como en
+ * TableAssignmentPicker (cada candidato a la vez).
+ */
+export function nearbyTableSchedule<T extends Pick<Reservation, "id" | "tableId" | "startsAt" | "status">>(
+  dayReservations: T[],
+  tableIds: string[],
+  referenceStartsAt: string,
+  options: { excludeId?: string; windowHours?: number } = {},
+): T[] {
+  const windowHours = options.windowHours ?? 3;
+  const referenceMs = new Date(referenceStartsAt).getTime();
+  const windowMs = windowHours * 60 * 60_000;
+
+  return dayReservations
+    .filter((r) => r.tableId && tableIds.includes(r.tableId) && r.status !== "cancelled" && r.id !== options.excludeId)
+    .filter((r) => r.status === "seated" || Math.abs(new Date(r.startsAt).getTime() - referenceMs) <= windowMs)
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+}
+
 export interface OccupancyEstimate {
   occupiedTables: number;
   totalTables: number;

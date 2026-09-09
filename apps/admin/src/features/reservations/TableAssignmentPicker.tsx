@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
-import { getSmartTableCandidates, listTables, listZones } from "@reservia/api-client";
-import type { Table, TableCandidate, Zone, ZonePreferenceMode } from "@reservia/core";
+import { getSmartTableCandidates, listTables, listZones, type ReservationWithDetails } from "@reservia/api-client";
+import { nearbyTableSchedule, type Table, type TableCandidate, type Zone, type ZonePreferenceMode } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { ZoneCanvas } from "../plano/ZoneCanvas";
 import type { TableHighlightState } from "../plano/TableToken";
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+}
 
 /**
  * The Smart Table Engine's UI: a ranked, explained shortlist plus an
@@ -21,6 +25,8 @@ export function TableAssignmentPicker({
   zonePreference,
   excludeReservationId,
   allowCombinations = true,
+  showFloorPlanToggle = true,
+  reservationsForSchedule,
   onSelect,
 }: {
   restaurantId: string;
@@ -31,6 +37,10 @@ export function TableAssignmentPicker({
   zonePreference?: ZonePreferenceMode;
   excludeReservationId?: string;
   allowCombinations?: boolean;
+  /** Off cuando ver el plano no aporta (p. ej. ya se está mirando desde el detalle de la reserva) -- fuerza la lista. */
+  showFloorPlanToggle?: boolean;
+  /** Reservas del mismo día -- si viene, cada candidato muestra quién más tiene esa mesa antes/después. */
+  reservationsForSchedule?: ReservationWithDetails[];
   /** `wasRecommended` is true only for the top pick — choosing an alternative counts as an override. */
   onSelect: (candidate: TableCandidate, wasRecommended: boolean) => void;
 }) {
@@ -96,17 +106,37 @@ export function TableAssignmentPicker({
     if (candidate) onSelect(candidate, candidate === recommended);
   }
 
+  function scheduleFor(candidate: TableCandidate): ReservationWithDetails[] {
+    if (!reservationsForSchedule) return [];
+    return nearbyTableSchedule(reservationsForSchedule, candidate.tableIds, startsAt, { excludeId: excludeReservationId });
+  }
+
+  function ScheduleLine({ candidate }: { candidate: TableCandidate }) {
+    if (!reservationsForSchedule) return null;
+    const schedule = scheduleFor(candidate);
+    if (schedule.length === 0) {
+      return <p className="text-[10px] text-status-available mt-0.5">Sin reservas cerca de esa hora</p>;
+    }
+    return (
+      <p className="text-[10px] text-ink-faint mt-0.5 truncate" title={schedule.map((s) => `${formatTime(s.startsAt)} ${s.customerName}`).join(" · ")}>
+        {schedule.map((s) => `${formatTime(s.startsAt)} ${s.customerName}${s.status === "seated" ? " (sentados)" : ""}`).join(" · ")}
+      </p>
+    );
+  }
+
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setShowPlan((v) => !v)}
-        className="text-xs text-accent mb-2"
-      >
-        {showPlan ? "Ver como lista" : "Ver en el plano"}
-      </button>
+      {showFloorPlanToggle && (
+        <button
+          type="button"
+          onClick={() => setShowPlan((v) => !v)}
+          className="text-xs text-accent mb-2"
+        >
+          {showPlan ? "Ver como lista" : "Ver en el plano"}
+        </button>
+      )}
 
-      {showPlan ? (
+      {showFloorPlanToggle && showPlan ? (
         <div className="h-64 rounded-lg border border-line bg-surface-2 overflow-hidden mb-2">
           {zones.length === 0 ? (
             <div className="h-full grid place-items-center">
@@ -141,24 +171,26 @@ export function TableAssignmentPicker({
               {zoneNameById.get(recommended!.zoneId) ?? "…"}
             </p>
             <p className="text-xs text-ink-faint mt-1">{recommended!.reasons.join(" · ")}</p>
+            <ScheduleLine candidate={recommended!} />
           </button>
 
           {alternatives.length > 0 && (
             <div>
               <p className="text-xs text-ink-faint mb-1">Otras alternativas</p>
-              <div className="flex flex-wrap gap-1.5">
+              <div className={reservationsForSchedule ? "grid grid-cols-1 sm:grid-cols-2 gap-1.5" : "flex flex-wrap gap-1.5"}>
                 {alternatives.map((c) => (
                   <button
                     key={c.tableIds.join("+")}
                     type="button"
                     onClick={() => onSelect(c, false)}
                     title={c.reasons.join(" · ")}
-                    className="rounded-lg bg-ground border border-line px-2.5 py-1.5 text-xs hover:border-accent text-left"
+                    className="rounded-lg bg-ground border border-line px-2.5 py-1.5 text-xs hover:border-accent text-left min-w-0"
                   >
                     <span>
                       {c.tableNames.join("+")} · {c.capacityMax}p
                     </span>
                     <span className="block text-ink-faint text-[10px]">{zoneNameById.get(c.zoneId) ?? "…"}</span>
+                    <ScheduleLine candidate={c} />
                   </button>
                 ))}
               </div>

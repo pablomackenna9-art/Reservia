@@ -379,55 +379,66 @@ export function DashboardPage() {
       )}
 
       <div
-        className="grid grid-cols-1 xl:grid-cols-[280px_1fr_320px] gap-4 mb-4 transition-[height] duration-200"
+        className={`grid grid-cols-1 gap-4 mb-4 transition-[height] duration-200 ${
+          waitlistMinimized ? "xl:grid-cols-[44px_1fr_320px]" : "xl:grid-cols-[280px_1fr_320px]"
+        }`}
         style={{ height: planoExpanded ? "82vh" : "48vh" }}
       >
-        <div className="rounded-xl border border-line bg-surface p-4 min-h-0 overflow-y-auto">
+        {waitlistMinimized ? (
           <button
-            onClick={() => setWaitlistMinimized((v) => !v)}
-            className="w-full flex items-center justify-between"
+            onClick={() => setWaitlistMinimized(false)}
+            className="rounded-xl border border-line bg-surface flex flex-col items-center gap-2 pt-3 hover:border-accent"
+            title="Mostrar lista de espera"
           >
-            <h2 className="text-sm font-semibold">Lista de espera</h2>
-            <span className="text-xs text-ink-faint">{waitlistMinimized ? "▸ Mostrar" : "▾ Minimizar"}</span>
+            <span className="text-ink-faint">◂</span>
+            <span className="text-[10px] text-ink-faint tracking-wide" style={{ writingMode: "vertical-rl" }}>
+              Lista de espera{sidebarWaitlist.length > 0 ? ` (${sidebarWaitlist.length})` : ""}
+            </span>
           </button>
-          {!waitlistMinimized && (
-            <>
-              <p className="text-[11px] text-ink-faint mt-1 mb-2">Arrastrá una fila hasta una mesa libre del plano para sentarla ahí.</p>
-              {sidebarWaitlist.length === 0 ? (
-                <p className="text-xs text-ink-faint">Nadie esperando ahora mismo.</p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {sidebarWaitlist.map((w) => (
-                    <li
-                      key={w.id}
-                      draggable
-                      onDragStart={(e) => {
-                        const payload: WaitlistDragPayload = {
-                          waitlistEntryId: w.id,
-                          customerId: w.customerId,
-                          partySize: w.partySize,
-                          customerName: w.customerName,
-                        };
-                        e.dataTransfer.setData(WAITLIST_DRAG_MIME, JSON.stringify(payload));
-                        e.dataTransfer.effectAllowed = "move";
-                      }}
-                      className="flex items-center gap-2 text-sm rounded-lg px-2.5 py-1.5 border border-line hover:border-accent cursor-grab active:cursor-grabbing"
-                      title="Arrastrar hasta una mesa libre"
-                    >
-                      <span className="text-ink-faint">⠿</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate">{w.customerName}</p>
-                        <p className="text-xs text-ink-faint">
-                          {w.partySize}p · {WAITLIST_SOURCE_LABEL[w.source]}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-        </div>
+        ) : (
+          <div className="rounded-xl border border-line bg-surface p-4 min-h-0 overflow-y-auto">
+            <button
+              onClick={() => setWaitlistMinimized(true)}
+              className="w-full flex items-center justify-between"
+            >
+              <h2 className="text-sm font-semibold">Lista de espera</h2>
+              <span className="text-xs text-ink-faint">▾ Minimizar</span>
+            </button>
+            <p className="text-[11px] text-ink-faint mt-1 mb-2">Arrastrá una fila hasta una mesa libre del plano para sentarla ahí.</p>
+            {sidebarWaitlist.length === 0 ? (
+              <p className="text-xs text-ink-faint">Nadie esperando ahora mismo.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {sidebarWaitlist.map((w) => (
+                  <li
+                    key={w.id}
+                    draggable
+                    onDragStart={(e) => {
+                      const payload: WaitlistDragPayload = {
+                        waitlistEntryId: w.id,
+                        customerId: w.customerId,
+                        partySize: w.partySize,
+                        customerName: w.customerName,
+                      };
+                      e.dataTransfer.setData(WAITLIST_DRAG_MIME, JSON.stringify(payload));
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    className="flex items-center gap-2 text-sm rounded-lg px-2.5 py-1.5 border border-line hover:border-accent cursor-grab active:cursor-grabbing"
+                    title="Arrastrar hasta una mesa libre"
+                  >
+                    <span className="text-ink-faint">⠿</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate">{w.customerName}</p>
+                      <p className="text-xs text-ink-faint">
+                        {w.partySize}p · {WAITLIST_SOURCE_LABEL[w.source]}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         <div className="rounded-xl border border-line overflow-hidden bg-surface-2">
           {zones.length === 0 ? (

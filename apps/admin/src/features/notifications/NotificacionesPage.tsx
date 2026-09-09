@@ -21,6 +21,7 @@ import {
 import {
   compareTableNames,
   estimateOccupancyAt,
+  nearbyTableSchedule,
   reservationsActiveInWindow,
   type Customer,
   type ReservationRules,
@@ -55,20 +56,6 @@ function dateToISO(d: Date): string {
 }
 
 const NEARBY_SCHEDULE_HOURS = 3;
-
-/**
- * Qué hay en una mesa puntual cerca del horario pedido -- si hay alguien
- * sentado ahí ahora mismo (sin importar cuándo empezó) más lo que arranca
- * dentro de las 3 horas antes/después, para decidir si conviene asignarla.
- */
-function nearbySchedule(dayReservations: ReservationWithDetails[], tableIds: string[], requestStartsAt: string): ReservationWithDetails[] {
-  const requestMs = new Date(requestStartsAt).getTime();
-  const windowMs = NEARBY_SCHEDULE_HOURS * 60 * 60_000;
-  return dayReservations
-    .filter((r) => r.tableId && tableIds.includes(r.tableId) && r.status !== "cancelled")
-    .filter((r) => r.status === "seated" || Math.abs(new Date(r.startsAt).getTime() - requestMs) <= windowMs)
-    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
-}
 
 interface RequestInsight {
   topCandidate: TableCandidate | null;
@@ -439,7 +426,10 @@ export function NotificacionesPage() {
                         {(() => {
                           const chosen = selectedCandidateByRequest.get(r.id) ?? insight.topCandidate;
                           if (!chosen) return null;
-                          const schedule = nearbySchedule(insight.dayReservations, chosen.tableIds, r.startsAt);
+                          const schedule = nearbyTableSchedule(insight.dayReservations, chosen.tableIds, r.startsAt, {
+                            excludeId: r.id,
+                            windowHours: NEARBY_SCHEDULE_HOURS,
+                          });
                           return (
                             <div className="mt-3 pt-2 border-t border-line">
                               <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">

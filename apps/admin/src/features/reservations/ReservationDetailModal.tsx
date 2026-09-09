@@ -42,13 +42,14 @@ export function ReservationDetailModal({
   onAssignTable: (reservationId: string, tableId: string, source?: TableAssignmentSource) => void | Promise<void>;
   onSaveNotes: (id: string, notes: string) => void | Promise<void>;
 }) {
-  const [internalNotes, setInternalNotes] = useState(reservation.internalNotes ?? "");
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [showTablePicker, setShowTablePicker] = useState(false);
-
   const needsApproval = reservation.status === "pending";
   const needsTable = !needsApproval && reservation.tableId === null && ["confirmed", "arriving"].includes(reservation.status);
   const isFinal = ["cancelled", "completed", "no_show"].includes(reservation.status);
+  const canPickTable = needsTable || (!needsApproval && !isFinal && !!reservation.tableId);
+
+  const [internalNotes, setInternalNotes] = useState(reservation.internalNotes ?? "");
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [activeTab, setActiveTab] = useState<"detalle" | "mesa">(needsTable ? "mesa" : "detalle");
 
   const occupant =
     reservation.status !== "seated" && reservation.tableId
@@ -61,7 +62,7 @@ export function ReservationDetailModal({
     if (candidate.isCombination && candidate.tableIds.length > 1) {
       await joinTables(supabase, restaurantId, candidate.tableIds[0]!, candidate.tableIds[1]!, `Mesa ${candidate.tableNames.join("+")}`);
     }
-    setShowTablePicker(false);
+    setActiveTab("detalle");
   }
 
   async function saveNotes() {
@@ -93,143 +94,152 @@ export function ReservationDetailModal({
           <span className="text-xs text-ink-faint">{SOURCE_LABEL[reservation.source]}</span>
         </div>
 
-        {needsApproval && (
-          <div className="rounded-lg border border-accent/50 bg-accent/10 px-3 py-2 text-xs text-accent mb-4">
-            Solicitud del portal público — hace falta aceptarla o rechazarla.
-          </div>
-        )}
-        {needsTable && (
-          <div className="rounded-lg border border-status-arriving/50 bg-status-arriving/10 px-3 py-2 text-xs text-status-arriving mb-4">
-            Aceptada, todavía sin mesa asignada.
-          </div>
-        )}
-
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-sm mb-4">
-          <Row label="Hora">
-            {new Date(reservation.startsAt).toLocaleString("es-CL", {
-              weekday: "short",
-              day: "numeric",
-              month: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </Row>
-          <Row label="Personas">{reservation.partySize}</Row>
-          <Row label="Lugar">
-            {reservation.tableName ? `${zoneName ? `${zoneName} · ` : ""}Mesa ${reservation.tableName}` : "Sin mesa asignada"}
-          </Row>
-          <Row label="Teléfono">{reservation.customerPhone ?? "—"}</Row>
-          <Row label="Email">{reservation.customerEmail ?? "—"}</Row>
-        </dl>
-
-        {reservation.tableId && reservationsToday && (
-          <div
-            className={`rounded-lg border px-3 py-2 text-xs mb-4 ${
-              occupant ? "border-status-occupied/50 bg-status-occupied/10 text-status-occupied" : "border-status-available/50 bg-status-available/10 text-status-available"
-            }`}
-          >
-            {occupant ? (
-              <>
-                Mesa {reservation.tableName} está ocupada ahora por{" "}
-                <span className="font-medium">{occupant.customerName}</span> ({occupant.partySize}p) — llegó a las{" "}
-                {formatTime(occupant.startsAt)}, hace {formatElapsed(minutesSince(occupant.startsAt))}.
-              </>
-            ) : (
-              <>Mesa {reservation.tableName} está libre ahora mismo.</>
-            )}
-          </div>
-        )}
-
-        {reservation.notes && (
-          <div className="rounded-lg bg-ground border border-line p-3 mb-4">
-            <p className="text-xs text-ink-faint mb-1">Nota del cliente</p>
-            <p className="text-sm">{reservation.notes}</p>
-          </div>
-        )}
-
-        <div className="mb-4">
-          <label className="block text-xs text-ink-faint mb-1">Comentario interno</label>
-          <textarea
-            value={internalNotes}
-            onChange={(e) => setInternalNotes(e.target.value)}
-            rows={2}
-            placeholder="Visible solo para el staff…"
-            className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent resize-none"
-          />
-          {internalNotes !== (reservation.internalNotes ?? "") && (
-            <button
-              onClick={saveNotes}
-              disabled={savingNotes}
-              className="mt-1.5 text-xs text-accent disabled:opacity-60"
-            >
-              {savingNotes ? "Guardando…" : "Guardar comentario"}
-            </button>
-          )}
-        </div>
-
-        {needsApproval && (
-          <div className="flex gap-2">
-            <button
-              onClick={() => onChangeStatus(reservation.id, "confirmed")}
-              className="flex-1 rounded-lg bg-accent text-accent-ink px-3 py-2 text-sm font-medium"
-            >
-              Aceptar reserva
-            </button>
-            <button
-              onClick={() => onChangeStatus(reservation.id, "cancelled")}
-              className="flex-1 rounded-lg bg-surface-2 border border-line px-3 py-2 text-sm text-status-occupied hover:border-status-occupied"
-            >
-              Rechazar
-            </button>
-          </div>
-        )}
-
-        {needsTable && !showTablePicker && (
-          <button
-            onClick={() => setShowTablePicker(true)}
-            className="w-full rounded-lg bg-accent text-accent-ink px-3 py-2 text-sm font-medium"
-          >
-            Asignar mesa
-          </button>
-        )}
-
-        {!needsApproval && !isFinal && reservation.tableId && !showTablePicker && (
-          <div className="flex flex-wrap gap-1.5">
-            {NEXT_STATUS_ACTIONS[reservation.status]?.map((action) => (
-              <button
-                key={action.status}
-                onClick={() => onChangeStatus(reservation.id, action.status)}
-                className="rounded-lg bg-accent text-accent-ink px-2.5 py-1.5 text-xs font-medium"
-              >
-                {action.label}
-              </button>
-            ))}
-            <button
-              onClick={() => setShowTablePicker(true)}
-              className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-xs text-ink hover:border-accent"
-            >
-              Cambiar de mesa
-            </button>
-          </div>
-        )}
-
-        {showTablePicker && (
-          <div className="pt-2.5 border-t border-line">
-            <TableAssignmentPicker
-              restaurantId={restaurantId}
-              partySize={reservation.partySize}
-              startsAt={reservation.startsAt}
-              endsAt={reservation.endsAt}
-              excludeReservationId={reservation.id}
-              onSelect={handlePickTable}
+        {canPickTable && (
+          <div className="flex gap-1 mb-4 border-b border-line">
+            <TabButton label="Detalle" active={activeTab === "detalle"} onClick={() => setActiveTab("detalle")} />
+            <TabButton
+              label={needsTable ? "Asignar mesa" : "Cambiar de mesa"}
+              active={activeTab === "mesa"}
+              onClick={() => setActiveTab("mesa")}
             />
-            <button onClick={() => setShowTablePicker(false)} className="text-xs text-ink-faint mt-2">
-              Cancelar
-            </button>
           </div>
+        )}
+
+        {activeTab === "mesa" ? (
+          <TableAssignmentPicker
+            restaurantId={restaurantId}
+            partySize={reservation.partySize}
+            startsAt={reservation.startsAt}
+            endsAt={reservation.endsAt}
+            excludeReservationId={reservation.id}
+            showFloorPlanToggle={false}
+            reservationsForSchedule={reservationsToday}
+            onSelect={handlePickTable}
+          />
+        ) : (
+          <>
+            {needsApproval && (
+              <div className="rounded-lg border border-accent/50 bg-accent/10 px-3 py-2 text-xs text-accent mb-4">
+                Solicitud del portal público — hace falta aceptarla o rechazarla.
+              </div>
+            )}
+            {needsTable && (
+              <div className="rounded-lg border border-status-arriving/50 bg-status-arriving/10 px-3 py-2 text-xs text-status-arriving mb-4">
+                Aceptada, todavía sin mesa asignada.
+              </div>
+            )}
+
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-sm mb-4">
+              <Row label="Hora">
+                {new Date(reservation.startsAt).toLocaleString("es-CL", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </Row>
+              <Row label="Personas">{reservation.partySize}</Row>
+              <Row label="Lugar">
+                {reservation.tableName ? `${zoneName ? `${zoneName} · ` : ""}Mesa ${reservation.tableName}` : "Sin mesa asignada"}
+              </Row>
+              <Row label="Teléfono">{reservation.customerPhone ?? "—"}</Row>
+              <Row label="Email">{reservation.customerEmail ?? "—"}</Row>
+            </dl>
+
+            {reservation.tableId && reservationsToday && (
+              <div
+                className={`rounded-lg border px-3 py-2 text-xs mb-4 ${
+                  occupant ? "border-status-occupied/50 bg-status-occupied/10 text-status-occupied" : "border-status-available/50 bg-status-available/10 text-status-available"
+                }`}
+              >
+                {occupant ? (
+                  <>
+                    Mesa {reservation.tableName} está ocupada ahora por{" "}
+                    <span className="font-medium">{occupant.customerName}</span> ({occupant.partySize}p) — llegó a las{" "}
+                    {formatTime(occupant.startsAt)}, hace {formatElapsed(minutesSince(occupant.startsAt))}.
+                  </>
+                ) : (
+                  <>Mesa {reservation.tableName} está libre ahora mismo.</>
+                )}
+              </div>
+            )}
+
+            {reservation.notes && (
+              <div className="rounded-lg bg-ground border border-line p-3 mb-4">
+                <p className="text-xs text-ink-faint mb-1">Nota del cliente</p>
+                <p className="text-sm">{reservation.notes}</p>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-xs text-ink-faint mb-1">Comentario interno</label>
+              <textarea
+                value={internalNotes}
+                onChange={(e) => setInternalNotes(e.target.value)}
+                rows={2}
+                placeholder="Visible solo para el staff…"
+                className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent resize-none"
+              />
+              {internalNotes !== (reservation.internalNotes ?? "") && (
+                <button
+                  onClick={saveNotes}
+                  disabled={savingNotes}
+                  className="mt-1.5 text-xs text-accent disabled:opacity-60"
+                >
+                  {savingNotes ? "Guardando…" : "Guardar comentario"}
+                </button>
+              )}
+            </div>
+
+            {needsApproval && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onChangeStatus(reservation.id, "confirmed")}
+                  className="flex-1 rounded-lg bg-accent text-accent-ink px-3 py-2 text-sm font-medium"
+                >
+                  Aceptar reserva
+                </button>
+                <button
+                  onClick={() => onChangeStatus(reservation.id, "cancelled")}
+                  className="flex-1 rounded-lg bg-surface-2 border border-line px-3 py-2 text-sm text-status-occupied hover:border-status-occupied"
+                >
+                  Rechazar
+                </button>
+              </div>
+            )}
+
+            {!needsApproval && !isFinal && reservation.tableId && (
+              <div className="flex flex-wrap gap-1.5">
+                {NEXT_STATUS_ACTIONS[reservation.status]?.map((action) => (
+                  <button
+                    key={action.status}
+                    onClick={() => onChangeStatus(reservation.id, action.status)}
+                    className="rounded-lg bg-accent text-accent-ink px-2.5 py-1.5 text-xs font-medium"
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-3 py-2 text-sm border-b-2 -mb-px ${
+        active ? "border-accent text-ink font-medium" : "border-transparent text-ink-faint hover:text-ink"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
