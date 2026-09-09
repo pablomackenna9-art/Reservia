@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import type { ReservationStatus, TableAssignmentSource, TableCandidate } from "@reservia/core";
+import { minutesSince, type ReservationStatus, type TableAssignmentSource, type TableCandidate } from "@reservia/core";
 import { joinTables, type ReservationWithDetails } from "@reservia/api-client";
 import { supabase } from "../../lib/supabase";
 import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "./statusStyles";
@@ -12,10 +12,21 @@ const SOURCE_LABEL: Record<ReservationWithDetails["source"], string> = {
   walk_in: "Walk-in",
 };
 
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatElapsed(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 export function ReservationDetailModal({
   reservation,
   restaurantId,
   zoneName,
+  reservationsToday,
   onClose,
   onChangeStatus,
   onAssignTable,
@@ -24,6 +35,8 @@ export function ReservationDetailModal({
   reservation: ReservationWithDetails;
   restaurantId: string;
   zoneName: string | null;
+  /** Reservas del mismo día -- opcional, solo para mostrar quién ocupa la mesa ahora mismo. */
+  reservationsToday?: ReservationWithDetails[];
   onClose: () => void;
   onChangeStatus: (id: string, status: ReservationStatus) => void | Promise<void>;
   onAssignTable: (reservationId: string, tableId: string, source?: TableAssignmentSource) => void | Promise<void>;
@@ -36,6 +49,11 @@ export function ReservationDetailModal({
   const needsApproval = reservation.status === "pending";
   const needsTable = !needsApproval && reservation.tableId === null && ["confirmed", "arriving"].includes(reservation.status);
   const isFinal = ["cancelled", "completed", "no_show"].includes(reservation.status);
+
+  const occupant =
+    reservation.status !== "seated" && reservation.tableId
+      ? (reservationsToday?.find((r) => r.tableId === reservation.tableId && r.id !== reservation.id && r.status === "seated") ?? null)
+      : null;
 
   async function handlePickTable(candidate: TableCandidate, wasRecommended: boolean) {
     const source: TableAssignmentSource = wasRecommended ? "suggested" : "manual";
@@ -103,6 +121,24 @@ export function ReservationDetailModal({
           <Row label="Teléfono">{reservation.customerPhone ?? "—"}</Row>
           <Row label="Email">{reservation.customerEmail ?? "—"}</Row>
         </dl>
+
+        {reservation.tableId && reservationsToday && (
+          <div
+            className={`rounded-lg border px-3 py-2 text-xs mb-4 ${
+              occupant ? "border-status-occupied/50 bg-status-occupied/10 text-status-occupied" : "border-status-available/50 bg-status-available/10 text-status-available"
+            }`}
+          >
+            {occupant ? (
+              <>
+                Mesa {reservation.tableName} está ocupada ahora por{" "}
+                <span className="font-medium">{occupant.customerName}</span> ({occupant.partySize}p) — llegó a las{" "}
+                {formatTime(occupant.startsAt)}, hace {formatElapsed(minutesSince(occupant.startsAt))}.
+              </>
+            ) : (
+              <>Mesa {reservation.tableName} está libre ahora mismo.</>
+            )}
+          </div>
+        )}
 
         {reservation.notes && (
           <div className="rounded-lg bg-ground border border-line p-3 mb-4">

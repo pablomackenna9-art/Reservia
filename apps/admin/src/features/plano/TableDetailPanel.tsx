@@ -490,6 +490,7 @@ export function TableDetailPanel({
           reservation={reservationsToday.find((r) => r.id === viewReservation.id) ?? viewReservation}
           restaurantId={restaurantId}
           zoneName={zoneName}
+          reservationsToday={reservationsToday}
           onClose={() => setViewReservation(null)}
           onChangeStatus={(id, s) => onChangeReservationStatus(id, s)}
           onAssignTable={(id, tableId, source) => onMoveReservation(id, tableId, source)}

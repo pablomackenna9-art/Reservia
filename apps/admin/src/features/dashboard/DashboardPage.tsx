@@ -69,6 +69,7 @@ export function DashboardPage() {
   const [expandedSlotStart, setExpandedSlotStart] = useState<string | null>(null);
   const [sidebarWaitlist, setSidebarWaitlist] = useState<WaitlistEntryWithCustomer[]>([]);
   const [waitlistMinimized, setWaitlistMinimized] = useState(false);
+  const [upcomingSearch, setUpcomingSearch] = useState("");
 
   useEffect(() => {
     if (!restaurantId) return;
@@ -115,6 +116,9 @@ export function DashboardPage() {
       return startsAt >= now.getTime() && startsAt <= now.getTime() + UPCOMING_WINDOW_MS && r.status !== "seated";
     })
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  const upcomingFiltered = upcomingSearch.trim()
+    ? upcoming.filter((r) => r.customerName.toLowerCase().includes(upcomingSearch.trim().toLowerCase()))
+    : upcoming;
 
   const indicators = [
     { label: "Reservas hoy", value: String(active.length) },
@@ -375,9 +379,56 @@ export function DashboardPage() {
       )}
 
       <div
-        className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 mb-4 transition-[height] duration-200"
+        className="grid grid-cols-1 xl:grid-cols-[280px_1fr_320px] gap-4 mb-4 transition-[height] duration-200"
         style={{ height: planoExpanded ? "82vh" : "48vh" }}
       >
+        <div className="rounded-xl border border-line bg-surface p-4 min-h-0 overflow-y-auto">
+          <button
+            onClick={() => setWaitlistMinimized((v) => !v)}
+            className="w-full flex items-center justify-between"
+          >
+            <h2 className="text-sm font-semibold">Lista de espera</h2>
+            <span className="text-xs text-ink-faint">{waitlistMinimized ? "▸ Mostrar" : "▾ Minimizar"}</span>
+          </button>
+          {!waitlistMinimized && (
+            <>
+              <p className="text-[11px] text-ink-faint mt-1 mb-2">Arrastrá una fila hasta una mesa libre del plano para sentarla ahí.</p>
+              {sidebarWaitlist.length === 0 ? (
+                <p className="text-xs text-ink-faint">Nadie esperando ahora mismo.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {sidebarWaitlist.map((w) => (
+                    <li
+                      key={w.id}
+                      draggable
+                      onDragStart={(e) => {
+                        const payload: WaitlistDragPayload = {
+                          waitlistEntryId: w.id,
+                          customerId: w.customerId,
+                          partySize: w.partySize,
+                          customerName: w.customerName,
+                        };
+                        e.dataTransfer.setData(WAITLIST_DRAG_MIME, JSON.stringify(payload));
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      className="flex items-center gap-2 text-sm rounded-lg px-2.5 py-1.5 border border-line hover:border-accent cursor-grab active:cursor-grabbing"
+                      title="Arrastrar hasta una mesa libre"
+                    >
+                      <span className="text-ink-faint">⠿</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate">{w.customerName}</p>
+                        <p className="text-xs text-ink-faint">
+                          {w.partySize}p · {WAITLIST_SOURCE_LABEL[w.source]}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+
         <div className="rounded-xl border border-line overflow-hidden bg-surface-2">
           {zones.length === 0 ? (
             <div className="h-full grid place-items-center">
@@ -430,13 +481,22 @@ export function DashboardPage() {
             onUnjoin={() => unjoinTable(selectedTable.id)}
           />
         ) : (
-          <div className="rounded-xl border border-line bg-surface p-4 min-h-0 overflow-y-auto">
-            <h2 className="text-sm font-semibold mb-3">Próximas reservas (3 horas)</h2>
+          <div className="rounded-xl border border-line bg-surface p-4 min-h-0 overflow-y-auto flex flex-col">
+            <h2 className="text-sm font-semibold mb-2">Próximas reservas (3 horas)</h2>
+            <input
+              type="text"
+              value={upcomingSearch}
+              onChange={(e) => setUpcomingSearch(e.target.value)}
+              placeholder="Buscar por nombre…"
+              className="w-full rounded-lg bg-ground border border-line px-2.5 py-1.5 text-xs outline-none focus:border-accent mb-2 shrink-0"
+            />
             {upcoming.length === 0 ? (
               <p className="text-xs text-ink-faint">No hay reservas en las próximas 3 horas.</p>
+            ) : upcomingFiltered.length === 0 ? (
+              <p className="text-xs text-ink-faint">Ninguna reserva coincide con "{upcomingSearch}".</p>
             ) : (
               <ul className="space-y-1">
-                {upcoming.map((r) => {
+                {upcomingFiltered.map((r) => {
                   const zoneName = zones.find((z) => z.id === tables.find((t) => t.id === r.tableId)?.zoneId)?.name;
                   return (
                     <li key={r.id}>
@@ -465,53 +525,6 @@ export function DashboardPage() {
             )}
           </div>
         )}
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 mb-4">
-        <div className="rounded-xl border border-line bg-surface p-4">
-          <button
-            onClick={() => setWaitlistMinimized((v) => !v)}
-            className="w-full flex items-center justify-between"
-          >
-            <h2 className="text-sm font-semibold">Lista de espera</h2>
-            <span className="text-xs text-ink-faint">{waitlistMinimized ? "▸ Mostrar" : "▾ Minimizar"}</span>
-          </button>
-          {!waitlistMinimized && (
-            <>
-              <p className="text-[11px] text-ink-faint mt-1 mb-2">Arrastrá una fila hasta una mesa libre del plano para sentarla ahí.</p>
-              {sidebarWaitlist.length === 0 ? (
-                <p className="text-xs text-ink-faint">Nadie esperando ahora mismo.</p>
-              ) : (
-                <ul className="flex flex-wrap gap-1.5">
-                  {sidebarWaitlist.map((w) => (
-                    <li
-                      key={w.id}
-                      draggable
-                      onDragStart={(e) => {
-                        const payload: WaitlistDragPayload = {
-                          waitlistEntryId: w.id,
-                          customerId: w.customerId,
-                          partySize: w.partySize,
-                          customerName: w.customerName,
-                        };
-                        e.dataTransfer.setData(WAITLIST_DRAG_MIME, JSON.stringify(payload));
-                        e.dataTransfer.effectAllowed = "move";
-                      }}
-                      className="flex items-center gap-2 text-sm rounded-lg px-2.5 py-1.5 border border-line hover:border-accent cursor-grab active:cursor-grabbing"
-                      title="Arrastrar hasta una mesa libre"
-                    >
-                      <span className="text-ink-faint">⠿</span>
-                      <span>{w.customerName}</span>
-                      <span className="text-xs text-ink-faint">
-                        {w.partySize}p · {WAITLIST_SOURCE_LABEL[w.source]}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-        </div>
       </div>
 
       <div className="rounded-xl border border-line bg-surface p-4 mb-4">
@@ -665,6 +678,7 @@ export function DashboardPage() {
           }
           restaurantId={restaurantId}
           zoneName={zones.find((z) => z.id === tables.find((t) => t.id === detailReservation.tableId)?.zoneId)?.name ?? null}
+          reservationsToday={reservationsToday}
           onClose={() => setDetailReservation(null)}
           onChangeStatus={async (id, status) => {
             await changeReservationStatus(id, status);

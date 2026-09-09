@@ -512,6 +512,7 @@ export function NotificacionesPage() {
           }
           restaurantId={restaurantId}
           zoneName={null}
+          reservationsToday={insights.get(detailReservation.id)?.dayReservations}
           onClose={() => setDetailReservation(null)}
           onChangeStatus={handleChangeStatus}
           onAssignTable={handleAssignTable}

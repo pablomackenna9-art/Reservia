@@ -201,6 +201,7 @@ export function ReservasPage() {
           reservation={reservations.find((r) => r.id === detailReservation.id) ?? detailReservation}
           restaurantId={restaurantId}
           zoneName={null}
+          reservationsToday={reservations}
           onClose={() => setDetailReservation(null)}
           onChangeStatus={async (id, status) => {
             await handleStatusChange(id, status);
