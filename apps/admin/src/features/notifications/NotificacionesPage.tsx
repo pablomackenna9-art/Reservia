@@ -51,6 +51,14 @@ function formatCLP(amount: number): string {
   return amount.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 }
 
+/** Sentados de verdad, o una reserva "confirmed"/"arriving" cuyo horario ya cubre este instante -- el staff no siempre alcanza a marcar la llegada al toque. */
+function isOccupyingNow(r: ReservationWithDetails, now: Date): boolean {
+  if (r.status === "seated") return true;
+  if (!["confirmed", "arriving"].includes(r.status)) return false;
+  const nowMs = now.getTime();
+  return new Date(r.startsAt).getTime() <= nowMs && new Date(r.endsAt).getTime() > nowMs;
+}
+
 function dateToISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -256,6 +264,8 @@ export function NotificacionesPage() {
     return <div className="p-6 text-ink-muted text-sm">Cargando…</div>;
   }
 
+  const now = new Date();
+
   return (
     <div className="p-6">
       <header className="mb-4">
@@ -429,6 +439,7 @@ export function NotificacionesPage() {
                           const schedule = nearbyTableSchedule(insight.dayReservations, chosen.tableIds, r.startsAt, {
                             excludeId: r.id,
                             windowHours: NEARBY_SCHEDULE_HOURS,
+                            now,
                           });
                           return (
                             <div className="mt-3 pt-2 border-t border-line">
@@ -436,13 +447,13 @@ export function NotificacionesPage() {
                                 Horario de Mesa {chosen.tableNames.join("+")} (±{NEARBY_SCHEDULE_HOURS}h de la hora pedida)
                               </p>
                               {schedule.length === 0 ? (
-                                <p className="text-[11px] text-ink-faint">Sin nada cerca de esa hora -- mesa tranquila.</p>
+                                <p className="text-[11px] text-status-available">Sin nada cerca de esa hora -- mesa tranquila.</p>
                               ) : (
                                 <ul className="space-y-0.5">
                                   {schedule.map((s) => (
                                     <li key={s.id} className="text-[11px] text-ink-muted">
                                       {formatTime(s.startsAt)} · {s.customerName} · {s.partySize}p
-                                      {s.status === "seated" && <span className="text-status-occupied"> · sentados ahora</span>}
+                                      {isOccupyingNow(s, now) && <span className="text-status-occupied font-medium"> · ⚠ ocupada ahora</span>}
                                     </li>
                                   ))}
                                 </ul>

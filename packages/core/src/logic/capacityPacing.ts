@@ -91,24 +91,40 @@ export function reservationsActiveInWindow<
 
 /**
  * Qué hay en una mesa puntual cerca de un horario de referencia -- si hay
- * alguien sentado ahí ahora mismo (sin importar cuándo empezó) más lo que
- * arranca dentro de `windowHours` antes/después, para decidir si conviene
- * asignarla. Usado tanto en Notificaciones (candidato elegido) como en
- * TableAssignmentPicker (cada candidato a la vez).
+ * alguien ocupándola ahora mismo (marcado "seated" o no -- una reserva
+ * "confirmed"/"arriving" cuyo horario ya cubre este instante también cuenta,
+ * el staff no siempre alcanza a marcar la llegada al toque) más lo que
+ * arranca dentro de `windowHours` antes/después de la hora pedida, para
+ * decidir si conviene asignarla. Usado tanto en Notificaciones (candidato
+ * elegido) como en TableAssignmentPicker (cada candidato a la vez).
  */
-export function nearbyTableSchedule<T extends Pick<Reservation, "id" | "tableId" | "startsAt" | "status">>(
+export function nearbyTableSchedule<T extends Pick<Reservation, "id" | "tableId" | "startsAt" | "endsAt" | "status">>(
   dayReservations: T[],
   tableIds: string[],
   referenceStartsAt: string,
-  options: { excludeId?: string; windowHours?: number } = {},
+  options: { excludeId?: string; windowHours?: number; now?: Date; bufferMinutes?: number } = {},
 ): T[] {
   const windowHours = options.windowHours ?? 3;
+  const bufferMinutes = options.bufferMinutes ?? 15;
+  const now = options.now ?? new Date();
+  const nowMs = now.getTime();
+  const bufferMs = bufferMinutes * 60_000;
   const referenceMs = new Date(referenceStartsAt).getTime();
   const windowMs = windowHours * 60 * 60_000;
 
   return dayReservations
     .filter((r) => r.tableId && tableIds.includes(r.tableId) && r.status !== "cancelled" && r.id !== options.excludeId)
-    .filter((r) => r.status === "seated" || Math.abs(new Date(r.startsAt).getTime() - referenceMs) <= windowMs)
+    .filter((r) => {
+      if (r.status === "seated") return true;
+      if (Math.abs(new Date(r.startsAt).getTime() - referenceMs) <= windowMs) return true;
+      // Ocupando la mesa en este instante aunque nadie haya tocado "Marcar
+      // llegada" todavía -- sin este chequeo, una reserva "confirmed" en
+      // curso ahora mismo pero lejos del horario pedido quedaba invisible.
+      if (!ACTIVE_RESERVATION_STATUSES.includes(r.status)) return false;
+      const startMs = new Date(r.startsAt).getTime();
+      const endMs = new Date(r.endsAt).getTime();
+      return startMs <= nowMs && endMs + bufferMs > nowMs;
+    })
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
 }
 

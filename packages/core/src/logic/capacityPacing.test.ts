@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeCapacityPacing, estimateOccupancyAt, reservationsActiveInWindow } from "./capacityPacing";
+import { computeCapacityPacing, estimateOccupancyAt, nearbyTableSchedule, reservationsActiveInWindow } from "./capacityPacing";
 import type { Reservation } from "../types/reservations";
 
 let idCounter = 0;
@@ -122,5 +122,68 @@ describe("reservationsActiveInWindow", () => {
     // Ends 18:40 + 15min buffer = 18:55 -> still overlaps a window starting at 18:50.
     const result = reservationsActiveInWindow([r], new Date("2026-01-01T18:50:00.000Z"), new Date("2026-01-01T19:20:00.000Z"), 15);
     expect(result.map((x) => x.id)).toEqual(["r"]);
+  });
+});
+
+describe("nearbyTableSchedule", () => {
+  const REQUEST_STARTS_AT = "2026-01-01T13:00:00.000Z"; // 1pm target reservation
+
+  it("flags a table as occupied right now even if it's far from the requested time and never marked seated", () => {
+    // Reproduces the reported bug: a "confirmed" reservation from 9am-12:30pm is
+    // still physically at the table at 12:19 (nowMs), but nobody clicked "sentar"
+    // and 9am is more than 3h away from the 1pm request -- must still show up.
+    const active = makeReservation({
+      id: "active-now",
+      tableId: "t1",
+      status: "confirmed",
+      startsAt: "2026-01-01T09:00:00.000Z",
+      endsAt: "2026-01-01T12:30:00.000Z",
+    });
+    const now = new Date("2026-01-01T12:19:00.000Z");
+    const result = nearbyTableSchedule([active], ["t1"], REQUEST_STARTS_AT, { now });
+    expect(result.map((r) => r.id)).toEqual(["active-now"]);
+  });
+
+  it("includes a seated reservation regardless of how far it is from the requested time", () => {
+    const seated = makeReservation({
+      id: "seated-far",
+      tableId: "t1",
+      status: "seated",
+      startsAt: "2026-01-01T08:00:00.000Z",
+      endsAt: "2026-01-01T09:30:00.000Z",
+    });
+    const result = nearbyTableSchedule([seated], ["t1"], REQUEST_STARTS_AT, { now: new Date("2026-01-01T12:19:00.000Z") });
+    expect(result.map((r) => r.id)).toEqual(["seated-far"]);
+  });
+
+  it("includes reservations starting within the window of the requested time even if not currently active", () => {
+    const soon = makeReservation({
+      id: "soon",
+      tableId: "t1",
+      status: "confirmed",
+      startsAt: "2026-01-01T14:00:00.000Z",
+      endsAt: "2026-01-01T15:30:00.000Z",
+    });
+    const result = nearbyTableSchedule([soon], ["t1"], REQUEST_STARTS_AT, { now: new Date("2026-01-01T12:19:00.000Z"), windowHours: 3 });
+    expect(result.map((r) => r.id)).toEqual(["soon"]);
+  });
+
+  it("excludes reservations that are neither active now, seated, nor near the requested time", () => {
+    const irrelevant = makeReservation({
+      id: "irrelevant",
+      tableId: "t1",
+      status: "confirmed",
+      startsAt: "2026-01-01T19:00:00.000Z",
+      endsAt: "2026-01-01T20:30:00.000Z",
+    });
+    const result = nearbyTableSchedule([irrelevant], ["t1"], REQUEST_STARTS_AT, { now: new Date("2026-01-01T12:19:00.000Z") });
+    expect(result).toEqual([]);
+  });
+
+  it("excludes cancelled reservations and the reservation being reassigned", () => {
+    const cancelled = makeReservation({ id: "cancelled", tableId: "t1", status: "cancelled" });
+    const self = makeReservation({ id: "self", tableId: "t1", status: "seated" });
+    const result = nearbyTableSchedule([cancelled, self], ["t1"], REQUEST_STARTS_AT, { excludeId: "self" });
+    expect(result).toEqual([]);
   });
 });

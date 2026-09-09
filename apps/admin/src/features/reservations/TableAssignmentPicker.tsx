@@ -4,9 +4,24 @@ import { nearbyTableSchedule, type Table, type TableCandidate, type Zone, type Z
 import { supabase } from "../../lib/supabase";
 import { ZoneCanvas } from "../plano/ZoneCanvas";
 import type { TableHighlightState } from "../plano/TableToken";
+import { TableDayTimeline } from "./TableDayTimeline";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Sentados de verdad, o una reserva "confirmed"/"arriving" cuyo horario ya cubre este instante -- el staff no siempre alcanza a marcar la llegada al toque. */
+function isOccupyingNow(r: ReservationWithDetails, now: Date): boolean {
+  if (r.status === "seated") return true;
+  if (!["confirmed", "arriving"].includes(r.status)) return false;
+  const nowMs = now.getTime();
+  return new Date(r.startsAt).getTime() <= nowMs && new Date(r.endsAt).getTime() > nowMs;
+}
+
+function scheduleEntryLabel(r: ReservationWithDetails, now: Date): string {
+  if (r.status === "seated") return " (sentados)";
+  if (isOccupyingNow(r, now)) return " (ocupada ahora)";
+  return "";
 }
 
 /**
@@ -48,6 +63,8 @@ export function TableAssignmentPicker({
   const [showPlan, setShowPlan] = useState(false);
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
+  const [expandedCandidates, setExpandedCandidates] = useState<Set<string>>(new Set());
+  const now = new Date();
 
   useEffect(() => {
     let cancelled = false;
@@ -108,19 +125,62 @@ export function TableAssignmentPicker({
 
   function scheduleFor(candidate: TableCandidate): ReservationWithDetails[] {
     if (!reservationsForSchedule) return [];
-    return nearbyTableSchedule(reservationsForSchedule, candidate.tableIds, startsAt, { excludeId: excludeReservationId });
+    return nearbyTableSchedule(reservationsForSchedule, candidate.tableIds, startsAt, { excludeId: excludeReservationId, now });
   }
 
-  function ScheduleLine({ candidate }: { candidate: TableCandidate }) {
+  function dayScheduleFor(candidate: TableCandidate): ReservationWithDetails[] {
+    if (!reservationsForSchedule) return [];
+    return reservationsForSchedule
+      .filter(
+        (r) =>
+          r.tableId &&
+          candidate.tableIds.includes(r.tableId) &&
+          r.status !== "cancelled" &&
+          r.id !== excludeReservationId,
+      )
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  }
+
+  function toggleExpanded(key: string) {
+    setExpandedCandidates((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function ScheduleBlock({ candidate }: { candidate: TableCandidate }) {
     if (!reservationsForSchedule) return null;
+    const key = candidate.tableIds.join("+");
     const schedule = scheduleFor(candidate);
-    if (schedule.length === 0) {
-      return <p className="text-[10px] text-status-available mt-0.5">Sin reservas cerca de esa hora</p>;
-    }
+    const hasActiveNow = schedule.some((s) => isOccupyingNow(s, now));
+    const expanded = expandedCandidates.has(key);
     return (
-      <p className="text-[10px] text-ink-faint mt-0.5 truncate" title={schedule.map((s) => `${formatTime(s.startsAt)} ${s.customerName}`).join(" · ")}>
-        {schedule.map((s) => `${formatTime(s.startsAt)} ${s.customerName}${s.status === "seated" ? " (sentados)" : ""}`).join(" · ")}
-      </p>
+      <div className="mt-0.5">
+        {schedule.length === 0 ? (
+          <p className="text-[10px] text-status-available">Sin reservas cerca de esa hora</p>
+        ) : (
+          <p
+            className={`text-[10px] truncate ${hasActiveNow ? "text-status-occupied font-medium" : "text-ink-faint"}`}
+            title={schedule.map((s) => `${formatTime(s.startsAt)} ${s.customerName}`).join(" · ")}
+          >
+            {hasActiveNow ? "⚠ " : ""}
+            {schedule.map((s) => `${formatTime(s.startsAt)} ${s.customerName}${scheduleEntryLabel(s, now)}`).join(" · ")}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleExpanded(key);
+          }}
+          className="text-[10px] text-accent mt-0.5"
+        >
+          {expanded ? "▾ Ocultar horario del día" : "▸ Ver horario del día"}
+        </button>
+        {expanded && <TableDayTimeline reservations={dayScheduleFor(candidate)} now={now} />}
+      </div>
     );
   }
 
@@ -156,42 +216,43 @@ export function TableAssignmentPicker({
         </div>
       ) : (
         <div className="space-y-2">
-          <button
-            type="button"
-            onClick={() => onSelect(recommended!, true)}
-            className="w-full text-left rounded-lg border border-status-available/50 bg-status-available/10 px-3 py-2.5 hover:border-status-available"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-status-available">
-                ✨ {recommended!.tableNames.join(" + ")} recomendada
-              </span>
-              <span className="text-xs text-ink-faint">{recommended!.capacityMax}p</span>
-            </div>
-            <p className="text-xs text-ink-faint mt-0.5">
-              {zoneNameById.get(recommended!.zoneId) ?? "…"}
-            </p>
-            <p className="text-xs text-ink-faint mt-1">{recommended!.reasons.join(" · ")}</p>
-            <ScheduleLine candidate={recommended!} />
-          </button>
+          <div className="rounded-lg border border-status-available/50 bg-status-available/10 px-3 py-2.5">
+            <button
+              type="button"
+              onClick={() => onSelect(recommended!, true)}
+              className="w-full text-left"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-status-available">
+                  ✨ {recommended!.tableNames.join(" + ")} recomendada
+                </span>
+                <span className="text-xs text-ink-faint">{recommended!.capacityMax}p</span>
+              </div>
+              <p className="text-xs text-ink-faint mt-0.5">
+                {zoneNameById.get(recommended!.zoneId) ?? "…"}
+              </p>
+              <p className="text-xs text-ink-faint mt-1">{recommended!.reasons.join(" · ")}</p>
+            </button>
+            <ScheduleBlock candidate={recommended!} />
+          </div>
 
           {alternatives.length > 0 && (
             <div>
               <p className="text-xs text-ink-faint mb-1">Otras alternativas</p>
               <div className={reservationsForSchedule ? "grid grid-cols-1 sm:grid-cols-2 gap-1.5" : "flex flex-wrap gap-1.5"}>
                 {alternatives.map((c) => (
-                  <button
+                  <div
                     key={c.tableIds.join("+")}
-                    type="button"
-                    onClick={() => onSelect(c, false)}
-                    title={c.reasons.join(" · ")}
-                    className="rounded-lg bg-ground border border-line px-2.5 py-1.5 text-xs hover:border-accent text-left min-w-0"
+                    className="rounded-lg bg-ground border border-line px-2.5 py-1.5 text-xs hover:border-accent min-w-0"
                   >
-                    <span>
-                      {c.tableNames.join("+")} · {c.capacityMax}p
-                    </span>
-                    <span className="block text-ink-faint text-[10px]">{zoneNameById.get(c.zoneId) ?? "…"}</span>
-                    <ScheduleLine candidate={c} />
-                  </button>
+                    <button type="button" onClick={() => onSelect(c, false)} title={c.reasons.join(" · ")} className="w-full text-left">
+                      <span>
+                        {c.tableNames.join("+")} · {c.capacityMax}p
+                      </span>
+                      <span className="block text-ink-faint text-[10px]">{zoneNameById.get(c.zoneId) ?? "…"}</span>
+                    </button>
+                    <ScheduleBlock candidate={c} />
+                  </div>
                 ))}
               </div>
             </div>
