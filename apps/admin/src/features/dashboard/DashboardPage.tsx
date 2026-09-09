@@ -68,6 +68,7 @@ export function DashboardPage() {
   const [ticketInput, setTicketInput] = useState("");
   const [expandedSlotStart, setExpandedSlotStart] = useState<string | null>(null);
   const [sidebarWaitlist, setSidebarWaitlist] = useState<WaitlistEntryWithCustomer[]>([]);
+  const [waitlistMinimized, setWaitlistMinimized] = useState(false);
 
   useEffect(() => {
     if (!restaurantId) return;
@@ -105,8 +106,14 @@ export function DashboardPage() {
 
   // Sin tope -- el panel lateral tiene su propio scroll, y el pedido fue
   // específicamente "poder ver todas las reservas que vienen".
+  // Próximas 3 horas -- mostrarlas todas sin límite de tiempo (como estaba
+  // antes) hacía la lista enorme y poco útil a media mañana.
+  const UPCOMING_WINDOW_MS = 3 * 60 * 60_000;
   const upcoming = active
-    .filter((r) => new Date(r.startsAt) >= now && r.status !== "seated")
+    .filter((r) => {
+      const startsAt = new Date(r.startsAt).getTime();
+      return startsAt >= now.getTime() && startsAt <= now.getTime() + UPCOMING_WINDOW_MS && r.status !== "seated";
+    })
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
 
   const indicators = [
@@ -423,49 +430,59 @@ export function DashboardPage() {
             onUnjoin={() => unjoinTable(selectedTable.id)}
           />
         ) : (
-          <div className="flex flex-col gap-4 min-h-0">
-            <div className="rounded-xl border border-line bg-surface p-4 flex-1 min-h-0 overflow-y-auto">
-              <h2 className="text-sm font-semibold mb-3">Próximas reservas</h2>
-              {upcoming.length === 0 ? (
-                <p className="text-xs text-ink-faint">No hay reservas próximas.</p>
-              ) : (
-                <ul className="space-y-1">
-                  {upcoming.map((r) => {
-                    const zoneName = zones.find((z) => z.id === tables.find((t) => t.id === r.tableId)?.zoneId)?.name;
-                    return (
-                      <li key={r.id}>
-                        <button
-                          onClick={() => setDetailReservation(r)}
-                          className="w-full flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-surface-2"
+          <div className="rounded-xl border border-line bg-surface p-4 min-h-0 overflow-y-auto">
+            <h2 className="text-sm font-semibold mb-3">Próximas reservas (3 horas)</h2>
+            {upcoming.length === 0 ? (
+              <p className="text-xs text-ink-faint">No hay reservas en las próximas 3 horas.</p>
+            ) : (
+              <ul className="space-y-1">
+                {upcoming.map((r) => {
+                  const zoneName = zones.find((z) => z.id === tables.find((t) => t.id === r.tableId)?.zoneId)?.name;
+                  return (
+                    <li key={r.id}>
+                      <button
+                        onClick={() => setDetailReservation(r)}
+                        className="w-full flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-surface-2"
+                      >
+                        <span className="w-12 text-xs tabular-nums text-ink-muted shrink-0">{formatTime(r.startsAt)}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="truncate">{r.customerName}</p>
+                          <p className="text-xs text-ink-faint truncate">
+                            {r.partySize}p · {r.tableName ? `${zoneName ? `${zoneName} · ` : ""}Mesa ${r.tableName}` : "Sin mesa"}
+                          </p>
+                        </div>
+                        <span
+                          className="text-[10px] rounded-full px-2 py-0.5 border shrink-0"
+                          style={{ color: RESERVATION_STATUS_COLOR[r.status], borderColor: RESERVATION_STATUS_COLOR[r.status] }}
                         >
-                          <span className="w-12 text-xs tabular-nums text-ink-muted shrink-0">{formatTime(r.startsAt)}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="truncate">{r.customerName}</p>
-                            <p className="text-xs text-ink-faint truncate">
-                              {r.partySize}p · {r.tableName ? `${zoneName ? `${zoneName} · ` : ""}Mesa ${r.tableName}` : "Sin mesa"}
-                            </p>
-                          </div>
-                          <span
-                            className="text-[10px] rounded-full px-2 py-0.5 border shrink-0"
-                            style={{ color: RESERVATION_STATUS_COLOR[r.status], borderColor: RESERVATION_STATUS_COLOR[r.status] }}
-                          >
-                            {RESERVATION_STATUS_LABEL[r.status]}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
+                          {RESERVATION_STATUS_LABEL[r.status]}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
 
-            <div className="rounded-xl border border-line bg-surface p-4 max-h-64 overflow-y-auto shrink-0">
-              <h2 className="text-sm font-semibold mb-1">Lista de espera</h2>
-              <p className="text-[11px] text-ink-faint mb-2">Arrastrá una fila hasta una mesa libre del plano para sentarla ahí.</p>
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 mb-4">
+        <div className="rounded-xl border border-line bg-surface p-4">
+          <button
+            onClick={() => setWaitlistMinimized((v) => !v)}
+            className="w-full flex items-center justify-between"
+          >
+            <h2 className="text-sm font-semibold">Lista de espera</h2>
+            <span className="text-xs text-ink-faint">{waitlistMinimized ? "▸ Mostrar" : "▾ Minimizar"}</span>
+          </button>
+          {!waitlistMinimized && (
+            <>
+              <p className="text-[11px] text-ink-faint mt-1 mb-2">Arrastrá una fila hasta una mesa libre del plano para sentarla ahí.</p>
               {sidebarWaitlist.length === 0 ? (
                 <p className="text-xs text-ink-faint">Nadie esperando ahora mismo.</p>
               ) : (
-                <ul className="space-y-1">
+                <ul className="flex flex-wrap gap-1.5">
                   {sidebarWaitlist.map((w) => (
                     <li
                       key={w.id}
@@ -480,23 +497,21 @@ export function DashboardPage() {
                         e.dataTransfer.setData(WAITLIST_DRAG_MIME, JSON.stringify(payload));
                         e.dataTransfer.effectAllowed = "move";
                       }}
-                      className="flex items-center gap-2 text-sm rounded-lg px-2 py-1.5 -mx-2 border border-transparent hover:border-line cursor-grab active:cursor-grabbing"
+                      className="flex items-center gap-2 text-sm rounded-lg px-2.5 py-1.5 border border-line hover:border-accent cursor-grab active:cursor-grabbing"
                       title="Arrastrar hasta una mesa libre"
                     >
                       <span className="text-ink-faint">⠿</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="truncate">{w.customerName}</p>
-                        <p className="text-xs text-ink-faint truncate">
-                          {w.partySize}p · {WAITLIST_SOURCE_LABEL[w.source]}
-                        </p>
-                      </div>
+                      <span>{w.customerName}</span>
+                      <span className="text-xs text-ink-faint">
+                        {w.partySize}p · {WAITLIST_SOURCE_LABEL[w.source]}
+                      </span>
                     </li>
                   ))}
                 </ul>
               )}
-            </div>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       <div className="rounded-xl border border-line bg-surface p-4 mb-4">

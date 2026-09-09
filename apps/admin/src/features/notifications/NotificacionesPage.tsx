@@ -42,12 +42,32 @@ function formatWhen(iso: string): string {
   });
 }
 
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+}
+
 function formatCLP(amount: number): string {
   return amount.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 }
 
 function dateToISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const NEARBY_SCHEDULE_HOURS = 3;
+
+/**
+ * Qué hay en una mesa puntual cerca del horario pedido -- si hay alguien
+ * sentado ahí ahora mismo (sin importar cuándo empezó) más lo que arranca
+ * dentro de las 3 horas antes/después, para decidir si conviene asignarla.
+ */
+function nearbySchedule(dayReservations: ReservationWithDetails[], tableIds: string[], requestStartsAt: string): ReservationWithDetails[] {
+  const requestMs = new Date(requestStartsAt).getTime();
+  const windowMs = NEARBY_SCHEDULE_HOURS * 60 * 60_000;
+  return dayReservations
+    .filter((r) => r.tableId && tableIds.includes(r.tableId) && r.status !== "cancelled")
+    .filter((r) => r.status === "seated" || Math.abs(new Date(r.startsAt).getTime() - requestMs) <= windowMs)
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
 }
 
 interface RequestInsight {
@@ -60,6 +80,8 @@ interface RequestInsight {
   totalTables: number;
   /** Quién más tiene mesa a esa misma hora, para revisar antes de aceptar. */
   reservationsAtThatHour: ReservationWithDetails[];
+  /** Todas las reservas del día -- para armar el horario de una mesa puntual cuando el staff elige un candidato. */
+  dayReservations: ReservationWithDetails[];
 }
 
 /** Cuánto se demoró en cargar cada solicitud -- las que caen en la misma fecha comparten el fetch de reservas/mesas de ese día. */
@@ -102,6 +124,7 @@ async function buildInsight(
     freeTables: occ.freeTables,
     totalTables: occ.totalTables,
     reservationsAtThatHour,
+    dayReservations,
   };
 }
 
@@ -356,6 +379,7 @@ export function NotificacionesPage() {
                       </button>
 
                       {expandedRequestIds.has(r.id) && (
+                        <>
                         <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">
@@ -411,6 +435,32 @@ export function NotificacionesPage() {
                             )}
                           </div>
                         </div>
+
+                        {(() => {
+                          const chosen = selectedCandidateByRequest.get(r.id) ?? insight.topCandidate;
+                          if (!chosen) return null;
+                          const schedule = nearbySchedule(insight.dayReservations, chosen.tableIds, r.startsAt);
+                          return (
+                            <div className="mt-3 pt-2 border-t border-line">
+                              <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">
+                                Horario de Mesa {chosen.tableNames.join("+")} (±{NEARBY_SCHEDULE_HOURS}h de la hora pedida)
+                              </p>
+                              {schedule.length === 0 ? (
+                                <p className="text-[11px] text-ink-faint">Sin nada cerca de esa hora -- mesa tranquila.</p>
+                              ) : (
+                                <ul className="space-y-0.5">
+                                  {schedule.map((s) => (
+                                    <li key={s.id} className="text-[11px] text-ink-muted">
+                                      {formatTime(s.startsAt)} · {s.customerName} · {s.partySize}p
+                                      {s.status === "seated" && <span className="text-status-occupied"> · sentados ahora</span>}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        </>
                       )}
                     </div>
                   )}
