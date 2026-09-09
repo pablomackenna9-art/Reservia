@@ -14,6 +14,7 @@ export function PlanoDeMesasPage() {
   const {
     zones,
     tables,
+    reservationsToday,
     reservationsByTable,
     tableGroups,
     loading,
@@ -140,6 +141,7 @@ export function PlanoDeMesasPage() {
             zoneName={selectedTableZone.name}
             status={getTableStatus(selectedTable.id)}
             reservationsToday={reservationsByTable.get(selectedTable.id) ?? []}
+            allReservationsToday={reservationsToday}
             allTables={tables}
             groupInfo={tableGroups.get(selectedTable.id)}
             joinPending={joinSourceId === selectedTable.id}

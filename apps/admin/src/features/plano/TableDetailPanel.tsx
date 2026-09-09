@@ -49,6 +49,7 @@ export function TableDetailPanel({
   zoneName,
   status,
   reservationsToday,
+  allReservationsToday,
   allTables,
   groupInfo,
   joinPending,
@@ -71,6 +72,8 @@ export function TableDetailPanel({
   zoneName: string;
   status: TableLiveStatusValue;
   reservationsToday: ReservationWithDetails[];
+  /** Reservas de TODO el restaurante hoy (no solo esta mesa) -- para que "Cambiar de mesa" pueda avisar sobre otras mesas candidatas, no solo esta. */
+  allReservationsToday: ReservationWithDetails[];
   allTables: Table[];
   groupInfo: TableGroupInfo | undefined;
   /** True while this table is the source of an in-progress "unir mesas" pick. */
@@ -234,6 +237,7 @@ export function TableDetailPanel({
                 startsAt={reservation.startsAt}
                 endsAt={reservation.endsAt}
                 excludeReservationId={reservation.id}
+                reservationsForSchedule={allReservationsToday}
                 onSelect={handlePickTable}
               />
               <button onClick={() => setShowMoveTo(false)} className="text-xs text-ink-faint mt-1.5">
@@ -490,7 +494,7 @@ export function TableDetailPanel({
           reservation={reservationsToday.find((r) => r.id === viewReservation.id) ?? viewReservation}
           restaurantId={restaurantId}
           zoneName={zoneName}
-          reservationsToday={reservationsToday}
+          reservationsToday={allReservationsToday}
           onClose={() => setViewReservation(null)}
           onChangeStatus={(id, s) => onChangeReservationStatus(id, s)}
           onAssignTable={(id, tableId, source) => onMoveReservation(id, tableId, source)}

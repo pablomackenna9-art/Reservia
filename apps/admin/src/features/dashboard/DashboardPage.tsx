@@ -474,6 +474,7 @@ export function DashboardPage() {
             zoneName={selectedTableZone.name}
             status={getTableStatus(selectedTable.id)}
             reservationsToday={reservationsByTable.get(selectedTable.id) ?? []}
+            allReservationsToday={reservationsToday}
             allTables={tables}
             groupInfo={tableGroups.get(selectedTable.id)}
             joinPending={joinSourceId === selectedTable.id}
