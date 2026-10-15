@@ -6,7 +6,7 @@ export function ListaDeEsperaPage() {
   const restaurantId = current?.restaurant.id;
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       <header className="mb-4">
         <h1 className="font-serif text-4xl font-normal leading-tight">Lista de espera</h1>
       </header>

@@ -14,13 +14,13 @@ export function SegTabs<T extends string>({
   tone?: "surface" | "surface-2";
 }) {
   return (
-    <div className={`flex gap-0.5 p-1 rounded-xl ${tone === "surface" ? "bg-surface" : "bg-surface-2"}`}>
+    <div className={`flex gap-0.5 p-1 rounded-xl max-w-full overflow-x-auto ${tone === "surface" ? "bg-surface" : "bg-surface-2"}`}>
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={`h-9 px-4 rounded-[9px] text-sm whitespace-nowrap transition-colors ${
+          className={`h-10 sm:h-9 px-4 shrink-0 rounded-[9px] text-sm whitespace-nowrap transition-colors ${
             o.value === value ? "bg-surface-3 text-ink font-semibold" : "text-ink-muted hover:text-ink"
           }`}
         >

@@ -125,7 +125,7 @@ export function MarketingPage() {
   const messagingConnected = false; // ninguno de WhatsApp/Email/SMS está conectado todavía (Integraciones)
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       <header className="mb-1">
         <h1 className="font-serif text-4xl font-normal leading-tight">Marketing</h1>
       </header>

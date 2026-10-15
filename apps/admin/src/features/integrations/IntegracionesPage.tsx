@@ -75,7 +75,7 @@ export function IntegracionesPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       <h1 className="font-serif text-4xl font-normal leading-tight mb-1">Integraciones</h1>
       <p className="text-sm text-ink-muted mb-6 max-w-2xl">
         Ninguna está conectada todavía — conectar cualquiera de estas requiere una cuenta y credenciales reales del

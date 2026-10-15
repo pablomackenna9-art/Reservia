@@ -157,7 +157,10 @@ export function TableDetailPanel({
   }
 
   return (
-    <aside className="w-[356px] max-w-full shrink-0 h-full overflow-y-auto rounded-2xl bg-surface p-5">
+    <>
+    <div className="fixed inset-0 z-40 bg-black/55 xl:hidden" onClick={onClose} aria-hidden />
+    <aside className="fixed inset-x-0 bottom-0 z-50 max-h-[88dvh] overflow-y-auto rounded-t-3xl bg-surface p-4 sm:p-5 pb-8 xl:static xl:z-auto xl:max-h-none xl:w-[356px] xl:max-w-full xl:shrink-0 xl:h-full xl:rounded-2xl xl:pb-5">
+      <div className="xl:hidden mx-auto mb-3 h-1.5 w-12 rounded-full bg-line" />
       <div className="flex items-start justify-between mb-4">
         <div>
           <p className="text-[13px] font-semibold text-ink-faint uppercase tracking-[0.08em]">{zoneName}</p>
@@ -169,10 +172,11 @@ export function TableDetailPanel({
         <div className="flex flex-col items-end gap-3">
           <button
             onClick={onClose}
-            className="h-9 w-9 rounded-[10px] bg-surface-2 text-ink-muted hover:text-ink"
+            className="h-11 px-4 xl:h-9 xl:w-9 xl:px-0 rounded-[10px] bg-surface-2 text-[15px] font-semibold text-ink xl:text-ink-muted xl:hover:text-ink"
             aria-label="Cerrar"
           >
-            ✕
+            <span className="xl:hidden">✕ Cerrar</span>
+            <span className="hidden xl:inline">✕</span>
           </button>
           <StatePill state={tableVisualState(status)} label={tableStatusLabel(status)} />
         </div>
@@ -518,6 +522,7 @@ export function TableDetailPanel({
         />
       )}
     </aside>
+    </>
   );
 }
 

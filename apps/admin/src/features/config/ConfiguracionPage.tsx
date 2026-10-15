@@ -27,15 +27,15 @@ export function ConfiguracionPage() {
   const visibleTabs = TABS.filter((t) => t.id !== "equipo" || canManageTeam);
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       <h1 className="font-serif text-4xl font-normal leading-tight mb-4">Configuración</h1>
 
-      <div className="flex gap-1.5 mb-5">
+      <div className="flex gap-1.5 mb-5 max-w-full overflow-x-auto pb-1">
         {visibleTabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`rounded-lg px-3 py-1.5 text-sm ${
+            className={`h-11 xl:h-10 shrink-0 whitespace-nowrap rounded-[10px] px-4 text-sm ${
               tab === t.id ? "bg-accent text-accent-ink" : "bg-surface text-ink-muted border border-line hover:text-ink"
             }`}
           >

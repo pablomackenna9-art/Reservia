@@ -119,7 +119,7 @@ export function ReportesPage() {
   }, [reservations]);
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       <header className="mb-4 flex items-center justify-between">
         <h1 className="font-serif text-4xl font-normal leading-tight">Reportes</h1>
         <div className="flex gap-1.5">

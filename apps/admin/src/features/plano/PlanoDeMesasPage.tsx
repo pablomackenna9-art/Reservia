@@ -65,12 +65,12 @@ export function PlanoDeMesasPage() {
   }
 
   if (loading) {
-    return <div className="p-6 text-ink-muted text-sm">Cargando plano…</div>;
+    return <div className="p-3 sm:p-6 text-ink-muted text-[15px]">Cargando plano…</div>;
   }
 
   if (zones.length === 0) {
     return (
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         <div className="rounded-2xl bg-surface min-h-[80vh] grid place-items-center">
           <p className="text-sm text-ink-muted">Este restaurante todavía no tiene zonas configuradas.</p>
         </div>
@@ -79,11 +79,11 @@ export function PlanoDeMesasPage() {
   }
 
   return (
-    <div className="p-6 h-screen flex flex-col">
-      <header className="mb-4 flex items-center justify-between gap-4">
+    <div className="p-3 sm:p-6 xl:h-[calc(100vh-68px)] flex flex-col">
+      <header className="mb-4 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 xl:gap-4">
         <h1 className="font-serif text-4xl font-normal leading-tight">Plano de mesas</h1>
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1.5 max-w-full overflow-x-auto">
             <ZoneTab label="Todo" active={activeZoneId === "all"} onClick={() => setActiveZoneId("all")} />
             {[...zones]
               .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -121,7 +121,7 @@ export function PlanoDeMesasPage() {
       </p>
 
       <div className="flex-1 min-h-0 flex gap-4">
-        <div className="flex-1 min-w-0 rounded-xl border border-line overflow-hidden bg-surface-2">
+        <div className="flex-1 min-w-0 h-[68dvh] xl:h-auto rounded-2xl overflow-hidden bg-surface-2">
           <ZoneCanvas
             zones={visibleZones}
             tables={visibleTables}
@@ -201,7 +201,7 @@ function ZoneTab({ label, active, onClick }: { label: string; active: boolean; o
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+      className={`h-11 xl:h-10 shrink-0 rounded-[10px] px-4 text-sm transition-colors ${
         active ? "bg-accent text-accent-ink" : "bg-surface text-ink-muted hover:text-ink border border-line"
       }`}
     >

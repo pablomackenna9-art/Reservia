@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { listWaitlist, setAverageTicketPerPerson, type ReservationWithDetails, type WaitlistEntryWithCustomer } from "@reservia/api-client";
 import { compareTableNames, computeCapacityPacing, findLateArrivals, minutesSince, reservationsActiveInWindow } from "@reservia/core";
@@ -276,8 +276,8 @@ export function DashboardPage() {
   return (
     <div className="pb-10">
       {/* ---- Franja de KPIs: celdas separadas por líneas de 1px ---- */}
-      <div className="grid grid-cols-[1.9fr_1fr_1fr_1fr_1fr_1.1fr] gap-px bg-line border-b border-line">
-        <div className="bg-ground p-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-[1.9fr_1fr_1fr_1fr_1fr_1.1fr] gap-px bg-line border-b border-line">
+        <div className="col-span-2 md:col-span-3 xl:col-span-1 bg-ground p-4 sm:p-6">
           <div className="flex items-end justify-between gap-4">
             <div className="flex items-baseline gap-3">
               <span className="font-serif text-[52px] leading-[0.9]">{occupancyPct === null ? "—" : `${occupancyPct}%`}</span>
@@ -325,7 +325,7 @@ export function DashboardPage() {
         <Kpi label="Facturación hoy" value={completedWithAmount.length ? formatCLP(facturacion) : "—"}>
           {ticketPromedio != null ? `ticket promedio ${formatCLP(ticketPromedio)}` : "sin reservas completadas"}
         </Kpi>
-        <div className="bg-ground p-6">
+        <div className="col-span-2 xl:col-span-1 bg-ground p-4 sm:p-6">
           <p className="text-[15px] text-ink-muted flex items-center justify-between">
             Ingresos estimados
             {!editingTicket && (
@@ -356,7 +356,7 @@ export function DashboardPage() {
               </button>
             </div>
           ) : (
-            <p className={`font-serif text-[44px] leading-none mt-2 ${!rules?.averageTicketPerPerson ? "text-ink-faint" : ""}`}>
+            <p className={`font-serif text-[36px] sm:text-[44px] leading-none mt-2 ${!rules?.averageTicketPerPerson ? "text-ink-faint" : ""}`}>
               {rules?.averageTicketPerPerson ? formatCLP(estimatedRevenue) : "—"}
             </p>
           )}
@@ -366,14 +366,14 @@ export function DashboardPage() {
 
       {/* ---- Alerta contextual: reservas atrasadas ---- */}
       {lateArrivals.length > 0 && (
-        <div className="mx-6 mt-4 rounded-xl border border-status-occupied/45 bg-status-occupied/15 px-5 py-4">
+        <div className="mx-3 sm:mx-6 mt-4 rounded-xl border border-status-occupied/45 bg-status-occupied/15 px-5 py-4">
           <p className="flex items-center gap-3 text-base font-semibold">
             <span className="h-2.5 w-2.5 rounded-full bg-status-occupied ring-4 ring-status-occupied/30" />
             {lateArrivals.length} reserva{lateArrivals.length === 1 ? "" : "s"} sin presentarse a la hora
           </p>
           <ul className="mt-3 space-y-2">
             {lateArrivals.slice(0, 6).map((r) => (
-              <li key={r.id} className="flex items-center justify-between gap-4">
+              <li key={r.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                 <button onClick={() => setDetailReservation(r)} className="text-left min-w-0 text-[15px]">
                   <span className="font-semibold">{r.customerName}</span>
                   <span className="text-ink-muted">
@@ -382,18 +382,18 @@ export function DashboardPage() {
                   </span>
                   <span className="text-status-occupied font-semibold">(+{minutesSince(r.startsAt, now)} min)</span>
                 </button>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex gap-2 sm:shrink-0">
                   {r.customerPhone && (
                     <a
                       href={`tel:${r.customerPhone}`}
-                      className="h-10 px-4 inline-flex items-center rounded-[10px] bg-surface-2 border border-line text-[15px] font-semibold"
+                      className="h-11 px-4 inline-flex items-center justify-center rounded-[10px] bg-surface-2 border border-line text-[15px] font-semibold"
                     >
                       Llamar
                     </a>
                   )}
                   <button
                     onClick={() => changeReservationStatus(r.id, "no_show")}
-                    className="h-10 px-4 rounded-[10px] bg-status-occupied text-status-on text-[15px] font-semibold whitespace-nowrap"
+                    className="h-11 flex-1 sm:flex-none px-4 rounded-[10px] bg-status-occupied text-status-on text-[15px] font-semibold"
                   >
                     Marcar no-show y liberar
                   </button>
@@ -406,13 +406,13 @@ export function DashboardPage() {
       )}
 
       {/* ---- Barra de controles ---- */}
-      <div className="px-6 mt-4 mb-3 flex items-center justify-between gap-4">
+      <div className="px-3 sm:px-6 mt-4 mb-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 xl:gap-4">
         <SegTabs
           value={effectiveZoneId}
           onChange={(v) => setActiveZoneId(v)}
           options={[{ value: "all", label: "Todo" }, ...sortedZones.map((z) => ({ value: z.id, label: z.name }))]}
         />
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Link to="/plano-de-mesas" className="text-[15px] text-accent font-semibold whitespace-nowrap">
             Editar plano →
           </Link>
@@ -434,7 +434,7 @@ export function DashboardPage() {
       </div>
 
       {zoneBreakdown.length > 0 && (
-        <div className="px-6 mb-3 flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-ink-muted">
+        <div className="px-3 sm:px-6 mb-3 flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-ink-muted">
           {zoneBreakdown.map(({ zone, counts }) => (
             <p key={zone.id}>
               <span className="font-semibold text-ink">{zone.name}</span>
@@ -452,26 +452,26 @@ export function DashboardPage() {
 
       {/* ---- Área principal: lista de espera · plano · próximas reservas ---- */}
       <div
-        className={`grid grid-cols-1 gap-4 px-6 mb-4 transition-[height] duration-200 ${
+        className={`grid grid-cols-1 gap-4 px-3 sm:px-6 mb-4 xl:h-[var(--plano-h)] ${
           waitlistMinimized ? "xl:grid-cols-[56px_1fr_356px]" : "xl:grid-cols-[268px_1fr_356px]"
         }`}
-        style={{ height: planoExpanded ? "82vh" : 620 }}
+        style={{ "--plano-h": planoExpanded ? "82vh" : "620px" } as CSSProperties}
       >
         {waitlistMinimized ? (
           <button
             onClick={() => setWaitlistMinimized(false)}
-            className="rounded-2xl bg-surface flex flex-col items-center gap-3 pt-4 hover:bg-surface-2"
+            className="rounded-2xl bg-surface flex flex-row xl:flex-col items-center gap-3 px-4 py-3 xl:px-0 xl:pt-4 xl:pb-0 hover:bg-surface-2"
             title="Mostrar lista de espera"
           >
             <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-accent text-accent-ink text-xs font-bold flex items-center justify-center">
               {sidebarWaitlist.length}
             </span>
-            <span className="text-[13px] font-semibold uppercase tracking-[0.1em] text-ink-faint" style={{ writingMode: "vertical-rl" }}>
+            <span className="text-[13px] font-semibold uppercase tracking-[0.1em] text-ink-faint xl:[writing-mode:vertical-rl]">
               Lista de espera
             </span>
           </button>
         ) : (
-          <div className="rounded-2xl bg-surface p-4 min-h-0 overflow-y-auto flex flex-col">
+          <div className="rounded-2xl bg-surface p-4 min-h-0 overflow-y-auto flex flex-col max-h-[420px] xl:max-h-none">
             <button onClick={() => setWaitlistMinimized(true)} className="w-full flex items-center justify-between">
               <h2 className="text-lg font-semibold">
                 Lista de espera <span className="font-serif text-accent text-2xl ml-1">{sidebarWaitlist.length}</span>
@@ -537,8 +537,14 @@ export function DashboardPage() {
           </div>
         )}
 
-        <div className="rounded-2xl bg-surface p-4 min-h-0 flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-4">
+        <div
+          className={`bg-surface p-3 sm:p-4 min-h-0 flex flex-col gap-3 ${
+            planoExpanded
+              ? "fixed inset-0 z-40 xl:static xl:z-auto xl:rounded-2xl"
+              : "rounded-2xl h-[460px] sm:h-[560px] xl:h-auto"
+          } xl:rounded-2xl`}
+        >
+          <div className="flex items-start justify-between gap-4">
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {LEGEND_STATES.map((st) => (
                 <span key={st} className="inline-flex items-center gap-2 text-[13px] text-ink-muted">
@@ -547,6 +553,14 @@ export function DashboardPage() {
                 </span>
               ))}
             </div>
+            {planoExpanded && (
+              <button
+                onClick={() => setPlanoExpanded(false)}
+                className="xl:hidden h-11 px-4 shrink-0 rounded-[10px] bg-surface-2 text-[15px] font-semibold"
+              >
+                ✕ Cerrar
+              </button>
+            )}
           </div>
           <div className="flex-1 min-h-0 rounded-xl overflow-hidden bg-surface-2">
             {zones.length === 0 ? (
@@ -604,7 +618,7 @@ export function DashboardPage() {
             onUnjoin={() => unjoinTable(selectedTable.id)}
           />
         ) : (
-          <div className="rounded-2xl bg-surface p-4 min-h-0 overflow-y-auto flex flex-col">
+          <div className="rounded-2xl bg-surface p-4 min-h-0 overflow-y-auto flex flex-col max-h-[560px] xl:max-h-none">
             <h2 className="text-lg font-semibold mb-3">Próximas reservas · 3 horas</h2>
             <input
               type="text"
@@ -669,7 +683,7 @@ export function DashboardPage() {
       </div>
 
       {/* ---- Capacidad por horario ---- */}
-      <div className="mx-6 rounded-2xl bg-surface p-5 mb-4">
+      <div className="mx-3 sm:mx-6 rounded-2xl bg-surface p-4 sm:p-5 mb-4">
         <h2 className="text-lg font-semibold mb-1">Capacidad por horario</h2>
         <p className="text-[13px] text-ink-faint mb-4">
           Mesas ocupadas de verdad en cada franja — cuenta lo que ya está sentado y todavía no debería liberarse (colchón de{" "}
@@ -746,18 +760,18 @@ export function DashboardPage() {
       </div>
 
       {restaurantId && (
-        <div className="mx-6 rounded-2xl bg-surface p-5 mb-4">
+        <div className="mx-3 sm:mx-6 rounded-2xl bg-surface p-4 sm:p-5 mb-4">
           <WaitlistPanel restaurantId={restaurantId} tables={tables} reservationsToday={reservationsToday} />
         </div>
       )}
 
-      <div className="mx-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="mx-3 sm:mx-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="rounded-2xl bg-surface p-5">
           <h2 className="text-lg font-semibold mb-3">Cubiertos por hora</h2>
           {hourly.length === 0 ? (
             <p className="text-[15px] text-ink-faint">Sin reservas hoy todavía.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
               {hourly.map(({ hour, covers, pct }) => (
                 <div key={hour} className="flex items-center gap-3 text-[13px]">
                   <span className="w-11 tabular-nums text-ink-muted">{String(hour).padStart(2, "0")}:00</span>
@@ -848,9 +862,9 @@ function Kpi({
   children?: ReactNode;
 }) {
   return (
-    <div className="bg-ground p-6">
+    <div className="bg-ground p-4 sm:p-6">
       <p className="text-[15px] text-ink-muted">{label}</p>
-      <p className={`font-serif text-[44px] leading-none mt-2 ${value === "—" ? "text-ink-faint" : ""} ${valueClass}`}>{value}</p>
+      <p className={`font-serif text-[36px] sm:text-[44px] leading-none mt-2 ${value === "—" ? "text-ink-faint" : ""} ${valueClass}`}>{value}</p>
       <p className="text-[13px] text-ink-faint mt-2">{children}</p>
     </div>
   );

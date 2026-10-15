@@ -11,6 +11,7 @@ import {
 import { customerFullName, type Customer } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
+import { Tag } from "../../components/ui";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "Nunca";
@@ -61,20 +62,20 @@ export function ClientesPage() {
   const selected = customers.find((c) => c.id === selectedId) ?? null;
 
   return (
-    <div className="p-6 h-screen flex flex-col">
-      <header className="mb-4 flex items-center justify-between gap-4">
+    <div className="p-3 sm:p-6 xl:h-[calc(100vh-68px)] flex flex-col">
+      <header className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
         <h1 className="font-serif text-4xl font-normal leading-tight">Clientes</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por nombre, teléfono o correo…"
-            className="w-72 rounded-lg bg-surface border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+            className="w-full sm:w-80 h-11 rounded-[10px] bg-surface border border-line px-3 text-[15px] placeholder:text-ink-faint outline-none focus:border-accent"
           />
           <button
             onClick={() => setShowBlockForm(true)}
             disabled={!restaurantId}
-            className="rounded-lg bg-surface-2 border border-status-occupied/40 text-status-occupied px-3 py-2 text-sm font-medium disabled:opacity-60 shrink-0"
+            className="h-11 rounded-[10px] bg-status-occupied/15 border border-status-occupied/45 text-status-occupied px-4 text-[15px] font-semibold disabled:opacity-60 shrink-0"
           >
             🚫 Bloquear a alguien
           </button>
@@ -82,15 +83,51 @@ export function ClientesPage() {
       </header>
 
       <div className="flex-1 min-h-0 flex gap-4">
-        <div className="flex-1 min-w-0 rounded-2xl bg-surface overflow-y-auto">
+        <div className="flex-1 min-w-0 xl:rounded-2xl xl:bg-surface xl:overflow-y-auto">
           {loading ? (
-            <p className="p-4 text-sm text-ink-muted">Cargando…</p>
+            <p className="p-4 text-[15px] text-ink-muted">Cargando…</p>
           ) : filtered.length === 0 ? (
-            <p className="p-4 text-sm text-ink-muted">
+            <p className="p-4 text-[15px] text-ink-muted">
               {customers.length === 0 ? "Todavía no hay clientes registrados." : "Sin resultados."}
             </p>
           ) : (
-            <table className="w-full text-sm">
+            <>
+            {/* Celular y tablet: una tarjeta por cliente, con los datos a la vista (sin tabla que se corte). */}
+            <ul className="xl:hidden space-y-3">
+              {filtered.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(c.id)}
+                    className="w-full text-left rounded-2xl bg-surface p-4 active:bg-surface-2"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-[17px] font-semibold leading-snug">{customerFullName(c)}</p>
+                      <span className="text-[13px] text-ink-faint shrink-0 pt-0.5">{formatDate(c.lastVisitAt)}</span>
+                    </div>
+                    {(c.totalVisits >= 5 || c.noShowCount >= 2 || c.blacklisted) && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {c.totalVisits >= 5 && <Tag tone="accent">Frecuente</Tag>}
+                        {c.noShowCount >= 2 && <Tag tone="danger">Riesgo no-show</Tag>}
+                        {c.blacklisted && <Tag tone="danger">🚫 Bloqueado</Tag>}
+                      </div>
+                    )}
+                    <p className="text-[15px] text-ink-muted mt-2">{c.phone ?? "Sin teléfono"}</p>
+                    <p className="text-[15px] text-ink-muted break-all">{c.email ?? "Sin correo"}</p>
+                    <div className="grid grid-cols-3 gap-2 mt-3">
+                      <CardStat label="Visitas" value={String(c.totalVisits)} />
+                      <CardStat label="No-shows" value={String(c.noShowCount)} alert={c.noShowCount > 0} />
+                      <CardStat
+                        label="Consumo"
+                        value={consumption.has(c.id) ? formatCLP(consumption.get(c.id)!.totalSpent) : "—"}
+                      />
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <table className="hidden xl:table w-full text-sm">
               <thead>
                 <tr className="border-b border-line text-[13px] text-ink-faint uppercase tracking-wide">
                   <th className="text-left font-normal px-4 py-2.5">Nombre</th>
@@ -151,6 +188,7 @@ export function ClientesPage() {
                 ))}
               </tbody>
             </table>
+            </>
           )}
         </div>
 
@@ -222,11 +260,16 @@ function CustomerDetailPanel({
   }
 
   return (
-    <aside className="w-80 shrink-0 rounded-2xl bg-surface p-4 overflow-y-auto">
-      <div className="flex items-start justify-between mb-4">
-        <h2 className="text-lg font-semibold">{customer.firstName}</h2>
-        <button onClick={onClose} className="text-ink-faint hover:text-ink text-sm" aria-label="Cerrar">
-          ✕
+    <aside className="fixed inset-0 z-40 bg-ground overflow-y-auto p-4 xl:static xl:inset-auto xl:z-auto xl:w-80 xl:shrink-0 xl:rounded-2xl xl:bg-surface">
+      <div className="sticky top-0 -mx-4 -mt-4 mb-4 px-4 py-3 flex items-center justify-between bg-ground xl:bg-surface xl:static xl:m-0 xl:p-0 xl:mb-4 xl:items-start z-10">
+        <h2 className="font-serif text-[32px] leading-none xl:text-lg xl:font-sans xl:font-semibold">{customer.firstName}</h2>
+        <button
+          onClick={onClose}
+          className="h-11 px-4 rounded-[10px] bg-surface-2 text-[15px] font-semibold xl:h-9 xl:w-9 xl:px-0 xl:text-ink-muted"
+          aria-label="Cerrar"
+        >
+          <span className="xl:hidden">✕ Cerrar</span>
+          <span className="hidden xl:inline">✕</span>
         </button>
       </div>
 
@@ -331,6 +374,15 @@ function CustomerDetailPanel({
         </button>
       </div>
     </aside>
+  );
+}
+
+function CardStat({ label, value, alert = false }: { label: string; value: string; alert?: boolean }) {
+  return (
+    <div className="rounded-[10px] bg-surface-2 px-2 py-2 text-center min-w-0">
+      <p className={`font-serif text-[22px] leading-none tabular-nums truncate ${alert ? "text-status-occupied" : ""}`}>{value}</p>
+      <p className="text-[13px] text-ink-faint mt-1">{label}</p>
+    </div>
   );
 }
 

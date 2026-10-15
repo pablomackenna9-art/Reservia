@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Stage, Layer, Rect, Text, Group } from "react-konva";
-import type Konva from "konva";
+import Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Table, TableLiveStatusValue, Zone } from "@reservia/core";
 import { useContainerSize } from "../../hooks/useContainerSize";
@@ -66,6 +66,10 @@ export function ZoneCanvas({
   const theme = useTheme();
   const [dragActive, setDragActive] = useState(false);
   const [fontsReady, setFontsReady] = useState(false);
+  // Ampliado = se puede arrastrar el plano con un dedo; al encuadre completo el dedo scrollea la página.
+  const [zoomed, setZoomed] = useState(false);
+  const fitScaleRef = useRef(1);
+  const pinch = useRef<{ dist: number; center: { x: number; y: number } | null }>({ dist: 0, center: null });
 
   // Konva dibuja con la fuente que haya en ese instante: si Instrument Serif
   // todavía no cargó, los nombres de mesa salen en la de respaldo y nunca se
@@ -113,6 +117,11 @@ export function ZoneCanvas({
   const { ref: containerRef, width, height } = useContainerSize<HTMLDivElement>();
   const stageRef = useRef<Konva.Stage | null>(null);
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (el) el.style.touchAction = zoomed ? "none" : "pan-y";
+  }, [zoomed, containerRef]);
+
   // Each zone keeps its own aspect ratio but is rescaled to a shared height,
   // then laid out left to right — this is what makes "Todo" read as one
   // floor instead of a grid of unrelated boxes.
@@ -137,6 +146,14 @@ export function ZoneCanvas({
     return map;
   }, [tables]);
 
+  // En desarrollo (StrictMode) react-konva recrea el Stage y la ref puede quedar apuntando al viejo ya destruido:
+  // siempre buscamos el Stage vivo que está dentro de ESTE contenedor.
+  function getStage(): Konva.Stage | null {
+    const container = containerRef.current;
+    const live = container ? Konva.stages.find((st) => container.contains(st.container())) : undefined;
+    return live ?? stageRef.current;
+  }
+
   // Konva's own drawing can fail transiently on a canvas that's mid-resize
   // (a browser-level "drawImage on a 0x0 canvas" error, not an app bug) —
   // never let that crash the whole page, just skip that redraw.
@@ -157,23 +174,70 @@ export function ZoneCanvas({
   }, [activeZoneId, layout, floorWidth, floorHeight]);
 
   const fitToScreen = () => {
-    const stage = stageRef.current;
+    const stage = getStage();
     if (!stage || width <= 0 || height <= 0 || focus.w <= 0 || focus.h <= 0) return;
     const scale = Math.min(width / focus.w, height / focus.h) * FLOOR_MARGIN;
+    fitScaleRef.current = scale;
     stage.scale({ x: scale, y: scale });
     stage.position({
       x: (width - focus.w * scale) / 2 - focus.x * scale,
       y: (height - focus.h * scale) / 2 - focus.y * scale,
     });
+    setZoomed(false);
     safeBatchDraw(stage);
   };
 
   // Re-fit whenever the panel is resized or the framing changes.
-  useEffect(fitToScreen, [width, height, focus.x, focus.y, focus.w, focus.h]);
+  useEffect(() => {
+    fitToScreen();
+    // El segundo pase cubre el Stage que react-konva recrea en desarrollo (StrictMode) justo después de este efecto.
+    const frame = requestAnimationFrame(fitToScreen);
+    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, height, focus.x, focus.y, focus.w, focus.h]);
+
+  function syncZoomed(stage: Konva.Stage) {
+    setZoomed(stage.scaleX() > fitScaleRef.current * 1.05);
+  }
+
+  // Pellizco con dos dedos (zoom + desplazamiento), patrón de la doc de Konva.
+  function handleTouchMove(e: KonvaEventObject<TouchEvent>) {
+    const stage = getStage();
+    const [t1, t2] = [e.evt.touches[0], e.evt.touches[1]];
+    if (!stage || !t1 || !t2) return;
+    e.evt.preventDefault();
+    if (stage.isDragging()) stage.stopDrag();
+
+    const rect = stage.container().getBoundingClientRect();
+    const p1 = { x: t1.clientX - rect.left, y: t1.clientY - rect.top };
+    const p2 = { x: t2.clientX - rect.left, y: t2.clientY - rect.top };
+    const center = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+
+    if (!pinch.current.center || !pinch.current.dist) {
+      pinch.current = { dist, center };
+      return;
+    }
+    const oldScale = stage.scaleX();
+    const newScale = clamp(oldScale * (dist / pinch.current.dist), MIN_SCALE, MAX_SCALE);
+    const pointTo = { x: (center.x - stage.x()) / oldScale, y: (center.y - stage.y()) / oldScale };
+    stage.scale({ x: newScale, y: newScale });
+    stage.position({
+      x: center.x - pointTo.x * newScale + (center.x - pinch.current.center.x),
+      y: center.y - pointTo.y * newScale + (center.y - pinch.current.center.y),
+    });
+    pinch.current = { dist, center };
+    syncZoomed(stage);
+    safeBatchDraw(stage);
+  }
+
+  function handleTouchEnd() {
+    pinch.current = { dist: 0, center: null };
+  }
 
   function handleWheel(e: KonvaEventObject<WheelEvent>) {
     e.evt.preventDefault();
-    const stage = stageRef.current;
+    const stage = getStage();
     if (!stage) return;
 
     const pointer = stage.getPointerPosition();
@@ -193,11 +257,12 @@ export function ZoneCanvas({
       x: pointer.x - pointerFloorPos.x * newScale,
       y: pointer.y - pointerFloorPos.y * newScale,
     });
+    syncZoomed(stage);
     safeBatchDraw(stage);
   }
 
   function zoomBy(factor: number) {
-    const stage = stageRef.current;
+    const stage = getStage();
     if (!stage || width <= 0 || height <= 0) return;
     const oldScale = stage.scaleX();
     const newScale = clamp(oldScale * factor, MIN_SCALE, MAX_SCALE);
@@ -209,6 +274,7 @@ export function ZoneCanvas({
       x: center.x - centerFloorPos.x * newScale,
       y: center.y - centerFloorPos.y * newScale,
     });
+    syncZoomed(stage);
     safeBatchDraw(stage);
   }
 
@@ -232,7 +298,7 @@ export function ZoneCanvas({
   function handleDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
     if (!onDropWaitlistEntry) return;
-    const stage = stageRef.current;
+    const stage = getStage();
     const rect = containerRef.current?.getBoundingClientRect();
     if (!stage || !rect) return;
 
@@ -311,6 +377,9 @@ export function ZoneCanvas({
         width={width}
         height={height}
         onWheel={handleWheel}
+        draggable={zoomed}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         onClick={(e) => {
           if (e.target === e.target.getStage()) onSelectTable(null);
         }}

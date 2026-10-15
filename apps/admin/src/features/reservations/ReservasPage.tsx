@@ -95,7 +95,7 @@ export function ReservasPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       <header className="flex items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="font-serif text-4xl font-normal leading-tight">Reservas</h1>

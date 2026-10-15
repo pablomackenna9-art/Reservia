@@ -267,7 +267,7 @@ export function NotificacionesPage() {
   const now = new Date();
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       <header className="mb-4">
         <h1 className="font-serif text-4xl font-normal leading-tight">Notificaciones</h1>
         <p className="text-sm text-ink-muted mt-0.5">Lo que necesita tu decisión antes de que llegue el cliente.</p>
