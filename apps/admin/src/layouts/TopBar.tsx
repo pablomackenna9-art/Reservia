@@ -24,6 +24,7 @@ const MAIN_NAV: NavItem[] = [
 const MORE_NAV: NavItem[] = [
   { to: "/pagina-de-reservas", label: "Página de reservas" },
   { to: "/restaurantes", label: "Restaurantes" },
+  { to: "/cuenta", label: "Mi cuenta" },
   { to: "/lista-de-espera", label: "Lista de espera" },
   { to: "/marketing", label: "Marketing" },
   { to: "/reportes", label: "Reportes" },
@@ -93,6 +94,9 @@ export function TopBar() {
   }, [moreOpen]);
 
   const initial = (user?.email ?? "?").charAt(0).toUpperCase();
+  // "Restaurantes" solo tiene sentido para el administrador de plataforma o quien gestiona más de uno.
+  const showRestaurants = isPlatformAdmin || restaurants.length > 1;
+  const moreNav = MORE_NAV.filter((item) => item.to !== "/restaurantes" || showRestaurants);
   const clock = now.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false });
 
   function newReservation() {
@@ -117,7 +121,10 @@ export function TopBar() {
       <div className="h-16 xl:h-[68px] flex items-center gap-3 xl:gap-6 px-3 sm:px-6">
         <Logo size={26} />
         <div className="hidden xl:block h-7 w-px bg-line" />
-        <div className="hidden xl:block relative" ref={switcherRef}>
+        {!showRestaurants && (
+          <span className="hidden xl:block text-[15px] font-semibold truncate max-w-[200px]">{current?.restaurant.name ?? "—"}</span>
+        )}
+        <div className={`${showRestaurants ? "hidden xl:block" : "hidden"} relative`} ref={switcherRef}>
           <button
             type="button"
             onClick={() => setSwitcherOpen((v) => !v)}
@@ -171,7 +178,7 @@ export function TopBar() {
             </button>
             {moreOpen && (
               <div className="absolute top-full left-0 mt-2 w-56 rounded-xl bg-surface-2 border border-line p-1.5">
-                {MORE_NAV.map((item) => (
+                {moreNav.map((item) => (
                   <NavLink
                     key={item.to}
                     to={item.to}
@@ -254,7 +261,7 @@ export function TopBar() {
           ) : (
             <p className="px-3 py-2 text-[13px] text-ink-faint">{current?.restaurant.name ?? ""}</p>
           )}
-          {[...MAIN_NAV, ...MORE_NAV].map((item) => (
+          {[...MAIN_NAV, ...moreNav].map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

@@ -68,9 +68,9 @@ export function LoginPage() {
         </button>
 
         <p className="text-sm text-ink-muted mt-6 text-center">
-          ¿No tienes cuenta?{" "}
+          ¿Sin acceso?{" "}
           <Link to="/signup" className="text-accent">
-            Crea una
+            Cómo conseguirlo
           </Link>
         </p>
       </form>

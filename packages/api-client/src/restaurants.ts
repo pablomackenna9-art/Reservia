@@ -149,6 +149,92 @@ export async function getRestaurantOverview(supabase: SupabaseClient, restaurant
   };
 }
 
+// ---------------------------------------------------------------------------
+// Administrador de plataforma: alta de clientes y accesos (funciones admin_* de la base, que verifican el rol).
+// ---------------------------------------------------------------------------
+
+export interface NewClientInput {
+  name: string;
+  slug: string;
+  ownerEmail?: string;
+  ownerPassword?: string;
+  ownerName?: string;
+  /** Restaurante del que se copian zonas, plano de mesas, horarios y reglas. null = vacío. */
+  templateRestaurantId?: string | null;
+  activate?: boolean;
+}
+
+export interface NewClientResult {
+  restaurantId: string;
+  slug: string;
+  ownerEmail: string | null;
+  ownerCreated: boolean;
+  template: { zones: number; tables: number; hours: number } | null;
+}
+
+export async function adminCreateClient(supabase: SupabaseClient, input: NewClientInput): Promise<NewClientResult> {
+  const { data, error } = await supabase.rpc("admin_create_client", {
+    p_name: input.name,
+    p_slug: input.slug,
+    p_owner_email: input.ownerEmail?.trim() || null,
+    p_owner_password: input.ownerPassword || null,
+    p_owner_name: input.ownerName?.trim() || null,
+    p_template: input.templateRestaurantId ?? null,
+    p_activate: input.activate ?? true,
+  });
+  if (error) throw error;
+  return {
+    restaurantId: data.restaurant_id,
+    slug: data.slug,
+    ownerEmail: data.owner_email ?? null,
+    ownerCreated: Boolean(data.owner_created),
+    template: data.template ?? null,
+  };
+}
+
+export async function adminApplyTemplate(supabase: SupabaseClient, restaurantId: string, templateRestaurantId: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_apply_template", { p_restaurant: restaurantId, p_template: templateRestaurantId });
+  if (error) throw error;
+}
+
+/** Da acceso de dueño a un restaurante existente; si el correo es nuevo crea la cuenta con esa clave. */
+export async function adminAddOwner(
+  supabase: SupabaseClient,
+  input: { restaurantId: string; email: string; password?: string; name?: string },
+): Promise<{ email: string; created: boolean }> {
+  const { data, error } = await supabase.rpc("admin_add_owner", {
+    p_restaurant: input.restaurantId,
+    p_email: input.email,
+    p_password: input.password || null,
+    p_name: input.name?.trim() || null,
+  });
+  if (error) throw error;
+  return { email: data.email, created: Boolean(data.created) };
+}
+
+export async function adminSetUserPassword(supabase: SupabaseClient, email: string, password: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_set_user_password", { p_email: email, p_password: password });
+  if (error) throw error;
+}
+
+export interface RestaurantAccess {
+  email: string;
+  role: string;
+  status: string;
+  lastSignInAt: string | null;
+}
+
+export async function listRestaurantAccess(supabase: SupabaseClient, restaurantId: string): Promise<RestaurantAccess[]> {
+  const { data, error } = await supabase.rpc("admin_restaurant_owners", { p_restaurant: restaurantId });
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    email: row.email as string,
+    role: row.role as string,
+    status: row.status as string,
+    lastSignInAt: (row.last_sign_in_at as string) ?? null,
+  }));
+}
+
 function mapRestaurant(row: Record<string, unknown>): Restaurant {
   return {
     id: row.id as string,

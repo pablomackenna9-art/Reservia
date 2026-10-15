@@ -1,11 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getRestaurantOverview, updateRestaurant, type MyRestaurant, type RestaurantOverview } from "@reservia/api-client";
+import {
+  getRestaurantOverview,
+  listRestaurantAccess,
+  updateRestaurant,
+  type MyRestaurant,
+  type RestaurantAccess,
+  type RestaurantOverview,
+} from "@reservia/api-client";
 import { slugify, type Restaurant } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { bookingUrlFor } from "../../lib/config";
 import { CopyButton, Tag } from "../../components/ui";
 import { useRestaurant } from "./RestaurantProvider";
+import { AccessModal, NewClientModal, TemplateModal, type TemplateOption } from "./ClientModals";
 
 const STATUS_LABEL: Record<Restaurant["status"], string> = {
   onboarding: "Configurando",
@@ -26,6 +34,8 @@ export function RestaurantesPage() {
   const { restaurants, current, selectRestaurant, isPlatformAdmin, refetch } = useRestaurant();
   const navigate = useNavigate();
   const [overview, setOverview] = useState<Map<string, RestaurantOverview>>(new Map());
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [overviewVersion, setOverviewVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,7 +47,17 @@ export function RestaurantesPage() {
     return () => {
       cancelled = true;
     };
-  }, [restaurants]);
+  }, [restaurants, overviewVersion]);
+
+  // Restaurantes con plano armado: sirven de plantilla para los clientes nuevos.
+  const templates: TemplateOption[] = restaurants
+    .map((r) => ({ id: r.restaurant.id, name: r.restaurant.name, tableCount: overview.get(r.restaurant.id)?.tableCount ?? 0 }))
+    .filter((t) => t.tableCount > 0);
+
+  async function reloadAll() {
+    await refetch();
+    setOverviewVersion((v) => v + 1);
+  }
 
   function open(id: string, path: string) {
     selectRestaurant(id);
@@ -61,12 +81,14 @@ export function RestaurantesPage() {
               : "Los restaurantes que administras. Elige uno para abrir su panel, cambiar su nombre o conectar su POS."}
           </p>
         </div>
-        <button
-          onClick={() => navigate("/onboarding?nuevo=1")}
-          className="h-11 px-5 rounded-[10px] bg-accent text-accent-ink text-[15px] font-semibold shrink-0"
-        >
-          + Nuevo restaurante
-        </button>
+        {isPlatformAdmin && (
+          <button
+            onClick={() => setShowNewClient(true)}
+            className="h-11 px-5 rounded-[10px] bg-accent text-accent-ink text-[15px] font-semibold shrink-0"
+          >
+            + Nuevo cliente
+          </button>
+        )}
       </header>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-line rounded-2xl overflow-hidden mb-5">
@@ -84,11 +106,21 @@ export function RestaurantesPage() {
             isCurrent={entry.restaurant.id === current?.restaurant.id}
             overview={overview.get(entry.restaurant.id)}
             isPlatformAdmin={isPlatformAdmin}
+            templates={templates}
             onOpen={open}
-            onSaved={refetch}
+            onSaved={reloadAll}
           />
         ))}
       </ul>
+
+      {showNewClient && (
+        <NewClientModal
+          templates={templates}
+          onClose={() => setShowNewClient(false)}
+          onCreated={reloadAll}
+          onOpen={(id) => open(id, "/")}
+        />
+      )}
     </div>
   );
 }
@@ -107,6 +139,7 @@ function RestaurantCard({
   isCurrent,
   overview,
   isPlatformAdmin,
+  templates,
   onOpen,
   onSaved,
 }: {
@@ -114,6 +147,7 @@ function RestaurantCard({
   isCurrent: boolean;
   overview: RestaurantOverview | undefined;
   isPlatformAdmin: boolean;
+  templates: TemplateOption[];
   onOpen: (id: string, path: string) => void;
   onSaved: () => Promise<void>;
 }) {
@@ -126,6 +160,23 @@ function RestaurantCard({
   const [status, setStatus] = useState<Restaurant["status"]>(restaurant.status);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [access, setAccess] = useState<RestaurantAccess[]>([]);
+  const [accessModal, setAccessModal] = useState<{ resetEmail?: string } | null>(null);
+  const [templateModal, setTemplateModal] = useState(false);
+
+  async function loadAccess() {
+    if (!isPlatformAdmin) return;
+    try {
+      setAccess(await listRestaurantAccess(supabase, restaurant.id));
+    } catch {
+      setAccess([]);
+    }
+  }
+
+  useEffect(() => {
+    loadAccess();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant.id, isPlatformAdmin]);
 
   function startEditing() {
     setName(restaurant.name);
@@ -188,6 +239,48 @@ function RestaurantCard({
           note={overview?.posLastEventAt ? timeAgo(overview.posLastEventAt) : undefined}
         />
       </dl>
+
+      {isPlatformAdmin && (
+        <div className="mt-4 rounded-xl bg-surface-2 p-3">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <p className="text-[13px] font-semibold text-ink-muted">Quién entra a este restaurante</p>
+            <button onClick={() => setAccessModal({})} className="text-[13px] font-semibold text-accent">
+              + Dar acceso
+            </button>
+          </div>
+          {access.length === 0 ? (
+            <p className="text-[13px] text-ink-faint">Nadie todavía. Dale acceso a su dueño.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {access.map((a) => (
+                <li key={a.email} className="flex items-center justify-between gap-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-[15px] truncate">{a.email}</p>
+                    <p className="text-[13px] text-ink-faint">
+                      {a.role === "owner" ? "Dueño" : "Administrador"} · {a.lastSignInAt ? `último ingreso ${timeAgo(a.lastSignInAt)}` : "nunca ha entrado"}
+                    </p>
+                  </div>
+                  <button onClick={() => setAccessModal({ resetEmail: a.email })} className="text-[13px] font-semibold text-accent shrink-0">
+                    Restablecer clave
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {isPlatformAdmin && overview && overview.tableCount === 0 && (
+        <div className="mt-3 rounded-xl border border-status-arriving/50 bg-status-arriving/10 p-3">
+          <p className="text-[15px] font-semibold">Este restaurante no tiene plano ni mesas.</p>
+          <button
+            onClick={() => setTemplateModal(true)}
+            className="h-11 px-4 mt-2 rounded-[10px] bg-accent text-accent-ink text-[15px] font-semibold"
+          >
+            Cargar plantilla
+          </button>
+        </div>
+      )}
 
       {!editing ? (
         <div className="flex flex-wrap gap-2 mt-4">
@@ -252,6 +345,24 @@ function RestaurantCard({
             </button>
           </div>
         </div>
+      )}
+      {accessModal && (
+        <AccessModal
+          restaurant={{ id: restaurant.id, name: restaurant.name, slug: restaurant.slug, status: restaurant.status }}
+          resetEmail={accessModal.resetEmail}
+          onClose={() => setAccessModal(null)}
+          onDone={async () => {
+            await loadAccess();
+          }}
+        />
+      )}
+      {templateModal && (
+        <TemplateModal
+          restaurant={{ id: restaurant.id, name: restaurant.name, status: restaurant.status }}
+          templates={templates}
+          onClose={() => setTemplateModal(false)}
+          onDone={onSaved}
+        />
       )}
     </li>
   );

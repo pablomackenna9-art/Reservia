@@ -1,73 +1,31 @@
-import { useState, type FormEvent } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { createRestaurant } from "@reservia/api-client";
-import { slugify } from "@reservia/core";
-import { supabase } from "../../lib/supabase";
+import { Navigate } from "react-router-dom";
+import { Logo } from "../../components/Logo";
 import { useAuth } from "../auth/AuthProvider";
 import { useRestaurant } from "./RestaurantProvider";
 
+/** Pantalla para una cuenta que todavía no tiene ningún restaurante asignado (los restaurantes los crea el administrador de plataforma). */
 export function OnboardingPage() {
-  const { user } = useAuth();
-  const { current, loading, refetch, selectRestaurant } = useRestaurant();
-  const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const isNew = params.get("nuevo") === "1";
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!user) return; // OnboardingPage always sits behind ProtectedRoute
-    setSubmitting(true);
-    setError(null);
-    try {
-      const created = await createRestaurant(supabase, { name: name.trim(), slug: slugify(name), createdBy: user.id });
-      await refetch();
-      selectRestaurant(created.id);
-      if (isNew) navigate("/restaurantes");
-    } catch (err) {
-      const message = err && typeof err === "object" && "message" in err ? String(err.message) : null;
-      setError(/duplicate|unique/i.test(message ?? "") ? "Ya existe un restaurante con ese nombre de enlace: agrégale algo al nombre." : (message ?? "No pudimos crear el restaurante."));
-      setSubmitting(false);
-    }
-  }
+  const { logOut } = useAuth();
+  const { current, loading, isPlatformAdmin } = useRestaurant();
 
   if (loading) return null;
-  if (current && !isNew) return <Navigate to="/" replace />;
+  if (current) return <Navigate to="/" replace />;
+  if (isPlatformAdmin) return <Navigate to="/restaurantes" replace />;
 
   return (
     <main className="min-h-screen grid place-items-center px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm">
-        <h1 className="font-serif text-4xl font-normal leading-tight mb-1">{isNew ? "Nuevo restaurante" : "Tu restaurante"}</h1>
-        <p className="text-ink-muted text-sm mb-8">
-          Un nombre para empezar — zonas, mesas y horarios se configuran después.
+      <div className="w-full max-w-sm">
+        <div className="mb-6">
+          <Logo size={36} />
+        </div>
+        <h1 className="font-serif text-4xl font-normal leading-tight mb-2">Tu cuenta aún no tiene un restaurante</h1>
+        <p className="text-[15px] text-ink-muted mb-6">
+          Tu acceso funciona, pero todavía no te asignaron ningún restaurante. Avisa al equipo de Reservia para que lo conecte a tu cuenta.
         </p>
-
-        <label className="block text-sm text-ink-muted mb-1" htmlFor="name">
-          Nombre del restaurante
-        </label>
-        <input
-          id="name"
-          type="text"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Restaurante Demo"
-          className="w-full mb-2 rounded-lg bg-surface border border-line px-3 py-2 text-sm outline-none focus:border-accent"
-        />
-        {name.trim() && <p className="text-[13px] text-ink-faint mb-6">reservia.com/r/{slugify(name)}</p>}
-
-        {error && <p className="text-sm text-status-occupied mb-4">{error}</p>}
-
-        <button
-          type="submit"
-          disabled={submitting || !name.trim()}
-          className="w-full rounded-[10px] bg-accent text-accent-ink h-11 font-semibold text-[15px] disabled:opacity-60"
-        >
-          {submitting ? "Creando…" : "Crear restaurante"}
+        <button onClick={logOut} className="h-11 px-5 rounded-[10px] bg-surface-2 border border-line text-[15px] font-semibold">
+          Cerrar sesión
         </button>
-      </form>
+      </div>
     </main>
   );
 }

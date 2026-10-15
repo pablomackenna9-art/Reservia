@@ -100,3 +100,40 @@ export function CopyButton({ text, label = "Copiar", className = "" }: { text: s
     </button>
   );
 }
+
+/** Ventana modal: se cierra con el fondo, con la X o con el botón; scrollea si el contenido es largo (celular incluido). */
+export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center sm:px-4" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full sm:max-w-lg bg-surface rounded-t-3xl sm:rounded-2xl p-4 sm:p-5 max-h-[92dvh] overflow-y-auto"
+      >
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <h2 className="font-serif text-3xl leading-tight">{title}</h2>
+          <button
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="h-11 px-4 rounded-[10px] bg-surface-2 text-[15px] font-semibold shrink-0"
+          >
+            ✕ Cerrar
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+  return (
+    <div>
+      <label className="block text-[13px] text-ink-faint mb-1">{label}</label>
+      {children}
+      {hint && <p className="text-[13px] text-ink-faint mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+export const inputClass =
+  "w-full h-11 rounded-[10px] bg-ground border border-line px-3 text-[15px] placeholder:text-ink-faint outline-none focus:border-accent";

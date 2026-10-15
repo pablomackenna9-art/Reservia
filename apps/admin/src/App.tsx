@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./features/auth/AuthProvider";
 import { LoginPage } from "./features/auth/LoginPage";
 import { SignupPage } from "./features/auth/SignupPage";
+import { CuentaPage } from "./features/auth/CuentaPage";
 import { RestaurantProvider } from "./features/restaurants/RestaurantProvider";
 import { PaginaReservasPage } from "./features/booking/PaginaReservasPage";
 import { RestaurantesPage } from "./features/restaurants/RestaurantesPage";
@@ -27,6 +28,15 @@ function Protected({ children }: { children: ReactNode }) {
       <RequireRestaurant>
         <AppLayout>{children}</AppLayout>
       </RequireRestaurant>
+    </ProtectedRoute>
+  );
+}
+
+/** Pantallas que funcionan aunque la cuenta todavía no tenga un restaurante activo (panel de administración, mi cuenta). */
+function ProtectedLoose({ children }: { children: ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <AppLayout>{children}</AppLayout>
     </ProtectedRoute>
   );
 }
@@ -58,9 +68,17 @@ export function App() {
             <Route
               path="/restaurantes"
               element={
-                <Protected>
+                <ProtectedLoose>
                   <RestaurantesPage />
-                </Protected>
+                </ProtectedLoose>
+              }
+            />
+            <Route
+              path="/cuenta"
+              element={
+                <ProtectedLoose>
+                  <CuentaPage />
+                </ProtectedLoose>
               }
             />
             <Route

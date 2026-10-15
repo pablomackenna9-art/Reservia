@@ -4,7 +4,11 @@
 // funcionando sin construir todavía el editor de plano (Fase 6).
 //
 // Uso:
-//   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node supabase/seed/demo.mjs
+//   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... DEMO_PASSWORD=... node supabase/seed/demo.mjs
+//
+// Ojo: desde la migración 0026 el registro público de usuarios está cerrado, así que crear
+// la cuenta demo por la API de administración falla. Para clientes nuevos usa el panel
+// (Restaurantes → Nuevo cliente) o la función admin_create_client.
 //
 // Idempotente: si ya existe un restaurante con el slug "restaurante-demo",
 // no crea nada de nuevo y termina sin error.
@@ -12,10 +16,10 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const DEMO_EMAIL = process.env.DEMO_EMAIL ?? "demo@reservia.app";
-const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "ReserviaDemo2026!";
+const DEMO_PASSWORD = process.env.DEMO_PASSWORD; // sin valor por defecto: este repositorio no debe contener ninguna clave
 
-if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error("Faltan SUPABASE_URL y/o SUPABASE_SERVICE_ROLE_KEY en el entorno.");
+if (!SUPABASE_URL || !SERVICE_KEY || !DEMO_PASSWORD) {
+  console.error("Faltan SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY y/o DEMO_PASSWORD en el entorno.");
   process.exit(1);
 }
 
@@ -156,7 +160,7 @@ async function main() {
   });
 
   console.log(`Listo: ${zones.length} zonas, ${allTables.length} mesas.`);
-  console.log(`Login demo: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
+  console.log(`Login demo: ${DEMO_EMAIL} (con la DEMO_PASSWORD que indicaste)`);
 }
 
 main().catch((err) => {
