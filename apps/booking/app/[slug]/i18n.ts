@@ -14,11 +14,21 @@ export const LOCALE_TAG: Record<Locale, string> = {
   pt: "pt-BR",
 };
 
+/** Hora de reloj legible: 24 h en español/portugués ("13:15"), 12 h en inglés. */
+export function formatTime(d: Date, locale: Locale): string {
+  return d.toLocaleTimeString(
+    LOCALE_TAG[locale],
+    locale === "en" ? { hour: "numeric", minute: "2-digit" } : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" },
+  );
+}
+
 interface Dictionary {
-  openNow: (until: string) => string;
-  closedNow: string;
+  todayHours: (list: string) => string;
+  closedToday: string;
   viewHours: string;
-  morePeople: string;
+  morePeople: (max: number) => string;
+  contactRestaurant: string;
+  tablesLeft: string;
   stepEmailTitle: string;
   stepEmailSubtitle: string;
   emailLabel: string;
@@ -75,10 +85,12 @@ interface Dictionary {
 
 export const DICTIONARIES: Record<Locale, Dictionary> = {
   es: {
-    openNow: (until) => `Abierto ahora · hasta las ${until}`,
-    closedNow: "Cerrado ahora",
+    todayHours: (list) => `Reservas hoy · ${list}`,
+    closedToday: "Hoy no tomamos reservas",
     viewHours: "Ver horarios",
-    morePeople: "¿Más de 8? Llamá al restaurante directamente.",
+    morePeople: (max) => `¿Más de ${max} personas? Contacta directamente al restaurante.`,
+    contactRestaurant: "Llamar al restaurante",
+    tablesLeft: "Quedan mesas para este turno",
     stepEmailTitle: "Reserva tu mesa",
     stepEmailSubtitle: "Empecemos por tu correo: ahí te confirmamos.",
     emailLabel: "TU CORREO",
@@ -133,10 +145,12 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     onlineBookingDisabled: "Este restaurante no acepta reservas online por ahora — llamalo directamente.",
   },
   en: {
-    openNow: (until) => `Open now · until ${until}`,
-    closedNow: "Closed now",
+    todayHours: (list) => `Booking today · ${list}`,
+    closedToday: "No bookings today",
     viewHours: "View hours",
-    morePeople: "More than 8? Call the restaurant directly.",
+    morePeople: (max) => `More than ${max} people? Please contact the restaurant directly.`,
+    contactRestaurant: "Call the restaurant",
+    tablesLeft: "Tables left for this service",
     stepEmailTitle: "Book your table",
     stepEmailSubtitle: "Let's start with your email — we'll confirm there.",
     emailLabel: "YOUR EMAIL",
@@ -191,10 +205,12 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     onlineBookingDisabled: "This restaurant isn't taking online bookings right now — call them directly.",
   },
   pt: {
-    openNow: (until) => `Aberto agora · até às ${until}`,
-    closedNow: "Fechado agora",
+    todayHours: (list) => `Reservas hoje · ${list}`,
+    closedToday: "Hoje não aceitamos reservas",
     viewHours: "Ver horários",
-    morePeople: "Mais de 8? Ligue diretamente para o restaurante.",
+    morePeople: (max) => `Mais de ${max} pessoas? Entre em contato diretamente com o restaurante.`,
+    contactRestaurant: "Ligar para o restaurante",
+    tablesLeft: "Ainda há mesas neste turno",
     stepEmailTitle: "Reserve sua mesa",
     stepEmailSubtitle: "Vamos começar pelo seu e-mail: é lá que confirmamos.",
     emailLabel: "SEU E-MAIL",

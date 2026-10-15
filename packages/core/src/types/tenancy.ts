@@ -24,6 +24,7 @@ export const restaurantSchema = z.object({
   phone: z.string().nullable(),
   address: z.string().nullable(),
   logoUrl: z.string().url().nullable(),
+  coverUrl: z.string().url().nullable(),
   status: z.enum(RESTAURANT_STATUSES),
   plan: z.string(),
   showGuestsOnFloorplan: z.boolean().default(true),

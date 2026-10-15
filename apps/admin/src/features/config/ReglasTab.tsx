@@ -68,7 +68,7 @@ export function ReglasTab({ restaurantId }: { restaurantId: string }) {
               className="w-full rounded-lg bg-surface border border-line px-3 py-2 text-sm outline-none focus:border-accent"
             />
           </Field>
-          <Field label="Máximo de personas">
+          <Field label="Máximo de personas (online)">
             <input
               type="number"
               min={1}

@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import type { Restaurant, RestaurantHours } from "@reservia/core";
-import { DICTIONARIES, LOCALES, type Locale } from "./i18n";
+import { DICTIONARIES, LOCALES, formatTime, type Locale } from "./i18n";
 
 const DAY_ORDER_ES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
-function formatHM(time: string, localeTag: string): string {
+function formatHM(time: string, locale: Locale): string {
   const [h, m] = time.split(":").map(Number);
   const d = new Date();
   d.setHours(h ?? 0, m ?? 0, 0, 0);
-  return d.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit" });
+  return formatTime(d, locale);
 }
 
 const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
@@ -37,18 +37,10 @@ function restaurantLocalParts(timezone: string, at: Date): { dayOfWeek: number; 
   return { dayOfWeek: WEEKDAY_INDEX[weekday] ?? 0, minutes: hour * 60 + minute };
 }
 
-/** ¿Hay algún service de `hours` que cubra el momento actual? Si sí, devuelve hasta cuándo. */
-function currentOpenService(hours: RestaurantHours[], now: Date, timezone: string): RestaurantHours | null {
-  const { dayOfWeek: dow, minutes: nowMinutes } = restaurantLocalParts(timezone, now);
-  for (const h of hours) {
-    if (h.dayOfWeek !== dow) continue;
-    const [oh, om] = h.opensAt.split(":").map(Number);
-    const [ch, cm] = h.closesAt.split(":").map(Number);
-    const opens = (oh ?? 0) * 60 + (om ?? 0);
-    const closes = (ch ?? 0) * 60 + (cm ?? 0);
-    if (nowMinutes >= opens && nowMinutes < closes) return h;
-  }
-  return null;
+/** Turnos de reserva de hoy (en la zona horaria del restaurante), en orden de hora. */
+function todaysServices(hours: RestaurantHours[], now: Date, timezone: string): RestaurantHours[] {
+  const { dayOfWeek: dow } = restaurantLocalParts(timezone, now);
+  return hours.filter((h) => h.dayOfWeek === dow).sort((a, b) => a.opensAt.localeCompare(b.opensAt));
 }
 
 export function RestaurantHeader({
@@ -65,7 +57,7 @@ export function RestaurantHeader({
   const [showHours, setShowHours] = useState(false);
   const t = DICTIONARIES[locale];
   const now = new Date();
-  const openService = currentOpenService(hours, now, restaurant.timezone);
+  const todays = todaysServices(hours, now, restaurant.timezone);
 
   const groupedHours = [0, 1, 2, 3, 4, 5, 6]
     .map((dow) => ({ dow, services: hours.filter((h) => h.dayOfWeek === dow) }))
@@ -90,17 +82,23 @@ export function RestaurantHeader({
       </div>
 
       {restaurant.logoUrl ? (
-        <img src={restaurant.logoUrl} alt={restaurant.name} className="w-16 h-16 mb-3 object-contain rounded-full" />
-      ) : null}
-
-      <h1 className="font-serif text-[38px] leading-none">{restaurant.name}</h1>
+        <>
+          {/* El logo reemplaza al nombre escrito; el nombre queda para lectores de pantalla y buscadores. */}
+          <img src={restaurant.logoUrl} alt="" className="h-24 w-auto max-w-full object-contain object-left" />
+          <h1 className="sr-only">{restaurant.name}</h1>
+        </>
+      ) : (
+        <h1 className="font-serif text-[38px] leading-none">{restaurant.name}</h1>
+      )}
       {restaurant.address && <p className="text-sm text-ink-muted mt-2">{restaurant.address}</p>}
 
-      <p className={`mt-3 flex items-center gap-2 text-sm font-semibold ${openService ? "text-status-available" : "text-ink-faint"}`}>
+      <p className={`mt-3 flex items-start gap-2 text-sm font-semibold ${todays.length > 0 ? "text-status-available" : "text-ink-faint"}`}>
         <span
-          className={`w-2 h-2 rounded-full ${openService ? "bg-status-available ring-4 ring-status-available/20" : "bg-ink-faint"}`}
+          className={`w-2 h-2 mt-1.5 shrink-0 rounded-full ${todays.length > 0 ? "bg-status-available ring-4 ring-status-available/20" : "bg-ink-faint"}`}
         />
-        {openService ? t.openNow(formatHM(openService.closesAt, "es-CL")) : t.closedNow}
+        {todays.length > 0
+          ? t.todayHours(todays.map((s) => `${s.serviceName} ${formatHM(s.opensAt, locale)}–${formatHM(s.closesAt, locale)}`).join(" · "))
+          : t.closedToday}
       </p>
 
       <div className="mt-1">
@@ -115,7 +113,7 @@ export function RestaurantHeader({
             <div key={dow} className="flex justify-between gap-3">
               <span className="text-ink-muted shrink-0">{DAY_ORDER_ES[dow]}</span>
               <span className="text-ink text-right">
-                {services.map((s) => `${s.serviceName}: ${formatHM(s.opensAt, "es-CL")}–${formatHM(s.closesAt, "es-CL")}`).join(" · ")}
+                {services.map((s) => `${s.serviceName}: ${formatHM(s.opensAt, locale)}–${formatHM(s.closesAt, locale)}`).join(" · ")}
               </span>
             </div>
           ))}

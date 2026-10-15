@@ -22,7 +22,7 @@ export const DEFAULT_RESERVATION_RULES: Omit<ReservationRules, "restaurantId"> =
   defaultDurationMinutes: 90,
   bufferMinutes: 15,
   minPartySize: 1,
-  maxPartySize: 20,
+  maxPartySize: 10,
   minAdvanceHours: 1,
   maxAdvanceDays: 60,
   allowOnlineBooking: true,

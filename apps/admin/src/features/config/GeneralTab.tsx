@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { updateRestaurant, uploadRestaurantLogo } from "@reservia/api-client";
+import { updateRestaurant, uploadRestaurantCover, uploadRestaurantLogo } from "@reservia/api-client";
 import type { Restaurant } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
@@ -9,6 +9,9 @@ export function GeneralTab({ restaurant }: { restaurant: Restaurant }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
 
   const [name, setName] = useState(restaurant.name);
   const [address, setAddress] = useState(restaurant.address ?? "");
@@ -38,6 +41,29 @@ export function GeneralTab({ restaurant }: { restaurant: Restaurant }) {
     await refetch();
   }
 
+  async function handleCoverChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setUploadingCover(true);
+    try {
+      const coverUrl = await uploadRestaurantCover(supabase, restaurant.id, file);
+      await updateRestaurant(supabase, restaurant.id, { coverUrl });
+      await refetch();
+    } catch (err) {
+      const message = err && typeof err === "object" && "message" in err ? String(err.message) : null;
+      setError(message ?? "No pudimos subir la foto.");
+    } finally {
+      setUploadingCover(false);
+      if (coverInputRef.current) coverInputRef.current.value = "";
+    }
+  }
+
+  async function handleRemoveCover() {
+    await updateRestaurant(supabase, restaurant.id, { coverUrl: null });
+    await refetch();
+  }
+
   async function handleSaveDetails() {
     setSaving(true);
     await updateRestaurant(supabase, restaurant.id, {
@@ -53,7 +79,7 @@ export function GeneralTab({ restaurant }: { restaurant: Restaurant }) {
     <div className="max-w-md space-y-6">
       <div>
         <h2 className="text-sm font-semibold mb-1">Logo</h2>
-        <p className="text-[13px] text-ink-faint mb-3">Aparece en el portal público de reservas, arriba del nombre.</p>
+        <p className="text-[13px] text-ink-faint mb-3">Aparece en la página pública de reservas en lugar del nombre. Mejor un PNG con fondo transparente.</p>
         <div className="flex items-center gap-4">
           <div className="w-20 h-20 rounded-xl border border-line bg-ground grid place-items-center overflow-hidden shrink-0">
             {restaurant.logoUrl ? (
@@ -84,6 +110,34 @@ export function GeneralTab({ restaurant }: { restaurant: Restaurant }) {
             )}
             {error && <p className="text-[13px] text-status-occupied">{error}</p>}
           </div>
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold mb-1">Foto del restaurante</h2>
+        <p className="text-[13px] text-ink-faint mb-3">
+          Se ve grande en la página de reservas (al costado en computador, arriba en el celular). Usa una foto horizontal del local, de buena calidad.
+        </p>
+        <div className="w-full aspect-[16/9] rounded-xl border border-line bg-ground grid place-items-center overflow-hidden mb-2">
+          {restaurant.coverUrl ? (
+            <img src={restaurant.coverUrl} alt="Foto del restaurante" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-[13px] text-ink-faint">Sin foto</span>
+          )}
+        </div>
+        <input ref={coverInputRef} type="file" accept="image/*" onChange={handleCoverChange} className="hidden" id="cover-upload" />
+        <div className="flex items-center gap-4">
+          <label
+            htmlFor="cover-upload"
+            className="inline-block rounded-lg bg-surface-2 border border-line px-3 py-1.5 text-[13px] text-ink hover:border-accent cursor-pointer"
+          >
+            {uploadingCover ? "Subiendo…" : restaurant.coverUrl ? "Cambiar foto" : "Subir foto"}
+          </label>
+          {restaurant.coverUrl && (
+            <button onClick={handleRemoveCover} className="text-[13px] text-status-occupied hover:opacity-80">
+              Quitar foto
+            </button>
+          )}
         </div>
       </div>
 

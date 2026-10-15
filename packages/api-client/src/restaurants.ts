@@ -62,6 +62,7 @@ export async function updateRestaurant(
     address?: string | null;
     phone?: string | null;
     logoUrl?: string | null;
+    coverUrl?: string | null;
   },
 ): Promise<Restaurant> {
   const { data, error } = await supabase
@@ -73,6 +74,7 @@ export async function updateRestaurant(
       ...(patch.address !== undefined && { address: patch.address }),
       ...(patch.phone !== undefined && { phone: patch.phone }),
       ...(patch.logoUrl !== undefined && { logo_url: patch.logoUrl }),
+      ...(patch.coverUrl !== undefined && { cover_url: patch.coverUrl }),
     })
     .eq("id", id)
     .select("*")
@@ -94,6 +96,20 @@ export async function uploadRestaurantLogo(supabase: SupabaseClient, restaurantI
   const { data } = supabase.storage.from("restaurant-logos").getPublicUrl(path);
   // Cache-bust: mismo nombre de archivo en cada reemplazo, así que sin esto
   // el navegador (o un CDN) podría seguir sirviendo el logo viejo.
+  return `${data.publicUrl}?v=${Date.now()}`;
+}
+
+/** Sube la foto de portada (misma bucket pública que el logo, ruta "{restaurant_id}/cover.<ext>") y devuelve su URL pública; el caller guarda `cover_url`. */
+export async function uploadRestaurantCover(supabase: SupabaseClient, restaurantId: string, file: File): Promise<string> {
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `${restaurantId}/cover.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("restaurant-logos")
+    .upload(path, file, { upsert: true, contentType: file.type });
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from("restaurant-logos").getPublicUrl(path);
   return `${data.publicUrl}?v=${Date.now()}`;
 }
 
@@ -246,6 +262,7 @@ function mapRestaurant(row: Record<string, unknown>): Restaurant {
     phone: (row.phone as string) ?? null,
     address: (row.address as string) ?? null,
     logoUrl: (row.logo_url as string) ?? null,
+    coverUrl: (row.cover_url as string) ?? null,
     status: row.status as Restaurant["status"],
     plan: row.plan as string,
     showGuestsOnFloorplan: row.show_guests_on_floorplan as boolean,

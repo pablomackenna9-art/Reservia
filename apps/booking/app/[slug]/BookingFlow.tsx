@@ -14,7 +14,7 @@ import type { Reservation, ReservationRules, RestaurantHours, Restaurant, Waitli
 import { supabase } from "../../lib/supabase";
 import { RestaurantHeader } from "./RestaurantHeader";
 import { Calendar } from "./Calendar";
-import { DICTIONARIES, loadStoredLocale, storeLocale, LOCALE_TAG, type Locale } from "./i18n";
+import { DICTIONARIES, formatTime, loadStoredLocale, storeLocale, LOCALE_TAG, type Locale } from "./i18n";
 
 type Step = "email" | "when" | "time" | "confirm" | "confirmed" | "waitlist" | "waitlist-confirmed";
 
@@ -28,7 +28,8 @@ function dateToISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-const SLOT_INTERVAL_MINUTES = 30;
+// Las reservas se ofrecen cada 15 minutos; el cierre del turno es la ultima hora reservable (inclusive).
+const SLOT_INTERVAL_MINUTES = 15;
 const PROGRESS_STEPS: Step[] = ["email", "when", "time", "confirm"];
 
 export function BookingFlow({
@@ -138,7 +139,7 @@ export function BookingFlow({
     setSlotsLoading(true);
     setSelectedSlot(null);
     const dayOfWeek = new Date(`${dateISO}T12:00:00`).getDay();
-    const servicesToday = hours.filter((h) => h.dayOfWeek === dayOfWeek);
+    const servicesToday = hours.filter((h) => h.dayOfWeek === dayOfWeek).sort((a, b) => a.opensAt.localeCompare(b.opensAt));
 
     const candidates: Slot[] = [];
     for (const service of servicesToday) {
@@ -151,7 +152,7 @@ export function BookingFlow({
 
       for (
         let cursor = new Date(open);
-        cursor.getTime() + rules.defaultDurationMinutes * 60_000 <= close.getTime();
+        cursor.getTime() <= close.getTime();
         cursor = new Date(cursor.getTime() + SLOT_INTERVAL_MINUTES * 60_000)
       ) {
         if (cursor.getTime() < Date.now() + rules.minAdvanceHours * 3_600_000) continue;
@@ -319,8 +320,8 @@ export function BookingFlow({
           </div>
 
           <p className="text-[15px] font-semibold mt-5 mb-2">{t.people}</p>
-          <div className="grid grid-cols-4 gap-2 mb-1.5">
-            {Array.from({ length: Math.min(8, rules.maxPartySize) }, (_, i) => i + 1)
+          <div className="grid grid-cols-5 gap-2 mb-1.5">
+            {Array.from({ length: Math.min(10, rules.maxPartySize) }, (_, i) => i + 1)
               .filter((n) => n >= rules.minPartySize)
               .map((n) => (
                 <button
@@ -334,7 +335,17 @@ export function BookingFlow({
                 </button>
               ))}
           </div>
-          <p className="text-[13px] text-ink-faint mb-6">{t.morePeople}</p>
+          <p className="text-[13px] text-ink-faint mb-6">
+            {t.morePeople(Math.min(10, rules.maxPartySize))}
+            {restaurant.phone && (
+              <>
+                {" "}
+                <a href={`tel:${restaurant.phone.replace(/[^+\d]/g, "")}`} className="text-accent underline underline-offset-2 whitespace-nowrap">
+                  {restaurant.phone}
+                </a>
+              </>
+            )}
+          </p>
 
           <div className="sticky bottom-4">
             <button onClick={handleWhenContinue} disabled={!selectedDate} className="w-full h-[54px] rounded-[14px] bg-ink-dark text-white text-base font-semibold disabled:opacity-40">
@@ -367,20 +378,18 @@ export function BookingFlow({
           ) : (
             Object.entries(groupedSlots).map(([serviceName, serviceSlots]) => (
               <div key={serviceName} className="mb-4 last:mb-0">
-                <p className="text-[13px] font-semibold text-ink-faint uppercase tracking-[0.1em] mb-2">{serviceName}</p>
+                <p className="text-[13px] font-semibold text-ink-faint uppercase tracking-[0.1em] mb-1">{serviceName}</p>
+                <p className="text-[13px] font-semibold text-status-available mb-2.5">{t.tablesLeft}</p>
                 <div className="grid grid-cols-3 gap-2">
                   {serviceSlots.map((slot) => (
                     <button
                       key={slot.startsAt}
                       onClick={() => pickSlot(slot)}
-                      className={`h-14 rounded-[14px] flex flex-col items-center justify-center ${
+                      className={`h-12 rounded-[14px] grid place-items-center tabular-nums ${
                         selectedSlot?.startsAt === slot.startsAt ? "bg-ink-dark text-white" : "bg-surface text-ink hover:bg-line"
                       }`}
                     >
-                      <span className="font-serif text-[26px] leading-none">
-                        {new Date(slot.startsAt).toLocaleTimeString(LOCALE_TAG[locale], { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                      <span className="text-[13px] font-semibold text-status-available mt-0.5">{t.legendAvailable}</span>
+                      <span className="font-serif text-[26px] leading-none">{formatTime(new Date(slot.startsAt), locale)}</span>
                     </button>
                   ))}
                 </div>
@@ -406,7 +415,7 @@ export function BookingFlow({
             <SummaryRow label={t.turnLabel} value={selectedSlot.serviceName} />
             <SummaryRow
               label={t.timeLabel}
-              value={new Date(selectedSlot.startsAt).toLocaleTimeString(LOCALE_TAG[locale], { hour: "2-digit", minute: "2-digit" })}
+              value={formatTime(new Date(selectedSlot.startsAt), locale)}
             />
           </div>
 
@@ -481,7 +490,7 @@ export function BookingFlow({
                 <p className="text-[13px] font-semibold uppercase tracking-[0.1em] text-ink-faint">{restaurant.name}</p>
                 {restaurant.address && <p className="text-sm text-ink-muted mt-1">{restaurant.address}</p>}
                 <p className="font-serif text-[64px] leading-none mt-5 tabular-nums">
-                  {new Date(confirmed.startsAt).toLocaleTimeString(LOCALE_TAG[locale], { hour: "2-digit", minute: "2-digit" })}
+                  {formatTime(new Date(confirmed.startsAt), locale)}
                 </p>
                 <p className="text-base text-ink-muted mt-2 capitalize">
                   {new Date(confirmed.startsAt).toLocaleDateString(LOCALE_TAG[locale], {

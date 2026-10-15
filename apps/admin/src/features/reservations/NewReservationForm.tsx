@@ -5,14 +5,14 @@ import { supabase } from "../../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
 import { TableAssignmentPicker } from "./TableAssignmentPicker";
 
-const SLOT_INTERVAL_MINUTES = 30;
+const SLOT_INTERVAL_MINUTES = 15;
 
 interface Slot {
   time: string; // "HH:MM"
   label: string;
 }
 
-function buildSlots(hours: RestaurantHours[], dayOfWeek: number, durationMinutes: number): Slot[] {
+function buildSlots(hours: RestaurantHours[], dayOfWeek: number): Slot[] {
   const servicesToday = hours.filter((h) => h.dayOfWeek === dayOfWeek);
   const slots: Slot[] = [];
   for (const service of servicesToday) {
@@ -20,7 +20,8 @@ function buildSlots(hours: RestaurantHours[], dayOfWeek: number, durationMinutes
     const [closeH = 0, closeM = 0] = service.closesAt.split(":").map(Number);
     const openMinutes = openH * 60 + openM;
     const closeMinutes = closeH * 60 + closeM;
-    for (let m = openMinutes; m + durationMinutes <= closeMinutes; m += SLOT_INTERVAL_MINUTES) {
+    // El "cierra" del turno es la última hora en que se puede reservar (inclusive).
+    for (let m = openMinutes; m <= closeMinutes; m += SLOT_INTERVAL_MINUTES) {
       const h = Math.floor(m / 60);
       const min = m % 60;
       const time = `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
@@ -76,7 +77,7 @@ export function NewReservationForm({
 
   const duration = rules?.defaultDurationMinutes ?? 90;
   const dayOfWeek = new Date(`${date}T12:00:00`).getDay();
-  const slots = buildSlots(hours, dayOfWeek, duration);
+  const slots = buildSlots(hours, dayOfWeek);
 
   const startsAt = time ? `${date}T${time}:00` : null;
   const endsAt = startsAt ? new Date(new Date(startsAt).getTime() + duration * 60_000).toISOString() : null;

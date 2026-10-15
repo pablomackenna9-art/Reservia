@@ -40,6 +40,22 @@ export default async function RestaurantBookingPage({ params }: { params: { slug
     );
   }
 
+  // Con foto de portada: en computador va a la izquierda, a pantalla completa y difuminada hacia el
+  // formulario; en el celular es una franja arriba. Sin foto, la página queda como siempre.
+  if (restaurant.coverUrl) {
+    return (
+      <main className="min-h-screen lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <div className="relative h-56 sm:h-72 lg:h-screen lg:sticky lg:top-0">
+          <img src={restaurant.coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-ground via-ground/10 to-transparent lg:bg-gradient-to-l" />
+        </div>
+        <div className="grid place-items-center px-4 pb-10 pt-4 lg:py-12">
+          <BookingFlow restaurant={restaurant} hours={hours} rules={rules} />
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen grid place-items-center px-4 py-10">
       <BookingFlow restaurant={restaurant} hours={hours} rules={rules} />

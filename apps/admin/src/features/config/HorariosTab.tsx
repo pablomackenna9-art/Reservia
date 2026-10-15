@@ -10,7 +10,7 @@ export function HorariosTab({ restaurantId }: { restaurantId: string }) {
   const [dayOfWeek, setDayOfWeek] = useState(1);
   const [serviceName, setServiceName] = useState("Cena");
   const [opensAt, setOpensAt] = useState("19:00");
-  const [closesAt, setClosesAt] = useState("23:30");
+  const [closesAt, setClosesAt] = useState("21:00");
   const [creating, setCreating] = useState(false);
 
   async function reload() {
@@ -46,7 +46,7 @@ export function HorariosTab({ restaurantId }: { restaurantId: string }) {
   return (
     <div className="max-w-2xl">
       <p className="text-sm text-ink-muted mb-4">
-        Los turnos que cargues acá son los que usa el motor de disponibilidad para saber cuándo se puede reservar.
+        Cada turno define desde qué hora y hasta qué hora se puede reservar. Las reservas se ofrecen cada 15 minutos y la hora de «Última reserva» sí está incluida (ej. 13:00 a 15:00 ofrece 13:00, 13:15… 15:00).
       </p>
 
       <div className="rounded-2xl bg-surface divide-y divide-line mb-5">
@@ -101,7 +101,7 @@ export function HorariosTab({ restaurantId }: { restaurantId: string }) {
             />
           </div>
           <div>
-            <label className="block text-[13px] text-ink-faint mb-1">Abre</label>
+            <label className="block text-[13px] text-ink-faint mb-1">Primera reserva</label>
             <input
               type="time"
               value={opensAt}
@@ -110,7 +110,7 @@ export function HorariosTab({ restaurantId }: { restaurantId: string }) {
             />
           </div>
           <div>
-            <label className="block text-[13px] text-ink-faint mb-1">Cierra</label>
+            <label className="block text-[13px] text-ink-faint mb-1">Última reserva</label>
             <input
               type="time"
               value={closesAt}
