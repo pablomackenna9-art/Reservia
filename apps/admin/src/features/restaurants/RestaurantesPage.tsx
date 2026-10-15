@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   getRestaurantOverview,
+  adminRemoveAccess,
   listRestaurantAccess,
   updateRestaurant,
   type MyRestaurant,
@@ -13,7 +14,7 @@ import { supabase } from "../../lib/supabase";
 import { bookingUrlFor } from "../../lib/config";
 import { CopyButton, Tag } from "../../components/ui";
 import { useRestaurant } from "./RestaurantProvider";
-import { AccessModal, NewClientModal, TemplateModal, type TemplateOption } from "./ClientModals";
+import { AccessModal, DeleteRestaurantModal, NewClientModal, TemplateModal, type TemplateOption } from "./ClientModals";
 
 const STATUS_LABEL: Record<Restaurant["status"], string> = {
   onboarding: "Configurando",
@@ -163,6 +164,17 @@ function RestaurantCard({
   const [access, setAccess] = useState<RestaurantAccess[]>([]);
   const [accessModal, setAccessModal] = useState<{ resetEmail?: string } | null>(null);
   const [templateModal, setTemplateModal] = useState(false);
+  const [deleteModal, setDeleteModal] = useState(false);
+
+  async function removeAccess(email: string) {
+    if (!confirm(`¿Quitar a ${email} del restaurante ${restaurant.name}? Su cuenta sigue existiendo, pero ya no podrá entrar a este restaurante.`)) return;
+    try {
+      await adminRemoveAccess(supabase, restaurant.id, email);
+      await loadAccess();
+    } catch (err) {
+      alert(err && typeof err === "object" && "message" in err ? String(err.message) : "No se pudo quitar el acceso.");
+    }
+  }
 
   async function loadAccess() {
     if (!isPlatformAdmin) return;
@@ -260,9 +272,14 @@ function RestaurantCard({
                       {a.role === "owner" ? "Dueño" : "Administrador"} · {a.lastSignInAt ? `último ingreso ${timeAgo(a.lastSignInAt)}` : "nunca ha entrado"}
                     </p>
                   </div>
-                  <button onClick={() => setAccessModal({ resetEmail: a.email })} className="text-[13px] font-semibold text-accent shrink-0">
-                    Restablecer clave
-                  </button>
+                  <div className="flex flex-col items-end gap-1 shrink-0 sm:flex-row sm:gap-4">
+                    <button onClick={() => setAccessModal({ resetEmail: a.email })} className="text-[13px] font-semibold text-accent">
+                      Restablecer clave
+                    </button>
+                    <button onClick={() => removeAccess(a.email)} className="text-[13px] font-semibold text-status-occupied">
+                      Quitar acceso
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -291,12 +308,17 @@ function RestaurantCard({
             Conectar POS
           </button>
           <button onClick={() => onOpen(restaurant.id, "/pagina-de-reservas")} className="h-11 px-4 rounded-[10px] bg-surface-3 text-[15px] font-semibold hover:bg-line">
-            Página de reservas
+            Editar página de reservas
           </button>
           <CopyButton text={url} label="Copiar enlace" />
           {canEdit && (
             <button onClick={startEditing} className="h-11 px-4 rounded-[10px] text-[15px] font-semibold text-accent">
               Editar nombre y enlace
+            </button>
+          )}
+          {isPlatformAdmin && (
+            <button onClick={() => setDeleteModal(true)} className="h-11 px-4 rounded-[10px] text-[15px] font-semibold text-status-occupied">
+              Eliminar restaurante
             </button>
           )}
         </div>
@@ -345,6 +367,13 @@ function RestaurantCard({
             </button>
           </div>
         </div>
+      )}
+      {deleteModal && (
+        <DeleteRestaurantModal
+          restaurant={{ id: restaurant.id, name: restaurant.name, slug: restaurant.slug }}
+          onClose={() => setDeleteModal(false)}
+          onDone={onSaved}
+        />
       )}
       {accessModal && (
         <AccessModal

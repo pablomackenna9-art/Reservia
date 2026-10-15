@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Restaurant, RestaurantHours } from "@reservia/core";
-import { DICTIONARIES, LOCALES, formatTime, type Locale } from "./i18n";
-
-const DAY_ORDER_ES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+import type { OpeningHours, Restaurant } from "@reservia/core";
+import { DICTIONARIES, LOCALES, LOCALE_TAG, formatTime, type Locale } from "./i18n";
 
 function formatHM(time: string, locale: Locale): string {
   const [h, m] = time.split(":").map(Number);
@@ -37,41 +35,83 @@ function restaurantLocalParts(timezone: string, at: Date): { dayOfWeek: number; 
   return { dayOfWeek: WEEKDAY_INDEX[weekday] ?? 0, minutes: hour * 60 + minute };
 }
 
-/** Turnos de reserva de hoy (en la zona horaria del restaurante), en orden de hora. */
-function todaysServices(hours: RestaurantHours[], now: Date, timezone: string): RestaurantHours[] {
-  const { dayOfWeek: dow } = restaurantLocalParts(timezone, now);
-  return hours.filter((h) => h.dayOfWeek === dow).sort((a, b) => a.opensAt.localeCompare(b.opensAt));
+function minutesOf(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+interface Block {
+  dow: number;
+  start: number;
+  /** Minutos desde la medianoche de `dow`; pasa de 1440 si el tramo cierra después de medianoche. */
+  end: number;
+}
+
+function toBlock(h: OpeningHours): Block {
+  const start = minutesOf(h.opensAt);
+  let end = minutesOf(h.closesAt);
+  if (end <= start) end += 1440;
+  return { dow: h.dayOfWeek, start, end };
+}
+
+function hmFromMinutes(total: number): string {
+  const m = ((total % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
+type OpenStatus = { open: true; until: string; reopensAt: string | null } | { open: false; opensAt: string | null };
+
+/** ¿Está abierto ahora? Hasta cuándo, y si hay una pausa, a qué hora reabre ese mismo día. null = el restaurante no cargó horario de atención. */
+function openStatus(hours: OpeningHours[], now: Date, timezone: string): OpenStatus | null {
+  if (hours.length === 0) return null;
+  const { dayOfWeek: dow, minutes: n } = restaurantLocalParts(timezone, now);
+  const blocks = hours.map(toBlock);
+  const today = blocks.filter((b) => b.dow === dow).sort((a, b) => a.start - b.start);
+  const yesterday = blocks.filter((b) => b.dow === (dow + 6) % 7 && b.end > 1440);
+
+  const spill = yesterday.find((b) => n < b.end - 1440);
+  const running = today.find((b) => n >= b.start && n < b.end);
+  const closeAt = spill ? spill.end - 1440 : running?.end;
+
+  if (closeAt !== undefined) {
+    const next = today.find((b) => b.start > n && b.start > closeAt);
+    return { open: true, until: hmFromMinutes(closeAt), reopensAt: next ? hmFromMinutes(next.start) : null };
+  }
+  const upcoming = today.find((b) => b.start > n);
+  return { open: false, opensAt: upcoming ? hmFromMinutes(upcoming.start) : null };
 }
 
 export function RestaurantHeader({
   restaurant,
-  hours,
+  openingHours,
   locale,
   onLocaleChange,
 }: {
   restaurant: Restaurant;
-  hours: RestaurantHours[];
+  openingHours: OpeningHours[];
   locale: Locale;
   onLocaleChange: (locale: Locale) => void;
 }) {
   const [showHours, setShowHours] = useState(false);
   const t = DICTIONARIES[locale];
-  const now = new Date();
-  const todays = todaysServices(hours, now, restaurant.timezone);
+  const status = openStatus(openingHours, new Date(), restaurant.timezone);
 
-  const groupedHours = [0, 1, 2, 3, 4, 5, 6]
-    .map((dow) => ({ dow, services: hours.filter((h) => h.dayOfWeek === dow) }))
-    .filter((g) => g.services.length > 0);
+  // Lunes primero; los nombres de los días salen del idioma elegido.
+  const days = [1, 2, 3, 4, 5, 6, 0].map((dow) => ({
+    dow,
+    name: new Date(2024, 0, 7 + dow).toLocaleDateString(LOCALE_TAG[locale], { weekday: "long" }),
+    services: openingHours.filter((h) => h.dayOfWeek === dow).sort((a, b) => a.opensAt.localeCompare(b.opensAt)),
+  }));
 
   return (
-    <div className="mb-6">
-      <div className="flex justify-end mb-5">
+    <div className="mb-7 text-center">
+      <div className="flex justify-center mb-6">
         <div className="flex gap-0.5 p-1 rounded-full bg-surface">
           {LOCALES.map((l) => (
             <button
               key={l}
               onClick={() => onLocaleChange(l)}
-              className={`h-8 px-3 rounded-full text-[13px] font-semibold ${
+              className={`h-8 px-3.5 rounded-full text-[13px] font-semibold ${
                 l === locale ? "bg-ink-dark text-white" : "text-ink-muted hover:text-ink"
               }`}
             >
@@ -84,36 +124,56 @@ export function RestaurantHeader({
       {restaurant.logoUrl ? (
         <>
           {/* El logo reemplaza al nombre escrito; el nombre queda para lectores de pantalla y buscadores. */}
-          <img src={restaurant.logoUrl} alt="" className="h-24 w-auto max-w-full object-contain object-left" />
+          <img src={restaurant.logoUrl} alt="" className="mx-auto h-28 sm:h-32 w-auto max-w-full object-contain" />
           <h1 className="sr-only">{restaurant.name}</h1>
         </>
       ) : (
-        <h1 className="font-serif text-[38px] leading-none">{restaurant.name}</h1>
+        <h1 className="font-serif text-[44px] leading-none">{restaurant.name}</h1>
       )}
-      {restaurant.address && <p className="text-sm text-ink-muted mt-2">{restaurant.address}</p>}
+      {restaurant.address && <p className="text-[15px] text-ink-muted mt-4">{restaurant.address}</p>}
 
-      <p className={`mt-3 flex items-start gap-2 text-sm font-semibold ${todays.length > 0 ? "text-status-available" : "text-ink-faint"}`}>
-        <span
-          className={`w-2 h-2 mt-1.5 shrink-0 rounded-full ${todays.length > 0 ? "bg-status-available ring-4 ring-status-available/20" : "bg-ink-faint"}`}
-        />
-        {todays.length > 0
-          ? t.todayHours(todays.map((s) => `${s.serviceName} ${formatHM(s.opensAt, locale)}–${formatHM(s.closesAt, locale)}`).join(" · "))
-          : t.closedToday}
-      </p>
+      {status && (
+        <p
+          className={`mt-4 mx-auto inline-flex items-center gap-2.5 min-h-11 px-4 py-2 rounded-full border text-sm font-semibold text-left ${
+            status.open ? "border-status-available/40 bg-status-available/10 text-ink" : "border-line-strong bg-surface text-ink-muted"
+          }`}
+        >
+          <span
+            className={`w-2.5 h-2.5 shrink-0 rounded-full ${status.open ? "bg-status-available ring-4 ring-status-available/20" : "bg-ink-faint"}`}
+          />
+          <span>
+            {status.open ? (
+              <>
+                {t.openNow(formatHM(status.until, locale))}
+                {status.reopensAt && <> · {t.reopensAt(formatHM(status.reopensAt, locale))}</>}
+              </>
+            ) : (
+              <>
+                {t.closedNow}
+                {status.opensAt && <> · {t.opensAt(formatHM(status.opensAt, locale))}</>}
+              </>
+            )}
+          </span>
+        </p>
+      )}
 
-      <div className="mt-1">
-        <button onClick={() => setShowHours((v) => !v)} className="text-sm text-accent underline underline-offset-2">
-          {t.viewHours}
-        </button>
-      </div>
+      {openingHours.length > 0 && (
+        <div className="mt-2">
+          <button onClick={() => setShowHours((v) => !v)} className="text-sm text-accent underline underline-offset-2 h-9">
+            {t.viewHours}
+          </button>
+        </div>
+      )}
 
       {showHours && (
-        <div className="mt-3 rounded-xl bg-surface p-4 text-sm space-y-1.5">
-          {groupedHours.map(({ dow, services }) => (
+        <div className="mt-2 rounded-xl bg-surface p-4 text-sm space-y-1.5 text-left">
+          {days.map(({ dow, name, services }) => (
             <div key={dow} className="flex justify-between gap-3">
-              <span className="text-ink-muted shrink-0">{DAY_ORDER_ES[dow]}</span>
+              <span className="text-ink-muted shrink-0 capitalize">{name}</span>
               <span className="text-ink text-right">
-                {services.map((s) => `${s.serviceName}: ${formatHM(s.opensAt, locale)}–${formatHM(s.closesAt, locale)}`).join(" · ")}
+                {services.length === 0
+                  ? t.closedDay
+                  : services.map((s) => `${formatHM(s.opensAt, locale)}–${formatHM(s.closesAt, locale)}`).join(" · ")}
               </span>
             </div>
           ))}

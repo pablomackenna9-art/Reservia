@@ -1,4 +1,4 @@
-import { createReservationClient, getReservationRules, getRestaurantBySlug, listHours } from "@reservia/api-client";
+import { createReservationClient, getReservationRules, getRestaurantBySlug, listHours, listOpeningHours } from "@reservia/api-client";
 import { BookingFlow } from "./BookingFlow";
 
 // Supabase's client fetches under the hood; without this, Next.js caches those
@@ -24,8 +24,9 @@ export default async function RestaurantBookingPage({ params }: { params: { slug
     );
   }
 
-  const [hours, rules] = await Promise.all([
+  const [hours, openingHours, rules] = await Promise.all([
     listHours(supabase, restaurant.id),
+    listOpeningHours(supabase, restaurant.id),
     getReservationRules(supabase, restaurant.id),
   ]);
 
@@ -50,7 +51,7 @@ export default async function RestaurantBookingPage({ params }: { params: { slug
           <div className="absolute inset-0 bg-gradient-to-t from-ground via-ground/10 to-transparent lg:bg-gradient-to-l" />
         </div>
         <div className="grid place-items-center px-4 pb-10 pt-4 lg:py-12">
-          <BookingFlow restaurant={restaurant} hours={hours} rules={rules} />
+          <BookingFlow restaurant={restaurant} hours={hours} openingHours={openingHours} rules={rules} />
         </div>
       </main>
     );
@@ -58,7 +59,7 @@ export default async function RestaurantBookingPage({ params }: { params: { slug
 
   return (
     <main className="min-h-screen grid place-items-center px-4 py-10">
-      <BookingFlow restaurant={restaurant} hours={hours} rules={rules} />
+      <BookingFlow restaurant={restaurant} hours={hours} openingHours={openingHours} rules={rules} />
     </main>
   );
 }

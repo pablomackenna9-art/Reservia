@@ -233,6 +233,29 @@ export async function adminSetUserPassword(supabase: SupabaseClient, email: stri
   if (error) throw error;
 }
 
+/** Quita el acceso de una persona a un restaurante (su cuenta sigue existiendo). */
+export async function adminRemoveAccess(supabase: SupabaseClient, restaurantId: string, email: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_remove_access", { p_restaurant: restaurantId, p_email: email });
+  if (error) throw error;
+}
+
+/**
+ * Elimina un restaurante y todo lo suyo. Exige escribir su nombre corto. Antes borra sus imágenes
+ * (logo y portada) del bucket público; si eso falla no bloquea el borrado.
+ */
+export async function adminDeleteRestaurant(supabase: SupabaseClient, restaurantId: string, confirmSlug: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_delete_restaurant", { p_restaurant: restaurantId, p_confirm_slug: confirmSlug });
+  if (error) throw error;
+  try {
+    const { data: files } = await supabase.storage.from("restaurant-logos").list(restaurantId);
+    if (files && files.length > 0) {
+      await supabase.storage.from("restaurant-logos").remove(files.map((f) => `${restaurantId}/${f.name}`));
+    }
+  } catch {
+    // Las imágenes huérfanas no afectan a nadie; no se interrumpe el flujo.
+  }
+}
+
 export interface RestaurantAccess {
   email: string;
   role: string;

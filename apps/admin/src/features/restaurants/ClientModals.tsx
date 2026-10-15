@@ -3,6 +3,7 @@ import {
   adminAddOwner,
   adminApplyTemplate,
   adminCreateClient,
+  adminDeleteRestaurant,
   adminSetUserPassword,
   updateRestaurant,
   type NewClientResult,
@@ -342,6 +343,65 @@ export function AccessModal({
           className="w-full h-12 rounded-[10px] bg-accent text-accent-ink text-base font-semibold disabled:opacity-60"
         >
           {busy ? "Guardando…" : resetting ? "Restablecer clave" : "Dar acceso"}
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
+// ----------------------------------------------------------------------------------------------------------------
+
+export function DeleteRestaurantModal({
+  restaurant,
+  onClose,
+  onDone,
+}: {
+  restaurant: { id: string; name: string; slug: string };
+  onClose: () => void;
+  onDone: () => Promise<void>;
+}) {
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await adminDeleteRestaurant(supabase, restaurant.id, typed);
+      await onDone();
+      onClose();
+    } catch (err) {
+      setError(errorText(err, "No se pudo eliminar."));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Eliminar restaurante" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <p className="text-[15px]">
+          Vas a eliminar <span className="font-semibold">{restaurant.name}</span> con todo lo suyo: plano, mesas, reservas, clientes, horarios, conexión de POS y accesos.
+          <span className="font-semibold text-status-occupied"> No se puede deshacer.</span>
+        </p>
+        <p className="text-[13px] text-ink-faint">Las cuentas de las personas no se borran; solo pierden el acceso a este restaurante.</p>
+        <Field label={`Para confirmar, escribe: ${restaurant.slug}`}>
+          <input
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            autoComplete="off"
+            autoCapitalize="none"
+            className={`${inputClass} font-mono`}
+          />
+        </Field>
+        {error && <p className="text-[15px] text-status-occupied">{error}</p>}
+        <button
+          type="submit"
+          disabled={busy || typed.trim().toLowerCase() !== restaurant.slug}
+          className="w-full h-12 rounded-[10px] bg-status-occupied text-white text-base font-semibold disabled:opacity-40"
+        >
+          {busy ? "Eliminando…" : "Eliminar para siempre"}
         </button>
       </form>
     </Modal>

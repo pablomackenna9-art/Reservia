@@ -3,7 +3,7 @@ import { addHours, listHours, removeHours } from "@reservia/api-client";
 import { DAY_NAMES_ES, type RestaurantHours } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 
-export function HorariosTab({ restaurantId }: { restaurantId: string }) {
+export function HorariosTab({ restaurantId, onChange }: { restaurantId: string; onChange?: () => void }) {
   const [hours, setHours] = useState<RestaurantHours[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,12 +27,14 @@ export function HorariosTab({ restaurantId }: { restaurantId: string }) {
     setCreating(true);
     await addHours(supabase, { restaurantId, dayOfWeek, serviceName, opensAt: `${opensAt}:00`, closesAt: `${closesAt}:00` });
     setCreating(false);
-    reload();
+    await reload();
+    onChange?.();
   }
 
   async function handleRemove(id: string) {
     await removeHours(supabase, id);
-    reload();
+    await reload();
+    onChange?.();
   }
 
   if (loading) return <p className="text-sm text-ink-muted">Cargando…</p>;

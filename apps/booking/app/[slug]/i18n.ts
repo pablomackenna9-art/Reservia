@@ -23,8 +23,11 @@ export function formatTime(d: Date, locale: Locale): string {
 }
 
 interface Dictionary {
-  todayHours: (list: string) => string;
-  closedToday: string;
+  openNow: (until: string) => string;
+  closedNow: string;
+  reopensAt: (time: string) => string;
+  opensAt: (time: string) => string;
+  closedDay: string;
   viewHours: string;
   morePeople: (max: number) => string;
   contactRestaurant: string;
@@ -85,8 +88,11 @@ interface Dictionary {
 
 export const DICTIONARIES: Record<Locale, Dictionary> = {
   es: {
-    todayHours: (list) => `Reservas hoy · ${list}`,
-    closedToday: "Hoy no tomamos reservas",
+    openNow: (until) => `Abierto ahora · hasta las ${until}`,
+    closedNow: "Cerrado ahora",
+    reopensAt: (time) => `Reabrimos a las ${time}`,
+    opensAt: (time) => `Abrimos a las ${time}`,
+    closedDay: "Cerrado",
     viewHours: "Ver horarios",
     morePeople: (max) => `¿Más de ${max} personas? Contacta directamente al restaurante.`,
     contactRestaurant: "Llamar al restaurante",
@@ -145,8 +151,11 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     onlineBookingDisabled: "Este restaurante no acepta reservas online por ahora — llamalo directamente.",
   },
   en: {
-    todayHours: (list) => `Booking today · ${list}`,
-    closedToday: "No bookings today",
+    openNow: (until) => `Open now · until ${until}`,
+    closedNow: "Closed now",
+    reopensAt: (time) => `Reopening at ${time}`,
+    opensAt: (time) => `Opening at ${time}`,
+    closedDay: "Closed",
     viewHours: "View hours",
     morePeople: (max) => `More than ${max} people? Please contact the restaurant directly.`,
     contactRestaurant: "Call the restaurant",
@@ -205,8 +214,11 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     onlineBookingDisabled: "This restaurant isn't taking online bookings right now — call them directly.",
   },
   pt: {
-    todayHours: (list) => `Reservas hoje · ${list}`,
-    closedToday: "Hoje não aceitamos reservas",
+    openNow: (until) => `Aberto agora · até às ${until}`,
+    closedNow: "Fechado agora",
+    reopensAt: (time) => `Reabrimos às ${time}`,
+    opensAt: (time) => `Abrimos às ${time}`,
+    closedDay: "Fechado",
     viewHours: "Ver horários",
     morePeople: (max) => `Mais de ${max} pessoas? Entre em contato diretamente com o restaurante.`,
     contactRestaurant: "Ligar para o restaurante",

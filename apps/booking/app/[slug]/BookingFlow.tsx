@@ -10,7 +10,7 @@ import {
   type DayAvailability,
   type PublicCustomerMatch,
 } from "@reservia/api-client";
-import type { Reservation, ReservationRules, RestaurantHours, Restaurant, WaitlistEntry } from "@reservia/core";
+import type { OpeningHours, Reservation, ReservationRules, RestaurantHours, Restaurant, WaitlistEntry } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { RestaurantHeader } from "./RestaurantHeader";
 import { Calendar } from "./Calendar";
@@ -35,10 +35,12 @@ const PROGRESS_STEPS: Step[] = ["email", "when", "time", "confirm"];
 export function BookingFlow({
   restaurant,
   hours,
+  openingHours,
   rules,
 }: {
   restaurant: Restaurant;
   hours: RestaurantHours[];
+  openingHours: OpeningHours[];
   rules: ReservationRules;
 }) {
   const [locale, setLocale] = useState<Locale>("es");
@@ -257,7 +259,7 @@ export function BookingFlow({
 
   return (
     <div className="w-full max-w-sm">
-      <RestaurantHeader restaurant={restaurant} hours={hours} locale={locale} onLocaleChange={changeLocale} />
+      <RestaurantHeader restaurant={restaurant} openingHours={openingHours} locale={locale} onLocaleChange={changeLocale} />
 
       {showProgress && (
         <div className="mb-6">

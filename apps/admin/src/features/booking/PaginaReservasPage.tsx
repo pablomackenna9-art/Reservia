@@ -3,8 +3,13 @@ import QRCode from "qrcode";
 import { getReservationRules, updateRestaurant } from "@reservia/api-client";
 import { supabase } from "../../lib/supabase";
 import { bookingUrlFor } from "../../lib/config";
-import { CopyButton } from "../../components/ui";
+import { CopyButton, SegTabs } from "../../components/ui";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
+import { HorariosTab } from "../config/HorariosTab";
+import { BrandingEditor } from "./BrandingEditor";
+import { OpeningHoursEditor } from "./OpeningHoursEditor";
+
+type Tab = "enlace" | "imagen" | "atencion" | "reserva";
 
 export function PaginaReservasPage() {
   const { current, refetch } = useRestaurant();
@@ -15,6 +20,9 @@ export function PaginaReservasPage() {
   const [onlineBooking, setOnlineBooking] = useState<boolean | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("enlace");
+  const [previewKey, setPreviewKey] = useState(0);
+  const refreshPreview = () => setPreviewKey((k) => k + 1);
 
   const url = restaurant ? bookingUrlFor(restaurant.slug) : "";
 
@@ -85,8 +93,28 @@ export function PaginaReservasPage() {
         </div>
       )}
 
+      {canEdit && (
+        <div className="mb-5">
+          <SegTabs
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: "enlace", label: "Enlace y QR" },
+              { value: "imagen", label: "Logo y foto" },
+              { value: "atencion", label: "Horario de atención" },
+              { value: "reserva", label: "Horario de reservas" },
+            ]}
+          />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] gap-5 items-start">
         <div className="space-y-5">
+          {canEdit && tab === "imagen" && <BrandingEditor restaurant={restaurant} onChanged={refreshPreview} />}
+          {canEdit && tab === "atencion" && <OpeningHoursEditor restaurantId={restaurant.id} onChanged={refreshPreview} />}
+          {canEdit && tab === "reserva" && <HorariosTab restaurantId={restaurant.id} onChange={refreshPreview} />}
+          {(!canEdit || tab === "enlace") && (
+          <>
           <section className="rounded-2xl bg-surface p-4 sm:p-5">
             <h2 className="text-lg font-semibold mb-3">Tu enlace</h2>
             <p className="font-mono text-[15px] bg-ground rounded-[10px] p-3 break-all">{url}</p>
@@ -130,13 +158,15 @@ export function PaginaReservasPage() {
               </div>
             </div>
           </section>
+          </>
+          )}
         </div>
 
-        <section>
+        <section className="lg:sticky lg:top-20">
           <h2 className="text-lg font-semibold mb-3">Así la ve tu cliente</h2>
           <div className="mx-auto max-w-[390px] rounded-[36px] border-[10px] border-surface-3 bg-white overflow-hidden">
             <iframe
-              key={url}
+              key={`${url}-${previewKey}`}
               src={url}
               title={`Página de reservas de ${restaurant.name}`}
               loading="lazy"
