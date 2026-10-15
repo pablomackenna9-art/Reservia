@@ -55,12 +55,21 @@ export async function createRestaurant(
 export async function updateRestaurant(
   supabase: SupabaseClient,
   id: string,
-  patch: { name?: string; address?: string | null; phone?: string | null; logoUrl?: string | null },
+  patch: {
+    name?: string;
+    slug?: string;
+    status?: Restaurant["status"];
+    address?: string | null;
+    phone?: string | null;
+    logoUrl?: string | null;
+  },
 ): Promise<Restaurant> {
   const { data, error } = await supabase
     .from("restaurants")
     .update({
       ...(patch.name !== undefined && { name: patch.name }),
+      ...(patch.slug !== undefined && { slug: patch.slug }),
+      ...(patch.status !== undefined && { status: patch.status }),
       ...(patch.address !== undefined && { address: patch.address }),
       ...(patch.phone !== undefined && { phone: patch.phone }),
       ...(patch.logoUrl !== undefined && { logo_url: patch.logoUrl }),
@@ -86,6 +95,58 @@ export async function uploadRestaurantLogo(supabase: SupabaseClient, restaurantI
   // Cache-bust: mismo nombre de archivo en cada reemplazo, así que sin esto
   // el navegador (o un CDN) podría seguir sirviendo el logo viejo.
   return `${data.publicUrl}?v=${Date.now()}`;
+}
+
+/** ¿Es administrador de plataforma (ve y gestiona TODOS los restaurantes, no solo aquellos donde es miembro)? */
+export async function isPlatformAdmin(supabase: SupabaseClient): Promise<boolean> {
+  const { data, error } = await supabase.rpc("is_platform_admin");
+  if (error) return false;
+  return Boolean(data);
+}
+
+/** Lo que las reglas de acceso dejen ver: todos los restaurantes para un administrador de plataforma, solo los propios para el resto. */
+export async function listAllRestaurants(supabase: SupabaseClient): Promise<Restaurant[]> {
+  const { data, error } = await supabase.from("restaurants").select("*").order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(mapRestaurant);
+}
+
+export interface RestaurantOverview {
+  tableCount: number;
+  reservationsToday: number;
+  posKeyActive: boolean;
+  posLastEventAt: string | null;
+}
+
+/** Números rápidos para la tarjeta de cada restaurante en el panel de administración. */
+export async function getRestaurantOverview(supabase: SupabaseClient, restaurantId: string): Promise<RestaurantOverview> {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start.getTime() + 24 * 60 * 60_000);
+
+  const [tables, reservations, pos] = await Promise.all([
+    supabase.from("tables").select("id", { count: "exact", head: true }).eq("restaurant_id", restaurantId).eq("active", true),
+    supabase
+      .from("reservations")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", restaurantId)
+      .neq("status", "cancelled")
+      .gte("starts_at", start.toISOString())
+      .lt("starts_at", end.toISOString()),
+    supabase
+      .from("pos_connections")
+      .select("api_key_prefix, last_event_at")
+      .eq("restaurant_id", restaurantId)
+      .eq("provider", "api")
+      .maybeSingle(),
+  ]);
+
+  return {
+    tableCount: tables.count ?? 0,
+    reservationsToday: reservations.count ?? 0,
+    posKeyActive: Boolean(pos.data?.api_key_prefix),
+    posLastEventAt: (pos.data?.last_event_at as string) ?? null,
+  };
 }
 
 function mapRestaurant(row: Record<string, unknown>): Restaurant {

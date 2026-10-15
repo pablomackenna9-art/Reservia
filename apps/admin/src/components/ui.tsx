@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { stateClass, STATE_LABEL, type VisualState } from "../lib/stateStyle";
 
 /** Tabs segmentados: contenedor con padding 4, ítem de 36px, activo en --sf3. */
@@ -65,5 +65,38 @@ export function Tag({ tone = "neutral", children }: { tone?: TagTone; children: 
     <span className={`inline-flex items-center h-6 px-2.5 rounded-[7px] text-[13px] font-semibold whitespace-nowrap ${toneClass}`}>
       {children}
     </span>
+  );
+}
+
+/** Copia un texto al portapapeles y avisa "Copiado ✓" un momento. */
+export function CopyButton({ text, label = "Copiar", className = "" }: { text: string; label?: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Sin permiso de portapapeles (http, navegadores viejos): selección manual como respaldo.
+      const area = document.createElement("textarea");
+      area.value = text;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      className={`h-11 px-4 rounded-[10px] text-[15px] font-semibold whitespace-nowrap ${
+        copied ? "bg-status-available/15 text-status-available" : "bg-surface-3 text-ink hover:bg-line"
+      } ${className}`}
+    >
+      {copied ? "Copiado ✓" : label}
+    </button>
   );
 }

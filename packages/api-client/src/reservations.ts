@@ -13,7 +13,7 @@ import {
 import { mapCustomer } from "./customers";
 import { mapTable } from "./tables";
 import { joinTables } from "./tableGroups";
-import { ensureOpenCheck } from "./consumption";
+import { ensureOpenCheck, listConsumptionItems } from "./consumption";
 
 export interface ReservationWithDetails extends Reservation {
   customerName: string;
@@ -317,10 +317,15 @@ export async function completeReservationWithConsumption(
 ): Promise<void> {
   const check = await ensureOpenCheck(supabase, reservation);
 
-  const { error: deleteError } = await supabase.from("pos_check_items").delete().eq("check_id", check.id);
-  if (deleteError) throw deleteError;
+  let total: number;
+  if (items.length === 0) {
+    // Sin ítems nuevos se cierra con lo que ya tenía la cuenta (cargado a mano o llegado desde el POS) -- nunca se descarta.
+    const existing = await listConsumptionItems(supabase, check.id);
+    total = existing.length > 0 ? existing.reduce((sum, item) => sum + item.total, 0) : check.total;
+  } else {
+    const { error: deleteError } = await supabase.from("pos_check_items").delete().eq("check_id", check.id);
+    if (deleteError) throw deleteError;
 
-  if (items.length > 0) {
     const { error: itemsError } = await supabase.from("pos_check_items").insert(
       items.map((item) => ({
         restaurant_id: reservation.restaurantId,
@@ -332,9 +337,9 @@ export async function completeReservationWithConsumption(
       })),
     );
     if (itemsError) throw itemsError;
-  }
 
-  const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  }
 
   const now = new Date().toISOString();
   const { error: checkError } = await supabase

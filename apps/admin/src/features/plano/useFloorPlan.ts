@@ -8,6 +8,7 @@ import {
   deactivateTable,
   getReservationRules,
   joinTables as apiJoinTables,
+  listPayingTables,
   listReservationsForDate,
   listTableGroups,
   listTables,
@@ -31,6 +32,7 @@ import {
   type ReservationRules,
   type Table,
   type TableAssignmentSource,
+  type TableLiveStatusValue,
   type Zone,
 } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
@@ -49,30 +51,44 @@ export function useFloorPlan(restaurantId: string | undefined) {
   const [tables, setTables] = useState<Table[]>([]);
   const [reservationsToday, setReservationsToday] = useState<ReservationWithDetails[]>([]);
   const [rules, setRules] = useState<ReservationRules | null>(null);
+  // Mesas con la cuenta pedida/pagada según el POS (tableId -> monto): se ven como "Pagando".
+  const [payingTotals, setPayingTotals] = useState<Map<string, number>>(new Map());
   const [tableGroups, setTableGroups] = useState<Map<string, TableGroupInfo>>(new Map());
   const [loading, setLoading] = useState(true);
   const [pendingCompletion, setPendingCompletion] = useState<ReservationWithDetails | null>(null);
 
   async function reload() {
     if (!restaurantId) return;
-    const [z, t, r, rr, tg] = await Promise.all([
+    const [z, t, r, rr, tg, paying] = await Promise.all([
       listZones(supabase, restaurantId),
       listTables(supabase, restaurantId),
       listReservationsForDate(supabase, restaurantId, todayISO()),
       getReservationRules(supabase, restaurantId),
       listTableGroups(supabase, restaurantId),
+      listPayingTables(supabase, restaurantId),
     ]);
     setZones(z);
     setTables(t);
     setReservationsToday(r);
     setRules(rr);
     setTableGroups(tg);
+    setPayingTotals(paying);
     setLoading(false);
   }
 
   useEffect(() => {
     setLoading(true);
     reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurantId]);
+
+  // El POS (y el resto del staff) cambian cosas desde afuera: se refresca solo cada 20 s mientras la pestaña está visible.
+  useEffect(() => {
+    if (!restaurantId) return;
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") reload();
+    }, 20_000);
+    return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId]);
 
@@ -85,8 +101,9 @@ export function useFloorPlan(restaurantId: string | undefined) {
     return map;
   }, [reservationsToday]);
 
-  function getTableStatus(tableId: string) {
-    return deriveTableStatus(reservationsByTable.get(tableId) ?? []);
+  function getTableStatus(tableId: string): TableLiveStatusValue {
+    const derived = deriveTableStatus(reservationsByTable.get(tableId) ?? []);
+    return derived === "occupied" && payingTotals.has(tableId) ? "paying" : derived;
   }
 
   function getTurnoverWarning(tableId: string): boolean {
@@ -277,6 +294,7 @@ export function useFloorPlan(restaurantId: string | undefined) {
     tables,
     reservationsToday,
     reservationsByTable,
+    payingTotals,
     rules,
     tableGroups,
     loading,

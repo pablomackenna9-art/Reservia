@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { createRestaurant } from "@reservia/api-client";
 import { slugify } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
@@ -8,7 +8,10 @@ import { useRestaurant } from "./RestaurantProvider";
 
 export function OnboardingPage() {
   const { user } = useAuth();
-  const { current, loading, refetch } = useRestaurant();
+  const { current, loading, refetch, selectRestaurant } = useRestaurant();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const isNew = params.get("nuevo") === "1";
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -19,22 +22,24 @@ export function OnboardingPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await createRestaurant(supabase, { name: name.trim(), slug: slugify(name), createdBy: user.id });
+      const created = await createRestaurant(supabase, { name: name.trim(), slug: slugify(name), createdBy: user.id });
       await refetch();
+      selectRestaurant(created.id);
+      if (isNew) navigate("/restaurantes");
     } catch (err) {
       const message = err && typeof err === "object" && "message" in err ? String(err.message) : null;
-      setError(message ?? "No pudimos crear el restaurante.");
+      setError(/duplicate|unique/i.test(message ?? "") ? "Ya existe un restaurante con ese nombre de enlace: agrégale algo al nombre." : (message ?? "No pudimos crear el restaurante."));
       setSubmitting(false);
     }
   }
 
   if (loading) return null;
-  if (current) return <Navigate to="/" replace />;
+  if (current && !isNew) return <Navigate to="/" replace />;
 
   return (
     <main className="min-h-screen grid place-items-center px-4">
       <form onSubmit={handleSubmit} className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold mb-1">Tu restaurante</h1>
+        <h1 className="font-serif text-4xl font-normal leading-tight mb-1">{isNew ? "Nuevo restaurante" : "Tu restaurante"}</h1>
         <p className="text-ink-muted text-sm mb-8">
           Un nombre para empezar — zonas, mesas y horarios se configuran después.
         </p>

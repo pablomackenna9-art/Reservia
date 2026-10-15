@@ -44,6 +44,7 @@ export function DashboardPage() {
     tables,
     reservationsToday,
     reservationsByTable,
+    payingTotals,
     rules,
     tableGroups,
     loading,
@@ -219,7 +220,10 @@ export function DashboardPage() {
     if (status === "occupied" || status === "paying") {
       const seated = list.find((r) => r.status === "seated");
       if (!seated) return undefined;
-      if (status === "paying") return { text: seated.totalAmount ? formatCLP(seated.totalAmount) : "pagando" };
+      if (status === "paying") {
+        const amount = payingTotals.get(tableId);
+        return { text: amount ? formatCLP(amount) : "pagando" };
+      }
       const mins = minutesSince(seated.startsAt, now);
       return { text: formatElapsed(mins), alert: mins > 90 };
     }

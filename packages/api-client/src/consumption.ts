@@ -23,11 +23,14 @@ export async function getOpenCheckForReservation(
     .maybeSingle();
   if (!visit) return null;
 
+  // También las cuentas ya pagadas según el POS: la visita sigue abierta hasta que el staff completa la reserva.
   const { data: check, error } = await supabase
     .from("pos_checks")
     .select("*")
     .eq("visit_id", visit.id)
-    .eq("status", "open")
+    .in("status", ["open", "partially_paid", "paid"])
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
   return check ? mapPosCheck(check) : null;

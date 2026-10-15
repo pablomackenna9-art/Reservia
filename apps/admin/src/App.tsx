@@ -4,6 +4,8 @@ import { AuthProvider } from "./features/auth/AuthProvider";
 import { LoginPage } from "./features/auth/LoginPage";
 import { SignupPage } from "./features/auth/SignupPage";
 import { RestaurantProvider } from "./features/restaurants/RestaurantProvider";
+import { PaginaReservasPage } from "./features/booking/PaginaReservasPage";
+import { RestaurantesPage } from "./features/restaurants/RestaurantesPage";
 import { OnboardingPage } from "./features/restaurants/OnboardingPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { NotificacionesPage } from "./features/notifications/NotificacionesPage";
@@ -50,6 +52,22 @@ export function App() {
               element={
                 <Protected>
                   <DashboardPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/restaurantes"
+              element={
+                <Protected>
+                  <RestaurantesPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/pagina-de-reservas"
+              element={
+                <Protected>
+                  <PaginaReservasPage />
                 </Protected>
               }
             />

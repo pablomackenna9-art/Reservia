@@ -22,6 +22,8 @@ const MAIN_NAV: NavItem[] = [
 ];
 
 const MORE_NAV: NavItem[] = [
+  { to: "/pagina-de-reservas", label: "Página de reservas" },
+  { to: "/restaurantes", label: "Restaurantes" },
   { to: "/lista-de-espera", label: "Lista de espera" },
   { to: "/marketing", label: "Marketing" },
   { to: "/reportes", label: "Reportes" },
@@ -52,7 +54,7 @@ function CountBadge({ count }: { count: number }) {
 }
 
 export function TopBar() {
-  const { current } = useRestaurant();
+  const { current, restaurants, selectRestaurant, isPlatformAdmin } = useRestaurant();
   const { user, logOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -60,6 +62,8 @@ export function TopBar() {
   const notificationCount = useNotificationCount(current?.restaurant.id);
   const now = useClock();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const switcherRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +71,17 @@ export function TopBar() {
   useEffect(() => {
     setMenuOpen(false);
     setMoreOpen(false);
+    setSwitcherOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!switcherOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!switcherRef.current?.contains(e.target as Node)) setSwitcherOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [switcherOpen]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -103,7 +117,44 @@ export function TopBar() {
       <div className="h-16 xl:h-[68px] flex items-center gap-3 xl:gap-6 px-3 sm:px-6">
         <Logo size={26} />
         <div className="hidden xl:block h-7 w-px bg-line" />
-        <span className="hidden xl:block text-[15px] font-semibold truncate max-w-[200px]">{current?.restaurant.name ?? "—"}</span>
+        <div className="hidden xl:block relative" ref={switcherRef}>
+          <button
+            type="button"
+            onClick={() => setSwitcherOpen((v) => !v)}
+            className="h-[38px] px-2 flex items-center gap-1.5 rounded-[9px] text-[15px] font-semibold hover:bg-surface"
+            aria-expanded={switcherOpen}
+          >
+            <span className="truncate max-w-[180px]">{current?.restaurant.name ?? "—"}</span>
+            <span className="text-ink-faint">▾</span>
+          </button>
+          {switcherOpen && (
+            <div className="absolute top-full left-0 mt-2 w-72 rounded-xl bg-surface-2 border border-line p-1.5 z-40">
+              {isPlatformAdmin && <p className="px-3 py-1.5 text-[13px] text-accent font-semibold">Administrador de plataforma</p>}
+              <div className="max-h-72 overflow-y-auto">
+                {restaurants.map((r) => (
+                  <button
+                    key={r.restaurant.id}
+                    type="button"
+                    onClick={() => {
+                      selectRestaurant(r.restaurant.id);
+                      setSwitcherOpen(false);
+                    }}
+                    className={`w-full text-left flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-sm ${
+                      r.restaurant.id === current?.restaurant.id ? "bg-surface-3 font-semibold" : "text-ink-muted hover:text-ink hover:bg-surface-3"
+                    }`}
+                  >
+                    <span className="truncate">{r.restaurant.name}</span>
+                    {r.restaurant.id === current?.restaurant.id && <span className="text-accent">✓</span>}
+                  </button>
+                ))}
+              </div>
+              <div className="my-1.5 h-px bg-line" />
+              <NavLink to="/restaurantes" className="block rounded-lg px-3 py-2.5 text-sm text-accent font-semibold hover:bg-surface-3">
+                Administrar restaurantes →
+              </NavLink>
+            </div>
+          )}
+        </div>
 
         {/* ---- Escritorio: tabs ---- */}
         <nav className="hidden xl:flex gap-0.5 ml-2">
@@ -187,7 +238,22 @@ export function TopBar() {
       {/* ---- Celular / tablet: menú a todo el ancho ---- */}
       {menuOpen && (
         <nav className="xl:hidden border-t border-line bg-ground px-3 pb-4 pt-2 max-h-[calc(100dvh-64px)] overflow-y-auto">
-          <p className="px-3 py-2 text-[13px] text-ink-faint">{current?.restaurant.name ?? ""}</p>
+          {restaurants.length > 1 ? (
+            <select
+              value={current?.restaurant.id ?? ""}
+              onChange={(e) => selectRestaurant(e.target.value)}
+              aria-label="Restaurante"
+              className="w-full h-12 rounded-xl bg-surface-2 border border-line px-3 text-[17px] font-semibold mb-1"
+            >
+              {restaurants.map((r) => (
+                <option key={r.restaurant.id} value={r.restaurant.id}>
+                  {r.restaurant.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="px-3 py-2 text-[13px] text-ink-faint">{current?.restaurant.name ?? ""}</p>
+          )}
           {[...MAIN_NAV, ...MORE_NAV].map((item) => (
             <NavLink
               key={item.to}

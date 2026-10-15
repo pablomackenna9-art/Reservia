@@ -4,6 +4,7 @@ import type { PosConnection } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { MockPosSimulator } from "./MockPosSimulator";
+import { PosApiConnect } from "./PosApiConnect";
 
 const STATIC_CATEGORIES = [
   {
@@ -77,15 +78,16 @@ export function IntegracionesPage() {
   return (
     <div className="p-3 sm:p-6">
       <h1 className="font-serif text-4xl font-normal leading-tight mb-1">Integraciones</h1>
-      <p className="text-sm text-ink-muted mb-6 max-w-2xl">
-        Ninguna está conectada todavía — conectar cualquiera de estas requiere una cuenta y credenciales reales del
-        proveedor, que solo vos podés crear. La arquitectura ya está preparada para que, cuando llegue el momento,
-        conectar una sea configurar credenciales, no reescribir el sistema.
+      <p className="text-[15px] text-ink-muted mb-6 max-w-2xl">
+        Conecta tu sistema de ventas con la conexión universal, que no depende de ningún proveedor. Los conectores directos
+        (Lightspeed, ICG, Simphony, WhatsApp, pagos…) requieren credenciales reales de cada empresa y llegan después.
       </p>
 
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-6 max-w-3xl">
+        {restaurantId && <PosApiConnect restaurantId={restaurantId} />}
+
         <div>
-          <h2 className="text-[13px] uppercase tracking-wide text-ink-faint mb-2">POS / caja</h2>
+          <h2 className="text-[13px] uppercase tracking-wide text-ink-faint mb-2">Conectores directos de POS / caja</h2>
           <div className="rounded-2xl bg-surface divide-y divide-line">
             {loading
               ? null

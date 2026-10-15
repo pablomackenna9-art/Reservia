@@ -8,7 +8,7 @@ import { z } from "zod";
  * implementar.
  */
 
-export const POS_PROVIDERS = ["mock", "oracle_simphony", "lightspeed", "icg"] as const;
+export const POS_PROVIDERS = ["mock", "oracle_simphony", "lightspeed", "icg", "api"] as const;
 export type PosProvider = (typeof POS_PROVIDERS)[number];
 
 export const VISIT_STATUSES = ["seated", "consuming", "paying", "closed"] as const;
@@ -39,6 +39,9 @@ export const posConnectionSchema = z.object({
   status: z.enum(POS_CONNECTION_STATUSES),
   lastSyncedAt: z.string().nullable(),
   lastError: z.string().nullable(),
+  /** Solo proveedor "api": primeros caracteres de la clave (nunca la clave completa) y cuándo llegó el último evento. */
+  apiKeyPrefix: z.string().nullable().default(null),
+  lastEventAt: z.string().nullable().default(null),
 });
 export type PosConnection = z.infer<typeof posConnectionSchema>;
 
