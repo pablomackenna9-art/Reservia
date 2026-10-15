@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, type DragEvent } from "react";
-import { Stage, Layer, Rect, Text, Circle, Group } from "react-konva";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { Stage, Layer, Rect, Text, Group } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Table, TableLiveStatusValue, Zone } from "@reservia/core";
 import { useContainerSize } from "../../hooks/useContainerSize";
-import { TableToken, type TableHighlightState } from "./TableToken";
+import { dotGridTile, konvaLook, tableVisualState, type KonvaLook, type VisualState } from "../../lib/stateStyle";
+import { themeColor, useTheme } from "../../lib/theme";
+import { TableToken, type TableHighlightState, type TableInfoLine, type TablePalette } from "./TableToken";
 
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 4;
@@ -42,6 +44,10 @@ interface ZoneCanvasProps {
   getTurnoverWarning?: (tableId: string) => boolean;
   /** Arrastrar una fila de la lista de espera hasta acá -- undefined en el picker del Smart Table Engine. */
   onDropWaitlistEntry?: (payload: WaitlistDragPayload, tableId: string) => void;
+  /** Zona elegida en las pestañas -- las mesas de las demás zonas se atenúan (no se ocultan). null/undefined = todas por igual. */
+  activeZoneId?: string | null;
+  /** Línea viva bajo cada mesa (tiempo sentados, hora de la reserva, "libre"). */
+  getTableInfo?: (tableId: string) => TableInfoLine | undefined;
 }
 
 export function ZoneCanvas({
@@ -54,7 +60,56 @@ export function ZoneCanvas({
   getHighlightState,
   getTurnoverWarning,
   onDropWaitlistEntry,
+  activeZoneId,
+  getTableInfo,
 }: ZoneCanvasProps) {
+  const theme = useTheme();
+  const [dragActive, setDragActive] = useState(false);
+  const [fontsReady, setFontsReady] = useState(false);
+
+  // Konva dibuja con la fuente que haya en ese instante: si Instrument Serif
+  // todavía no cargó, los nombres de mesa salen en la de respaldo y nunca se
+  // repintan. Esperamos a las fuentes y forzamos un redibujo.
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      document.fonts.load('22px "Instrument Serif"'),
+      document.fonts.load('600 13px "Instrument Sans"'),
+    ])
+      .catch(() => undefined)
+      .then(() => {
+        if (!cancelled) setFontsReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Colores y patrones del tema ACTUAL -- se recalculan solo al cambiar de tema (no por mesa ni por render).
+  const looks = useMemo(() => {
+    const map = new Map<VisualState, KonvaLook>();
+    for (const state of ["free", "reserved", "arriving", "occupied", "paying", "blocked"] as const) {
+      map.set(state, konvaLook(state));
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme]);
+  const palette = useMemo<TablePalette>(
+    () => ({
+      ink: themeColor("ink"),
+      ink2: themeColor("ink2"),
+      acc: themeColor("acc"),
+      occ: themeColor("s-occ"),
+      free: themeColor("s-free"),
+      arr: themeColor("s-arr"),
+      onS: themeColor("on-s"),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [theme],
+  );
+  const dotTile = useMemo(() => dotGridTile(), [theme]); // eslint-disable-line react-hooks/exhaustive-deps
+  const zoneStroke = themeColor("ink3", 0.7);
+  const labelBg = themeColor("sf2");
   const { ref: containerRef, width, height } = useContainerSize<HTMLDivElement>();
   const stageRef = useRef<Konva.Stage | null>(null);
 
@@ -93,20 +148,28 @@ export function ZoneCanvas({
     }
   }
 
+  // Con una zona elegida, el encuadre se ajusta a ESA zona (las demás quedan
+  // atenuadas, fuera de vista pero a un gesto de distancia); sin zona, a todo el piso.
+  const focus = useMemo(() => {
+    const target = activeZoneId ? layout.find((l) => l.zone.id === activeZoneId) : undefined;
+    if (!target) return { x: 0, y: 0, w: floorWidth, h: floorHeight };
+    return { x: target.offsetX, y: 0, w: target.zone.width * target.scale, h: COMMON_HEIGHT };
+  }, [activeZoneId, layout, floorWidth, floorHeight]);
+
   const fitToScreen = () => {
     const stage = stageRef.current;
-    if (!stage || width <= 0 || height <= 0 || floorWidth <= 0 || floorHeight <= 0) return;
-    const scale = Math.min(width / floorWidth, height / floorHeight) * FLOOR_MARGIN;
+    if (!stage || width <= 0 || height <= 0 || focus.w <= 0 || focus.h <= 0) return;
+    const scale = Math.min(width / focus.w, height / focus.h) * FLOOR_MARGIN;
     stage.scale({ x: scale, y: scale });
     stage.position({
-      x: (width - floorWidth * scale) / 2,
-      y: (height - floorHeight * scale) / 2,
+      x: (width - focus.w * scale) / 2 - focus.x * scale,
+      y: (height - focus.h * scale) / 2 - focus.y * scale,
     });
     safeBatchDraw(stage);
   };
 
-  // Re-fit whenever the panel is resized or the set of zones on screen changes.
-  useEffect(fitToScreen, [width, height, floorWidth, floorHeight]);
+  // Re-fit whenever the panel is resized or the framing changes.
+  useEffect(fitToScreen, [width, height, focus.x, focus.y, focus.w, focus.h]);
 
   function handleWheel(e: KonvaEventObject<WheelEvent>) {
     e.evt.preventDefault();
@@ -218,8 +281,29 @@ export function ZoneCanvas({
     <div
       ref={containerRef}
       className="relative w-full h-full"
-      onDragOver={onDropWaitlistEntry ? (e) => e.preventDefault() : undefined}
-      onDrop={onDropWaitlistEntry ? handleDrop : undefined}
+      onDragOver={
+        onDropWaitlistEntry
+          ? (e) => {
+              e.preventDefault();
+              if (!dragActive) setDragActive(true);
+            }
+          : undefined
+      }
+      onDragLeave={
+        onDropWaitlistEntry
+          ? (e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragActive(false);
+            }
+          : undefined
+      }
+      onDrop={
+        onDropWaitlistEntry
+          ? (e) => {
+              setDragActive(false);
+              handleDrop(e);
+            }
+          : undefined
+      }
     >
       {width > 0 && height > 0 && (
       <Stage
@@ -240,20 +324,14 @@ export function ZoneCanvas({
                 width={zone.width}
                 height={zone.height}
                 cornerRadius={16}
-                fillRadialGradientStartPoint={{ x: zone.width / 2, y: zone.height / 2 }}
-                fillRadialGradientEndPoint={{ x: zone.width / 2, y: zone.height / 2 }}
-                fillRadialGradientStartRadius={0}
-                fillRadialGradientEndRadius={Math.max(zone.width, zone.height) * 0.75}
-                fillRadialGradientColorStops={[0, "#3c352b", 1, "#252019"]}
+                fillPatternImage={dotTile as unknown as HTMLImageElement}
+                fillPatternRepeat="repeat"
+                stroke={zoneStroke}
+                strokeWidth={1.5 / scale}
+                dash={[8 / scale, 6 / scale]}
+                opacity={activeZoneId && activeZoneId !== zone.id ? 0.5 : 1}
               />
-              <WoodFloor width={zone.width} height={zone.height} />
-              <PottedPlant x={zone.width * 0.06} y={zone.height * 0.08} scale={Math.min(zone.width, zone.height) / 22} />
-              <PottedPlant
-                x={zone.width * 0.94}
-                y={zone.height * 0.93}
-                scale={Math.min(zone.width, zone.height) / 26}
-              />
-              <ZoneLabel text={zone.name} x={zone.width * 0.5} y={zone.height * 0.06} />
+              <ZoneLabel text={zone.name} x={zone.width * 0.06} scale={scale} bg={labelBg} color={themeColor("ink3")} />
             </Group>
           ))}
         </Layer>
@@ -265,7 +343,11 @@ export function ZoneCanvas({
                   key={table.id}
                   table={table}
                   zone={zone}
-                  status={getTableStatus?.(table.id)}
+                  look={looks.get(tableVisualState(getTableStatus?.(table.id) ?? "available"))!}
+                  palette={palette}
+                  info={fontsReady ? getTableInfo?.(table.id) : undefined}
+                  dimmed={Boolean(activeZoneId) && activeZoneId !== zone.id}
+                  dropReady={dragActive && (getTableStatus?.(table.id) ?? "available") === "available"}
                   selected={table.id === selectedTableId}
                   onSelect={() => onSelectTable(table.id)}
                   highlightState={getHighlightState?.(table.id)}
@@ -321,59 +403,24 @@ function CanvasButton({
   );
 }
 
-/** Faint plank seams over the floor gradient — reads as hardwood, not a void. */
-function WoodFloor({ width, height }: { width: number; height: number }) {
-  if (width <= 0 || height <= 0) return null;
-  const plankHeight = 34;
-  const planks = Math.ceil(height / plankHeight);
+/** Rótulo de zona en mayúsculas, cortando el borde superior punteado. */
+function ZoneLabel({ text, x, scale, bg, color }: { text: string; x: number; scale: number; bg: string; color: string }) {
+  const fontSize = 13 / scale;
+  const paddingX = 10 / scale;
+  const label = text.toUpperCase();
+  const width = label.length * fontSize * 0.68 + paddingX * 2;
   return (
-    <Group clipFunc={(ctx) => ctx.rect(0, 0, width, height)} listening={false}>
-      {Array.from({ length: planks }, (_, i) => (
-        <Rect
-          key={i}
-          x={0}
-          y={i * plankHeight}
-          width={width}
-          height={plankHeight}
-          fill={i % 2 === 0 ? "#ffffff" : "#000000"}
-          opacity={0.02}
-        />
-      ))}
-      {Array.from({ length: planks }, (_, i) => (
-        <Rect key={`seam-${i}`} x={0} y={i * plankHeight} width={width} height={1} fill="#000000" opacity={0.12} />
-      ))}
-    </Group>
-  );
-}
-
-/** Purely decorative — makes an empty corner read as "a room", not a coordinate grid. */
-function PottedPlant({ x, y, scale }: { x: number; y: number; scale: number }) {
-  return (
-    <Group x={x} y={y}>
-      <Circle radius={scale * 0.55} y={scale * 0.35} fill="#2c2419" />
-      <Circle radius={scale * 0.75} fill="#3d5c3f" opacity={0.9} />
-      <Circle radius={scale * 0.55} x={-scale * 0.3} y={-scale * 0.25} fill="#4a7550" opacity={0.85} />
-      <Circle radius={scale * 0.5} x={scale * 0.35} y={-scale * 0.15} fill="#436b48" opacity={0.85} />
-    </Group>
-  );
-}
-
-function ZoneLabel({ text, x, y }: { text: string; x: number; y: number }) {
-  const paddingX = 14;
-  const width = text.length * 8 + paddingX * 2;
-  return (
-    <Group x={x - width / 2} y={y}>
-      <Rect width={width} height={26} cornerRadius={13} fill="#1c1916" stroke="#39332b" strokeWidth={1} />
+    <Group x={x} y={-fontSize * 0.6}>
+      <Rect width={width} height={fontSize * 1.3} fill={bg} />
       <Text
-        text={text.toUpperCase()}
-        width={width}
-        height={26}
-        align="center"
-        verticalAlign="middle"
-        fontSize={11}
+        text={label}
+        x={paddingX}
+        y={fontSize * 0.15}
+        fontSize={fontSize}
+        fontFamily="Instrument Sans"
         fontStyle="600"
-        letterSpacing={1}
-        fill="#de9a4c"
+        letterSpacing={fontSize * 0.1}
+        fill={color}
       />
     </Group>
   );

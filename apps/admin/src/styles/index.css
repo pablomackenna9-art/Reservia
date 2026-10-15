@@ -2,8 +2,133 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Tokens del rediseño. Canales RGB separados por espacio -> Tailwind puede
+   aplicar opacidad (bg-accent/10). Tema oscuro por defecto. */
+:root,
+:root[data-theme="oscuro"] {
+  --bg: 19 17 15;
+  --sf: 28 25 22;
+  --sf2: 38 34 29;
+  --sf3: 48 42 36;
+  --line: 58 51 43;
+  --ink: 245 239 228;
+  --ink2: 194 183 165;
+  --ink3: 148 136 117;
+  --acc: 232 162 82;
+  --on-acc: 26 18 9;
+  --s-free: 82 183 136;
+  --s-res: 110 168 232;
+  --s-arr: 235 187 74;
+  --s-occ: 232 130 108;
+  --s-pay: 181 140 232;
+  --s-blk: 141 130 114;
+  --on-s: 26 18 12;
+  color-scheme: dark;
+}
+
+:root[data-theme="claro"] {
+  --bg: 243 238 229;
+  --sf: 255 253 248;
+  --sf2: 235 228 215;
+  --sf3: 224 215 199;
+  --line: 217 207 190;
+  --ink: 29 24 19;
+  --ink2: 84 73 60;
+  --ink3: 119 107 90;
+  --acc: 168 93 23;
+  --on-acc: 255 255 255;
+  --s-free: 31 122 82;
+  --s-res: 43 103 173;
+  --s-arr: 154 111 12;
+  --s-occ: 189 74 51;
+  --s-pay: 122 76 191;
+  --s-blk: 133 122 106;
+  --on-s: 255 255 255;
+  color-scheme: light;
+}
+
 @layer base {
+  html {
+    font-family: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
   body {
     @apply bg-ground text-ink antialiased;
   }
 }
+
+/* --- Gramática de estados: forma + color (ver lib/stateStyle.ts) --------- */
+
+/* Fuera de @layer: las clases se arman dinámicamente (st-${estado}) y Tailwind las purgaría. */
+.st-free {
+  background: transparent;
+  border-style: dashed;
+  border-color: rgb(var(--s-free));
+  color: rgb(var(--s-free));
+}
+.st-reserved {
+  background: rgb(var(--sf));
+  border-style: solid;
+  border-color: rgb(var(--s-res));
+  color: rgb(var(--ink));
+}
+.st-arriving {
+  background: rgb(var(--sf));
+  border-style: solid;
+  border-color: rgb(var(--s-arr));
+  color: rgb(var(--ink));
+  box-shadow: 0 0 0 6px rgb(var(--s-arr) / 0.32);
+}
+.st-occupied {
+  background: rgb(var(--s-occ));
+  border-style: solid;
+  border-color: rgb(var(--s-occ));
+  color: rgb(var(--on-s));
+}
+.st-paying {
+  background: repeating-linear-gradient(
+    135deg,
+    rgb(var(--s-pay)) 0 6px,
+    color-mix(in oklab, rgb(var(--s-pay)) 55%, rgb(var(--bg))) 6px 10px
+  );
+  border-style: solid;
+  border-color: rgb(var(--s-pay));
+  color: rgb(var(--on-s));
+}
+.st-blocked {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent 0 4px,
+    color-mix(in oklab, rgb(var(--s-blk)) 55%, transparent) 4px 6px
+  );
+  border-style: solid;
+  border-color: rgb(var(--s-blk));
+  color: rgb(var(--ink2));
+}
+.st-pending {
+  background: transparent;
+  border-style: dotted;
+  border-color: rgb(var(--acc));
+  color: rgb(var(--acc));
+}
+.st-completed {
+  background: color-mix(in oklab, rgb(var(--s-free)) 45%, rgb(var(--sf)));
+  border-color: transparent;
+  color: rgb(var(--ink));
+}
+/* Swatches pequeños: el halo baja de 6px a 3px. */
+.st-sm.st-arriving {
+  box-shadow: 0 0 0 3px rgb(var(--s-arr) / 0.32);
+}
+.st-noshow {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent 0 4px,
+    color-mix(in oklab, rgb(var(--s-blk)) 55%, transparent) 4px 6px
+  );
+  border-style: solid;
+  border-color: rgb(var(--s-blk));
+  color: rgb(var(--ink2));
+}
+

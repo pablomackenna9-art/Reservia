@@ -259,31 +259,34 @@ export function BookingFlow({
       <RestaurantHeader restaurant={restaurant} hours={hours} locale={locale} onLocaleChange={changeLocale} />
 
       {showProgress && (
-        <div className="flex gap-1.5 mb-6">
-          {PROGRESS_STEPS.map((s, i) => (
-            <div key={s} className={`h-1 flex-1 rounded-full ${i <= progressIndex ? "bg-accent" : "bg-line"}`} />
-          ))}
+        <div className="mb-6">
+          <div className="flex gap-1.5">
+            {PROGRESS_STEPS.map((s, i) => (
+              <div key={s} className={`h-1 flex-1 rounded-full ${i <= progressIndex ? "bg-accent" : "bg-line-strong"}`} />
+            ))}
+          </div>
+          <p className="text-[13px] text-ink-faint mt-2">{t.stepOf(progressIndex + 1, PROGRESS_STEPS.length)}</p>
         </div>
       )}
 
       {step === "email" && (
         <StepCard title={t.stepEmailTitle} subtitle={t.stepEmailSubtitle}>
-          <label className="block text-[10px] uppercase tracking-wide text-ink-faint mb-1">{t.emailLabel}</label>
+          <label className="block text-[13px] font-semibold uppercase tracking-[0.08em] text-ink-faint mb-1.5">{t.emailLabel}</label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={t.emailPlaceholder}
-            className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent mb-3"
+            className="w-full h-[50px] rounded-xl bg-surface-2 border border-line-strong px-3.5 text-[15px] placeholder:text-ink-faint outline-none focus:border-accent mb-3"
           />
-          <label className="flex items-start gap-2 text-xs text-ink-faint mb-4">
+          <label className="flex items-start gap-2 text-[13px] text-ink-muted mb-5">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />
             {t.consent(restaurant.name)}
           </label>
           <button
             onClick={handleEmailContinue}
             disabled={!email.trim() || !consent || lookupLoading}
-            className="w-full rounded-lg bg-accent text-accent-ink py-2.5 text-sm font-medium disabled:opacity-60"
+            className="w-full h-[54px] rounded-[14px] bg-ink-dark text-white text-base font-semibold disabled:opacity-40"
           >
             {lookupLoading ? "…" : t.continueCta}
           </button>
@@ -303,43 +306,47 @@ export function BookingFlow({
             onNavigate={navigateMonth}
           />
 
-          <div className="flex items-center gap-3 mt-3 mb-3 text-[10px] text-ink-faint">
+          <div className="flex items-center gap-4 mt-3 text-[13px] text-ink-muted">
             <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-status-available" /> {t.legendAvailable}
+              <span className="w-2 h-2 rounded-full bg-status-available" /> {t.legendAvailable}
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-status-arriving" /> {t.legendWaitlist}
+              <span className="w-2 h-2 rounded-full bg-status-arriving" /> {t.legendWaitlist}
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-ink-faint" /> {t.legendClosed}
+              <span className="w-2 h-2 rounded-full bg-ink-faint" /> {t.legendClosed}
             </span>
           </div>
 
-          <p className="text-sm font-medium mb-1.5">{t.people}</p>
-          <div className="flex items-center justify-center gap-4 rounded-lg border border-line bg-surface py-2.5 mb-1">
-            <button
-              onClick={() => setPartySize((n) => Math.max(rules.minPartySize, n - 1))}
-              className="w-8 h-8 rounded-full border border-line text-ink hover:border-accent"
-            >
-              −
-            </button>
-            <span className="text-lg font-semibold tabular-nums w-10 text-center">{partySize}</span>
-            <button
-              onClick={() => setPartySize((n) => Math.min(Math.min(8, rules.maxPartySize), n + 1))}
-              className="w-8 h-8 rounded-full border border-line text-ink hover:border-accent"
-            >
-              +
+          <p className="text-[15px] font-semibold mt-5 mb-2">{t.people}</p>
+          <div className="grid grid-cols-4 gap-2 mb-1.5">
+            {Array.from({ length: Math.min(8, rules.maxPartySize) }, (_, i) => i + 1)
+              .filter((n) => n >= rules.minPartySize)
+              .map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setPartySize(n)}
+                  className={`h-[46px] rounded-xl font-serif text-[22px] ${
+                    n === partySize ? "bg-ink-dark text-white" : "bg-surface text-ink hover:bg-line"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+          </div>
+          <p className="text-[13px] text-ink-faint mb-6">{t.morePeople}</p>
+
+          <div className="sticky bottom-4">
+            <button onClick={handleWhenContinue} disabled={!selectedDate} className="w-full h-[54px] rounded-[14px] bg-ink-dark text-white text-base font-semibold disabled:opacity-40">
+              {selectedDate
+                ? `${t.seeTimes} · ${new Date(`${selectedDate}T12:00:00`).toLocaleDateString(LOCALE_TAG[locale], {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                  })}, ${partySize} ${t.persShort}`
+                : t.continueCta}
             </button>
           </div>
-          <p className="text-[11px] text-ink-faint text-center mb-4">{t.morePeople}</p>
-
-          <button
-            onClick={handleWhenContinue}
-            disabled={!selectedDate}
-            className="w-full rounded-lg bg-accent text-accent-ink py-2.5 text-sm font-medium disabled:opacity-60"
-          >
-            {t.continueCta}
-          </button>
         </StepCard>
       )}
 
@@ -352,7 +359,7 @@ export function BookingFlow({
               <p className="text-sm text-ink-muted mb-3">{t.noTimesThatDay}</p>
               <button
                 onClick={() => setStep("waitlist")}
-                className="w-full rounded-lg border border-accent text-accent py-2.5 text-sm font-medium hover:bg-accent/10"
+                className="w-full h-[54px] rounded-[14px] border-2 border-dashed border-accent text-accent text-base font-semibold hover:bg-accent/10"
               >
                 {t.joinWaitlistCta}
               </button>
@@ -360,15 +367,20 @@ export function BookingFlow({
           ) : (
             Object.entries(groupedSlots).map(([serviceName, serviceSlots]) => (
               <div key={serviceName} className="mb-4 last:mb-0">
-                <p className="text-xs text-ink-faint uppercase tracking-wide mb-2">{serviceName}</p>
+                <p className="text-[13px] font-semibold text-ink-faint uppercase tracking-[0.1em] mb-2">{serviceName}</p>
                 <div className="grid grid-cols-3 gap-2">
                   {serviceSlots.map((slot) => (
                     <button
                       key={slot.startsAt}
                       onClick={() => pickSlot(slot)}
-                      className="rounded-lg border border-line bg-surface py-2.5 text-sm hover:border-accent hover:text-accent"
+                      className={`h-14 rounded-[14px] flex flex-col items-center justify-center ${
+                        selectedSlot?.startsAt === slot.startsAt ? "bg-ink-dark text-white" : "bg-surface text-ink hover:bg-line"
+                      }`}
                     >
-                      {new Date(slot.startsAt).toLocaleTimeString(LOCALE_TAG[locale], { hour: "2-digit", minute: "2-digit" })}
+                      <span className="font-serif text-[26px] leading-none">
+                        {new Date(slot.startsAt).toLocaleTimeString(LOCALE_TAG[locale], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <span className="text-[13px] font-semibold text-status-available mt-0.5">{t.legendAvailable}</span>
                     </button>
                   ))}
                 </div>
@@ -380,8 +392,8 @@ export function BookingFlow({
 
       {step === "confirm" && selectedSlot && selectedDate && (
         <StepCard title={t.stepConfirmTitle} subtitle={t.stepConfirmSubtitle} onBack={() => setStep("time")}>
-          <div className="rounded-lg border border-dashed border-line p-3 mb-3">
-            <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-2">{t.yourReservation}</p>
+          <div className="rounded-xl border-2 border-dashed border-line-strong p-4 mb-4">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.1em] text-ink-faint mb-2">{t.yourReservation}</p>
             <SummaryRow label={t.partySizeLabel} value={`${partySize} ${t.people.toLowerCase()}`} />
             <SummaryRow
               label={t.dateLabel}
@@ -399,12 +411,12 @@ export function BookingFlow({
           </div>
 
           {knownFullName && !editingKnownCustomer ? (
-            <div className="rounded-lg bg-surface border border-line px-3 py-2.5 mb-3">
+            <div className="rounded-xl bg-surface px-4 py-3 mb-3">
               <p className="text-sm">{t.areYouX(knownFullName)}</p>
-              <p className="text-xs text-ink-faint mt-1">
+              <p className="text-[13px] text-ink-muted mt-1">
                 {t.emailShownLabel}: {email}
               </p>
-              <button onClick={() => setEditingKnownCustomer(true)} className="text-xs text-accent underline mt-1.5">
+              <button onClick={() => setEditingKnownCustomer(true)} className="text-[13px] text-accent underline mt-1.5">
                 {t.fixMyData}
               </button>
             </div>
@@ -414,19 +426,19 @@ export function BookingFlow({
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder={t.firstNameLabel}
-                className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent"
+                className="w-full h-[50px] rounded-xl bg-surface-2 border border-line-strong px-3.5 text-[15px] placeholder:text-ink-faint outline-none focus:border-accent"
               />
               <input
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder={t.lastNameLabel}
-                className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent"
+                className="w-full h-[50px] rounded-xl bg-surface-2 border border-line-strong px-3.5 text-[15px] placeholder:text-ink-faint outline-none focus:border-accent"
               />
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder={t.phoneLabel}
-                className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent"
+                className="w-full h-[50px] rounded-xl bg-surface-2 border border-line-strong px-3.5 text-[15px] placeholder:text-ink-faint outline-none focus:border-accent"
               />
             </div>
           )}
@@ -436,10 +448,10 @@ export function BookingFlow({
             onChange={(e) => setNotes(e.target.value)}
             placeholder={t.notesPlaceholder}
             rows={2}
-            className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent resize-none mb-3"
+            className="w-full rounded-xl bg-surface-2 border border-line-strong px-3.5 py-3 text-[15px] placeholder:text-ink-faint outline-none focus:border-accent resize-none mb-3"
           />
 
-          <div className="rounded-lg bg-status-available/10 border border-status-available/40 px-3 py-2 text-xs text-status-available mb-4">
+          <div className="rounded-xl bg-status-available/10 border border-status-available/40 px-4 py-3 text-[13px] font-semibold text-status-available mb-4">
             {t.availableMsg}
           </div>
 
@@ -448,7 +460,7 @@ export function BookingFlow({
           <button
             onClick={handleConfirm}
             disabled={submitting}
-            className="w-full rounded-lg bg-accent text-accent-ink py-2.5 text-sm font-medium disabled:opacity-60"
+            className="w-full h-[54px] rounded-[14px] bg-ink-dark text-white text-base font-semibold disabled:opacity-40"
           >
             {submitting ? t.sending : t.confirmCta}
           </button>
@@ -456,19 +468,48 @@ export function BookingFlow({
       )}
 
       {step === "confirmed" && confirmed && (
-        <div className="text-center">
-          <div className="w-12 h-12 rounded-full bg-accent/15 border border-accent/40 grid place-items-center mx-auto mb-4 text-accent text-xl">
-            ✓
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-ink-dark text-on-dark">
+          <div className="mx-auto max-w-sm px-5 py-10">
+            <p className="flex items-center gap-2 text-sm font-semibold text-free-on-dark">
+              <span className="w-2 h-2 rounded-full bg-free-on-dark ring-4 ring-free-on-dark/25" />
+              {t.confirmedTitle}
+            </p>
+            <h2 className="font-serif text-[54px] leading-[0.95] mt-3 mb-7">{t.thanksName(firstName || knownCustomer?.firstName || "")}</h2>
+
+            <div className="talon bg-ground text-ink rounded-2xl">
+              <div className="px-6 pt-6 pb-8">
+                <p className="text-[13px] font-semibold uppercase tracking-[0.1em] text-ink-faint">{restaurant.name}</p>
+                {restaurant.address && <p className="text-sm text-ink-muted mt-1">{restaurant.address}</p>}
+                <p className="font-serif text-[64px] leading-none mt-5 tabular-nums">
+                  {new Date(confirmed.startsAt).toLocaleTimeString(LOCALE_TAG[locale], { hour: "2-digit", minute: "2-digit" })}
+                </p>
+                <p className="text-base text-ink-muted mt-2 capitalize">
+                  {new Date(confirmed.startsAt).toLocaleDateString(LOCALE_TAG[locale], {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                  })}
+                </p>
+              </div>
+              <div className="border-t-2 border-dashed border-line-strong" />
+              <div className="px-6 pt-8 pb-6 flex items-end justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-serif text-[34px] leading-none truncate">
+                    {[firstName || knownCustomer?.firstName, lastName || knownCustomer?.lastName].filter(Boolean).join(" ")}
+                  </p>
+                  <p className="text-[13px] text-ink-faint mt-2">
+                    {t.referenceLabel} · <span className="font-mono">{confirmed.id.slice(0, 8).toUpperCase()}</span>
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="font-serif text-[64px] leading-none">{partySize}</p>
+                  <p className="text-[13px] text-ink-faint">{t.people.toLowerCase()}</p>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-sm text-on-dark-faint mt-6">{t.confirmedNote}</p>
           </div>
-          <h2 className="text-lg font-semibold mb-1">{t.confirmedTitle}</h2>
-          <p className="text-sm text-ink-muted">
-            {partySize} {t.people.toLowerCase()} · {restaurant.name}
-            <br />
-            {new Date(confirmed.startsAt).toLocaleDateString(LOCALE_TAG[locale], { weekday: "long", day: "numeric", month: "long" })}
-            {" · "}
-            {new Date(confirmed.startsAt).toLocaleTimeString(LOCALE_TAG[locale], { hour: "2-digit", minute: "2-digit" })}
-          </p>
-          <p className="text-xs text-ink-faint mt-4">{t.confirmedNote}</p>
         </div>
       )}
 
@@ -485,19 +526,19 @@ export function BookingFlow({
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               placeholder={t.firstNameLabel}
-              className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent"
+              className="w-full h-[50px] rounded-xl bg-surface-2 border border-line-strong px-3.5 text-[15px] placeholder:text-ink-faint outline-none focus:border-accent"
             />
             <input
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               placeholder={t.lastNameLabel}
-              className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent"
+              className="w-full h-[50px] rounded-xl bg-surface-2 border border-line-strong px-3.5 text-[15px] placeholder:text-ink-faint outline-none focus:border-accent"
             />
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder={t.phoneLabel}
-              className="w-full rounded-lg bg-surface border border-line px-3 py-2.5 text-sm outline-none focus:border-accent"
+              className="w-full h-[50px] rounded-xl bg-surface-2 border border-line-strong px-3.5 text-[15px] placeholder:text-ink-faint outline-none focus:border-accent"
             />
           </div>
 
@@ -506,7 +547,7 @@ export function BookingFlow({
           <button
             onClick={handleWaitlistConfirm}
             disabled={submitting}
-            className="w-full mt-4 rounded-lg bg-accent text-accent-ink py-2.5 text-sm font-medium disabled:opacity-60"
+            className="w-full h-[54px] rounded-[14px] bg-ink-dark text-white text-base font-semibold disabled:opacity-40 mt-4"
           >
             {submitting ? t.sending : t.joinWaitlistCta}
           </button>
@@ -518,11 +559,11 @@ export function BookingFlow({
           <div className="w-12 h-12 rounded-full bg-accent/15 border border-accent/40 grid place-items-center mx-auto mb-4 text-accent text-xl">
             ✓
           </div>
-          <h2 className="text-lg font-semibold mb-1">{t.waitlistConfirmedTitle}</h2>
+          <h2 className="font-serif text-4xl mb-2">{t.waitlistConfirmedTitle}</h2>
           <p className="text-sm text-ink-muted">
             {partySize} {t.people.toLowerCase()} · {restaurant.name}
           </p>
-          <p className="text-xs text-ink-faint mt-4">{t.waitlistConfirmedNote}</p>
+          <p className="text-sm text-ink-muted mt-4">{t.waitlistConfirmedNote}</p>
         </div>
       )}
     </div>
@@ -534,13 +575,13 @@ function StepCard({ title, subtitle, onBack, children }: { title: string; subtit
     <div>
       <div className="flex items-center gap-2 mb-1">
         {onBack && (
-          <button onClick={onBack} className="text-ink-faint hover:text-ink text-sm" aria-label="Volver">
+          <button onClick={onBack} className="text-ink-muted hover:text-ink text-xl w-11 h-11 -ml-3 grid place-items-center" aria-label="Volver">
             ←
           </button>
         )}
-        <h2 className="text-lg font-semibold">{title}</h2>
+        <h2 className="font-serif text-[38px] leading-none">{title}</h2>
       </div>
-      {subtitle && <p className="text-xs text-ink-faint mb-4">{subtitle}</p>}
+      {subtitle && <p className="text-sm text-ink-muted mb-5">{subtitle}</p>}
       {!subtitle && <div className="mb-3" />}
       {children}
     </div>
@@ -549,8 +590,8 @@ function StepCard({ title, subtitle, onBack, children }: { title: string; subtit
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-2 text-sm py-1">
-      <span className="text-ink-faint capitalize">{label}</span>
+    <div className="flex justify-between gap-2 text-[15px] py-1">
+      <span className="text-ink-muted capitalize">{label}</span>
       <span className="font-medium capitalize text-right">{value}</span>
     </div>
   );

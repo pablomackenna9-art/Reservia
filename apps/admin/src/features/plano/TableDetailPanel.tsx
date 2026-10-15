@@ -22,7 +22,8 @@ import {
 } from "@reservia/api-client";
 import type { TableAssignmentSource, TableCandidate } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
-import { STATUS_COLORS } from "./statusColors";
+import { StatePill } from "../../components/ui";
+import { tableVisualState } from "../../lib/stateStyle";
 import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
 import { TableAssignmentPicker } from "../reservations/TableAssignmentPicker";
 import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
@@ -156,26 +157,29 @@ export function TableDetailPanel({
   }
 
   return (
-    <aside className="w-72 shrink-0 h-full overflow-y-auto rounded-xl border border-line bg-surface p-4">
-      <div className="flex items-start justify-between mb-3">
+    <aside className="w-[356px] max-w-full shrink-0 h-full overflow-y-auto rounded-2xl bg-surface p-5">
+      <div className="flex items-start justify-between mb-4">
         <div>
-          <p className="text-xs text-ink-faint uppercase tracking-wide">{zoneName}</p>
-          <h2 className="text-lg font-semibold">Mesa {table.name}</h2>
+          <p className="text-[13px] font-semibold text-ink-faint uppercase tracking-[0.08em]">{zoneName}</p>
+          <h2 className="font-serif text-[56px] leading-[0.95] mt-1">{table.name}</h2>
+          <p className="text-[13px] text-ink-muted mt-1.5">
+            hasta {table.capacityMax} personas · {SHAPE_LABEL[table.shape].toLowerCase()}
+          </p>
         </div>
-        <button onClick={onClose} className="text-ink-faint hover:text-ink text-sm" aria-label="Cerrar">
-          ✕
-        </button>
+        <div className="flex flex-col items-end gap-3">
+          <button
+            onClick={onClose}
+            className="h-9 w-9 rounded-[10px] bg-surface-2 text-ink-muted hover:text-ink"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+          <StatePill state={tableVisualState(status)} label={tableStatusLabel(status)} />
+        </div>
       </div>
 
-      <span
-        className="inline-block text-xs rounded-full px-2.5 py-1 border mb-3"
-        style={{ color: STATUS_COLORS[status], borderColor: STATUS_COLORS[status] }}
-      >
-        {tableStatusLabel(status)}
-      </span>
-
       {joinedTableNames.length > 0 && (
-        <div className="flex items-center justify-between rounded-lg bg-ground border border-line px-3 py-2 text-xs mb-3">
+        <div className="flex items-center justify-between rounded-[10px] bg-ground border border-line px-3 py-2 text-[13px] mb-3">
           <span>Unida con Mesa {joinedTableNames.join(", ")}</span>
           <button onClick={onUnjoin} className="text-ink-faint hover:text-status-occupied">
             Desunir
@@ -184,7 +188,7 @@ export function TableDetailPanel({
       )}
 
       {conflict && (
-        <div className="rounded-lg border border-status-arriving/50 bg-status-arriving/10 px-3 py-2 text-xs mb-3">
+        <div className="rounded-lg border border-status-arriving/50 bg-status-arriving/10 px-3 py-2 text-[13px] mb-3">
           <p className="text-status-arriving font-medium">
             ⚠️ Hay gente sentada y una reserva a las{" "}
             {new Date(conflict.startsAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })} (
@@ -197,16 +201,28 @@ export function TableDetailPanel({
       )}
 
       {reservation ? (
-        <div className="rounded-lg bg-ground border border-line p-3 mb-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium">{reservation.customerName}</p>
-            {reservation.status === "seated" && (
-              <span className="text-xs text-accent tabular-nums shrink-0">
-                ⏱ {formatElapsed(minutesSince(reservation.startsAt))}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-ink-faint mt-0.5">
+        <div className="rounded-xl bg-surface-2 p-4 mb-4">
+          <p className="text-[17px] font-semibold">{reservation.customerName}</p>
+          {reservation.status === "seated" &&
+            (() => {
+              const seatedMinutes = minutesSince(reservation.startsAt);
+              const over = seatedMinutes > 90;
+              return (
+                <div className="mt-2">
+                  <p className={`font-serif text-5xl leading-none tabular-nums ${over ? "text-status-occupied" : ""}`}>
+                    {formatElapsed(seatedMinutes)}
+                  </p>
+                  <div className="h-1.5 rounded-full bg-surface-3 mt-2 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${over ? "bg-status-occupied" : "bg-status-available"}`}
+                      style={{ width: `${Math.min(100, (seatedMinutes / 90) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-[13px] text-ink-faint mt-1">sentados · promedio 1:30</p>
+                </div>
+              );
+            })()}
+          <p className="text-[13px] text-ink-muted mt-2">
             {new Date(reservation.startsAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })} ·{" "}
             {reservation.partySize} personas
             {reservation.customerPhone ? ` · ${reservation.customerPhone}` : ""}
@@ -216,14 +232,14 @@ export function TableDetailPanel({
               <button
                 key={action.status}
                 onClick={() => onChangeReservationStatus(reservation.id, action.status)}
-                className="rounded-lg bg-accent text-accent-ink px-2.5 py-1.5 text-xs font-medium"
+                className="h-11 px-[18px] rounded-[10px] bg-accent text-accent-ink text-[15px] font-semibold"
               >
                 {action.label}
               </button>
             ))}
             <button
               onClick={() => setShowMoveTo(true)}
-              className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-xs text-ink hover:border-accent"
+              className="h-11 px-[18px] rounded-[10px] bg-surface-3 border border-line text-[15px] text-ink hover:border-accent"
             >
               Cambiar de mesa
             </button>
@@ -240,14 +256,14 @@ export function TableDetailPanel({
                 reservationsForSchedule={allReservationsToday}
                 onSelect={handlePickTable}
               />
-              <button onClick={() => setShowMoveTo(false)} className="text-xs text-ink-faint mt-1.5">
+              <button onClick={() => setShowMoveTo(false)} className="text-[13px] text-ink-faint mt-1.5">
                 Cancelar
               </button>
             </div>
           )}
         </div>
       ) : showWalkIn ? (
-        <div className="rounded-lg bg-ground border border-line p-3 mb-4 space-y-2">
+        <div className="rounded-[10px] bg-ground border border-line p-3 mb-4 space-y-2">
           <input
             value={walkInName}
             onChange={(e) => setWalkInName(e.target.value)}
@@ -267,7 +283,7 @@ export function TableDetailPanel({
             className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
           />
           <div className="flex items-center gap-2">
-            <label className="text-xs text-ink-faint">Personas</label>
+            <label className="text-[13px] text-ink-faint">Personas</label>
             <input
               type="number"
               min={1}
@@ -283,11 +299,11 @@ export function TableDetailPanel({
                 onSeatWalkIn(walkInSize, walkInName.trim() || "Walk-in", walkInPhone.trim(), walkInEmail.trim());
                 setShowWalkIn(false);
               }}
-              className="rounded-lg bg-accent text-accent-ink px-2.5 py-1.5 text-xs font-medium"
+              className="rounded-[10px] bg-accent text-accent-ink px-2.5 py-1.5 text-[13px] font-semibold"
             >
               Sentar ahora
             </button>
-            <button onClick={() => setShowWalkIn(false)} className="rounded-lg px-2.5 py-1.5 text-xs text-ink-muted">
+            <button onClick={() => setShowWalkIn(false)} className="rounded-lg px-2.5 py-1.5 text-[13px] text-ink-muted">
               Cancelar
             </button>
           </div>
@@ -297,7 +313,7 @@ export function TableDetailPanel({
           <p className="text-sm text-ink-muted mb-2">Sin reservas para hoy en esta mesa.</p>
           <button
             onClick={() => setShowWalkIn(true)}
-            className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-xs text-ink hover:border-accent"
+            className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-[13px] text-ink hover:border-accent"
           >
             + Sentar walk-in
           </button>
@@ -310,7 +326,7 @@ export function TableDetailPanel({
 
       {todaysSchedule.length > 0 && (
         <div className="mb-4">
-          <p className="text-xs text-ink-faint uppercase tracking-wide mb-1.5">Reservas de hoy en esta mesa</p>
+          <p className="text-[13px] text-ink-faint uppercase tracking-wide mb-1.5">Reservas de hoy en esta mesa</p>
           <div className="rounded-lg border border-line divide-y divide-line overflow-hidden">
             {todaysSchedule.map((r) => (
               <button
@@ -318,14 +334,14 @@ export function TableDetailPanel({
                 onClick={() => setViewReservation(r)}
                 className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-ground"
               >
-                <span className="w-11 text-xs tabular-nums text-ink-muted shrink-0">
+                <span className="w-11 text-[13px] tabular-nums text-ink-muted shrink-0">
                   {new Date(r.startsAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
                 </span>
-                <span className="flex-1 min-w-0 text-xs truncate">
+                <span className="flex-1 min-w-0 text-[13px] truncate">
                   {r.customerName} · {r.partySize}p
                 </span>
                 <span
-                  className="text-[10px] rounded-full px-1.5 py-0.5 border shrink-0"
+                  className="text-[13px] rounded-full px-1.5 py-0.5 border shrink-0"
                   style={{ color: RESERVATION_STATUS_COLOR[r.status], borderColor: RESERVATION_STATUS_COLOR[r.status] }}
                 >
                   {RESERVATION_STATUS_LABEL[r.status]}
@@ -339,7 +355,7 @@ export function TableDetailPanel({
       {editable ? (
         <div className="space-y-2.5 text-sm mb-4 rounded-lg border border-line bg-ground p-3">
           <div>
-            <label className="block text-xs text-ink-faint mb-1">Nombre / número</label>
+            <label className="block text-[13px] text-ink-faint mb-1">Nombre / número</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -350,7 +366,7 @@ export function TableDetailPanel({
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-ink-faint mb-1">Forma</label>
+              <label className="block text-[13px] text-ink-faint mb-1">Forma</label>
               <select
                 value={table.shape}
                 onChange={(e) => onUpdateTable?.({ shape: e.target.value as Table["shape"] })}
@@ -364,21 +380,21 @@ export function TableDetailPanel({
               </select>
             </div>
             <div>
-              <label className="block text-xs text-ink-faint mb-1">Rotación</label>
+              <label className="block text-[13px] text-ink-faint mb-1">Rotación</label>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => rotateBy(-45)}
-                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs hover:border-accent"
+                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-[13px] hover:border-accent"
                   aria-label="Rotar -45°"
                 >
                   ⟲
                 </button>
-                <span className="flex-1 text-center text-xs text-ink-muted tabular-nums">{table.rotation}°</span>
+                <span className="flex-1 text-center text-[13px] text-ink-muted tabular-nums">{table.rotation}°</span>
                 <button
                   type="button"
                   onClick={() => rotateBy(45)}
-                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs hover:border-accent"
+                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-[13px] hover:border-accent"
                   aria-label="Rotar +45°"
                 >
                   ⟳
@@ -389,7 +405,7 @@ export function TableDetailPanel({
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-ink-faint mb-1">Cap. mínima</label>
+              <label className="block text-[13px] text-ink-faint mb-1">Cap. mínima</label>
               <input
                 type="number"
                 min={1}
@@ -400,7 +416,7 @@ export function TableDetailPanel({
               />
             </div>
             <div>
-              <label className="block text-xs text-ink-faint mb-1">Cap. máxima</label>
+              <label className="block text-[13px] text-ink-faint mb-1">Cap. máxima</label>
               <input
                 type="number"
                 min={1}
@@ -414,7 +430,7 @@ export function TableDetailPanel({
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-ink-faint mb-1">Ancho</label>
+              <label className="block text-[13px] text-ink-faint mb-1">Ancho</label>
               <input
                 type="number"
                 min={20}
@@ -425,7 +441,7 @@ export function TableDetailPanel({
               />
             </div>
             <div>
-              <label className="block text-xs text-ink-faint mb-1">Alto</label>
+              <label className="block text-[13px] text-ink-faint mb-1">Alto</label>
               <input
                 type="number"
                 min={20}
@@ -437,7 +453,7 @@ export function TableDetailPanel({
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-xs pt-1 border-t border-line">
+          <label className="flex items-center gap-2 text-[13px] pt-1 border-t border-line">
             <input
               type="checkbox"
               checked={table.blocked}
@@ -463,7 +479,7 @@ export function TableDetailPanel({
 
       {joinedTableNames.length === 0 &&
         (joinPending ? (
-          <div className="rounded-lg border border-accent/50 bg-accent/10 px-3 py-2 text-xs text-accent flex items-center justify-between">
+          <div className="rounded-lg border border-accent/50 bg-accent/10 px-3 py-2 text-[13px] text-accent flex items-center justify-between">
             Tocá otra mesa de la misma zona para unir
             <button onClick={onCancelJoin} className="text-ink-faint hover:text-ink">
               Cancelar
@@ -472,7 +488,7 @@ export function TableDetailPanel({
         ) : (
           <button
             onClick={onStartJoin}
-            className="w-full rounded-lg bg-surface-2 border border-line px-2.5 py-2 text-xs text-ink hover:border-accent"
+            className="w-full rounded-lg bg-surface-2 border border-line px-2.5 py-2 text-[13px] text-ink hover:border-accent"
           >
             Unir con otra mesa
           </button>
@@ -567,10 +583,10 @@ function CurrentCheckSection({ reservation, restaurantId }: { reservation: Reser
 
   return (
     <div className="rounded-lg border border-line bg-ground p-3 mb-4">
-      <p className="text-xs text-ink-faint uppercase tracking-wide mb-2">Cuenta actual</p>
+      <p className="text-[13px] text-ink-faint uppercase tracking-wide mb-2">Cuenta actual</p>
 
       {!check ? (
-        <button onClick={handleStart} className="text-xs text-accent">
+        <button onClick={handleStart} className="text-[13px] text-accent">
           + Registrar consumo
         </button>
       ) : (
@@ -578,7 +594,7 @@ function CurrentCheckSection({ reservation, restaurantId }: { reservation: Reser
           {items.length > 0 && (
             <ul className="space-y-1 mb-2">
               {items.map((item) => (
-                <li key={item.id} className="flex items-center justify-between gap-2 text-xs">
+                <li key={item.id} className="flex items-center justify-between gap-2 text-[13px]">
                   <span className="truncate text-ink-muted">{item.name}</span>
                   <span className="flex items-center gap-1.5 shrink-0">
                     <span className="tabular-nums">{formatCLP(item.total)}</span>
@@ -601,16 +617,16 @@ function CurrentCheckSection({ reservation, restaurantId }: { reservation: Reser
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}
               placeholder="Producto"
-              className="flex-1 min-w-0 rounded-lg bg-surface border border-line px-2 py-1.5 text-xs outline-none focus:border-accent"
+              className="flex-1 min-w-0 rounded-lg bg-surface border border-line px-2 py-1.5 text-[13px] outline-none focus:border-accent"
             />
             <input
               type="number"
               value={itemPrice}
               onChange={(e) => setItemPrice(e.target.value)}
               placeholder="$"
-              className="w-20 rounded-lg bg-surface border border-line px-2 py-1.5 text-xs outline-none focus:border-accent"
+              className="w-20 rounded-lg bg-surface border border-line px-2 py-1.5 text-[13px] outline-none focus:border-accent"
             />
-            <button onClick={handleAdd} className="rounded-lg bg-surface-2 border border-line px-2 py-1.5 text-xs hover:border-accent shrink-0">
+            <button onClick={handleAdd} className="rounded-lg bg-surface-2 border border-line px-2 py-1.5 text-[13px] hover:border-accent shrink-0">
               + Agregar
             </button>
           </div>

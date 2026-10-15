@@ -8,7 +8,7 @@ export function ListaDeEsperaPage() {
   return (
     <div className="p-6">
       <header className="mb-4">
-        <h1 className="text-xl font-semibold">Lista de espera</h1>
+        <h1 className="font-serif text-4xl font-normal leading-tight">Lista de espera</h1>
       </header>
 
       {restaurantId ? (

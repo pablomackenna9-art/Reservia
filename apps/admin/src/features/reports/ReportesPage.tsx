@@ -121,7 +121,7 @@ export function ReportesPage() {
   return (
     <div className="p-6">
       <header className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Reportes</h1>
+        <h1 className="font-serif text-4xl font-normal leading-tight">Reportes</h1>
         <div className="flex gap-1.5">
           {RANGES.map((r) => (
             <button
@@ -155,11 +155,11 @@ export function ReportesPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-line bg-surface p-4">
+            <div className="rounded-2xl bg-surface p-4">
               <h2 className="text-sm font-semibold mb-3">Cubiertos por día</h2>
               <div className="space-y-1.5">
                 {byDay.map(({ date, reservas, cubiertos, pct }) => (
-                  <div key={date} className="flex items-center gap-2 text-xs">
+                  <div key={date} className="flex items-center gap-2 text-[13px]">
                     <span className="w-16 text-ink-faint shrink-0">
                       {new Date(`${date}T12:00:00`).toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit" })}
                     </span>
@@ -174,14 +174,14 @@ export function ReportesPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-line bg-surface p-4">
+            <div className="rounded-2xl bg-surface p-4">
               <h2 className="text-sm font-semibold mb-3">Reservas por canal</h2>
               {bySource.length === 0 ? (
-                <p className="text-xs text-ink-faint">Sin datos en este período.</p>
+                <p className="text-[13px] text-ink-faint">Sin datos en este período.</p>
               ) : (
                 <div className="space-y-2">
                   {bySource.map(({ source, count, pct }) => (
-                    <div key={source} className="flex items-center gap-2 text-xs">
+                    <div key={source} className="flex items-center gap-2 text-[13px]">
                       <span className="w-32 text-ink-faint shrink-0">{SOURCE_LABEL[source]}</span>
                       <div className="flex-1 h-2 rounded-full bg-ground overflow-hidden">
                         <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
@@ -210,14 +210,14 @@ export function ReportesPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-line bg-surface p-4">
+            <div className="rounded-2xl bg-surface p-4">
               <h2 className="text-sm font-semibold mb-3">Ocupación por hora</h2>
               {byHour.length === 0 ? (
-                <p className="text-xs text-ink-faint">Sin datos en este período.</p>
+                <p className="text-[13px] text-ink-faint">Sin datos en este período.</p>
               ) : (
                 <div className="space-y-1.5">
                   {byHour.map(({ hour, covers, pct }) => (
-                    <div key={hour} className="flex items-center gap-2 text-xs">
+                    <div key={hour} className="flex items-center gap-2 text-[13px]">
                       <span className="w-9 tabular-nums text-ink-faint shrink-0">{String(hour).padStart(2, "0")}:00</span>
                       <div className="flex-1 h-2 rounded-full bg-ground overflow-hidden">
                         <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
@@ -229,14 +229,14 @@ export function ReportesPage() {
               )}
             </div>
 
-            <div className="rounded-xl border border-line bg-surface p-4">
+            <div className="rounded-2xl bg-surface p-4">
               <h2 className="text-sm font-semibold mb-3">Mesas más usadas</h2>
               {topTables.length === 0 ? (
-                <p className="text-xs text-ink-faint">Sin datos en este período.</p>
+                <p className="text-[13px] text-ink-faint">Sin datos en este período.</p>
               ) : (
                 <div className="space-y-1.5">
                   {topTables.map(({ name, count, pct }) => (
-                    <div key={name} className="flex items-center gap-2 text-xs">
+                    <div key={name} className="flex items-center gap-2 text-[13px]">
                       <span className="w-16 text-ink-faint shrink-0 truncate">Mesa {name}</span>
                       <div className="flex-1 h-2 rounded-full bg-ground overflow-hidden">
                         <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
@@ -249,14 +249,14 @@ export function ReportesPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-line bg-surface p-4 mt-4">
+          <div className="rounded-2xl bg-surface p-4 mt-4">
             <h2 className="text-sm font-semibold mb-1">Asignación de mesas</h2>
-            <p className="text-xs text-ink-faint mb-3">
+            <p className="text-[13px] text-ink-faint mb-3">
               De {assigned.length} reserva{assigned.length === 1 ? "" : "s"} con mesa, cuántas las asignó el Smart Table
               Engine (solo o sugiriendo) vs. a mano.
             </p>
             {assigned.length === 0 ? (
-              <p className="text-xs text-ink-faint">Sin datos en este período.</p>
+              <p className="text-[13px] text-ink-faint">Sin datos en este período.</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <StatTile label="Automática" value={String(assignmentBreakdown.automatic)} />
@@ -274,10 +274,10 @@ export function ReportesPage() {
 
 function StatTile({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <div className="rounded-xl border border-line bg-surface px-4 py-3">
-      <p className="text-xs text-ink-faint">{label}</p>
+    <div className="rounded-2xl bg-surface px-4 py-3">
+      <p className="text-[13px] text-ink-faint">{label}</p>
       <p className={`text-xl font-semibold mt-1 ${value === "—" ? "text-ink-faint" : ""}`}>{value}</p>
-      {note && <p className="text-[10px] text-ink-faint mt-0.5">{note}</p>}
+      {note && <p className="text-[13px] text-ink-faint mt-0.5">{note}</p>}
     </div>
   );
 }

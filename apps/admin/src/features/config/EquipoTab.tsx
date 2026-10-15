@@ -68,27 +68,27 @@ export function EquipoTab({ restaurantId }: { restaurantId: string }) {
         </p>
         <button
           onClick={() => setShowInvite(true)}
-          className="rounded-lg bg-accent text-accent-ink px-3 py-1.5 text-sm font-medium shrink-0"
+          className="rounded-[10px] bg-accent text-accent-ink px-3 py-1.5 text-sm font-semibold shrink-0"
         >
           + Invitar
         </button>
       </div>
 
-      <div className="rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden mb-6">
+      <div className="rounded-2xl bg-surface divide-y divide-line overflow-hidden mb-6">
         {members.map((m) => (
           <div key={m.id} className="flex items-center gap-3 px-4 py-3">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{m.fullName || m.email}</p>
-              {m.fullName && <p className="text-xs text-ink-faint truncate">{m.email}</p>}
+              {m.fullName && <p className="text-[13px] text-ink-faint truncate">{m.email}</p>}
             </div>
             {m.role === "owner" ? (
-              <span className="text-xs text-ink-faint px-2.5 py-1.5">{ROLE_LABEL.owner}</span>
+              <span className="text-[13px] text-ink-faint px-2.5 py-1.5">{ROLE_LABEL.owner}</span>
             ) : (
               <>
                 <select
                   value={m.role}
                   onChange={(e) => handleRoleChange(m.id, e.target.value as RestaurantRole)}
-                  className="rounded-lg bg-ground border border-line text-xs px-2 py-1.5 outline-none focus:border-accent"
+                  className="rounded-[10px] bg-ground border border-line text-[13px] px-2 py-1.5 outline-none focus:border-accent"
                 >
                   {INVITABLE_ROLES.map((r) => (
                     <option key={r} value={r}>
@@ -97,7 +97,7 @@ export function EquipoTab({ restaurantId }: { restaurantId: string }) {
                   ))}
                 </select>
                 {m.userId !== user?.id && (
-                  <button onClick={() => handleRemove(m.id)} className="text-xs text-ink-faint hover:text-status-occupied">
+                  <button onClick={() => handleRemove(m.id)} className="text-[13px] text-ink-faint hover:text-status-occupied">
                     Sacar
                   </button>
                 )}
@@ -109,17 +109,17 @@ export function EquipoTab({ restaurantId }: { restaurantId: string }) {
 
       {invitations.length > 0 && (
         <div>
-          <p className="text-xs text-ink-faint uppercase tracking-wide mb-2">Invitaciones pendientes</p>
-          <div className="rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden">
+          <p className="text-[13px] text-ink-faint uppercase tracking-wide mb-2">Invitaciones pendientes</p>
+          <div className="rounded-2xl bg-surface divide-y divide-line overflow-hidden">
             {invitations.map((inv) => (
               <div key={inv.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm truncate">{inv.email}</p>
-                  <p className="text-xs text-ink-faint">
+                  <p className="text-[13px] text-ink-faint">
                     {ROLE_LABEL[inv.role]} · esperando a que se registre con este mail
                   </p>
                 </div>
-                <button onClick={() => handleRevoke(inv.id)} className="text-xs text-ink-faint hover:text-status-occupied">
+                <button onClick={() => handleRevoke(inv.id)} className="text-[13px] text-ink-faint hover:text-status-occupied">
                   Cancelar
                 </button>
               </div>
@@ -173,7 +173,7 @@ function InviteForm({
 
   return (
     <div className="fixed inset-0 bg-black/60 grid place-items-center z-50 px-4" onClick={onCancel}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-xl border border-line bg-surface p-5">
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl bg-surface p-5">
         {result ? (
           <div>
             <h2 className="text-lg font-semibold mb-2">
@@ -184,7 +184,7 @@ function InviteForm({
                 ? `${email.trim()} ya tenía cuenta en Reservia — ya puede entrar a este restaurante.`
                 : `${email.trim()} todavía no tiene cuenta. Pasale este link para que se registre con ese mismo mail — apenas lo haga, va a entrar directo al restaurante: ${window.location.origin}/signup`}
             </p>
-            <button onClick={onInvited} className="w-full rounded-lg bg-accent text-accent-ink px-4 py-2 text-sm font-medium">
+            <button onClick={onInvited} className="w-full rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold">
               Listo
             </button>
           </div>
@@ -198,13 +198,13 @@ function InviteForm({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="persona@mail.com"
-              className="w-full mb-3 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+              className="w-full mb-3 rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
             />
             <label className="block text-sm text-ink-muted mb-1">Rol</label>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as InvitableRole)}
-              className="w-full mb-4 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+              className="w-full mb-4 rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
             >
               {INVITABLE_ROLES.map((r) => (
                 <option key={r} value={r}>
@@ -222,7 +222,7 @@ function InviteForm({
               <button
                 onClick={handleSubmit}
                 disabled={submitting || !email.trim()}
-                className="rounded-lg bg-accent text-accent-ink px-4 py-2 text-sm font-medium disabled:opacity-60"
+                className="rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold disabled:opacity-60"
               >
                 {submitting ? "Invitando…" : "Invitar"}
               </button>

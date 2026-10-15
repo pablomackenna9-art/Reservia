@@ -75,7 +75,7 @@ export function ReservationDetailModal({
     <div className="fixed inset-0 bg-black/60 grid place-items-center z-50 px-4" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-xl border border-line bg-surface p-5 max-h-[85vh] overflow-y-auto"
+        className="w-full max-w-md rounded-2xl bg-surface p-5 max-h-[85vh] overflow-y-auto"
       >
         <div className="flex items-start justify-between mb-1">
           <h2 className="text-lg font-semibold">{reservation.customerName}</h2>
@@ -86,12 +86,12 @@ export function ReservationDetailModal({
 
         <div className="flex items-center gap-2 mb-4">
           <span
-            className="text-xs rounded-full px-2.5 py-1 border"
+            className="text-[13px] rounded-full px-2.5 py-1 border"
             style={{ color: RESERVATION_STATUS_COLOR[reservation.status], borderColor: RESERVATION_STATUS_COLOR[reservation.status] }}
           >
             {RESERVATION_STATUS_LABEL[reservation.status]}
           </span>
-          <span className="text-xs text-ink-faint">{SOURCE_LABEL[reservation.source]}</span>
+          <span className="text-[13px] text-ink-faint">{SOURCE_LABEL[reservation.source]}</span>
         </div>
 
         {canPickTable && (
@@ -119,12 +119,12 @@ export function ReservationDetailModal({
         ) : (
           <>
             {needsApproval && (
-              <div className="rounded-lg border border-accent/50 bg-accent/10 px-3 py-2 text-xs text-accent mb-4">
+              <div className="rounded-lg border border-accent/50 bg-accent/10 px-3 py-2 text-[13px] text-accent mb-4">
                 Solicitud del portal público — hace falta aceptarla o rechazarla.
               </div>
             )}
             {needsTable && (
-              <div className="rounded-lg border border-status-arriving/50 bg-status-arriving/10 px-3 py-2 text-xs text-status-arriving mb-4">
+              <div className="rounded-lg border border-status-arriving/50 bg-status-arriving/10 px-3 py-2 text-[13px] text-status-arriving mb-4">
                 Aceptada, todavía sin mesa asignada.
               </div>
             )}
@@ -149,7 +149,7 @@ export function ReservationDetailModal({
 
             {reservation.tableId && reservationsToday && (
               <div
-                className={`rounded-lg border px-3 py-2 text-xs mb-4 ${
+                className={`rounded-lg border px-3 py-2 text-[13px] mb-4 ${
                   occupant ? "border-status-occupied/50 bg-status-occupied/10 text-status-occupied" : "border-status-available/50 bg-status-available/10 text-status-available"
                 }`}
               >
@@ -166,26 +166,26 @@ export function ReservationDetailModal({
             )}
 
             {reservation.notes && (
-              <div className="rounded-lg bg-ground border border-line p-3 mb-4">
-                <p className="text-xs text-ink-faint mb-1">Nota del cliente</p>
+              <div className="rounded-[10px] bg-ground border border-line p-3 mb-4">
+                <p className="text-[13px] text-ink-faint mb-1">Nota del cliente</p>
                 <p className="text-sm">{reservation.notes}</p>
               </div>
             )}
 
             <div className="mb-4">
-              <label className="block text-xs text-ink-faint mb-1">Comentario interno</label>
+              <label className="block text-[13px] text-ink-faint mb-1">Comentario interno</label>
               <textarea
                 value={internalNotes}
                 onChange={(e) => setInternalNotes(e.target.value)}
                 rows={2}
                 placeholder="Visible solo para el staff…"
-                className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent resize-none"
+                className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent resize-none"
               />
               {internalNotes !== (reservation.internalNotes ?? "") && (
                 <button
                   onClick={saveNotes}
                   disabled={savingNotes}
-                  className="mt-1.5 text-xs text-accent disabled:opacity-60"
+                  className="mt-1.5 text-[13px] text-accent disabled:opacity-60"
                 >
                   {savingNotes ? "Guardando…" : "Guardar comentario"}
                 </button>
@@ -196,7 +196,7 @@ export function ReservationDetailModal({
               <div className="flex gap-2">
                 <button
                   onClick={() => onChangeStatus(reservation.id, "confirmed")}
-                  className="flex-1 rounded-lg bg-accent text-accent-ink px-3 py-2 text-sm font-medium"
+                  className="flex-1 rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold"
                 >
                   Aceptar reserva
                 </button>
@@ -215,7 +215,7 @@ export function ReservationDetailModal({
                   <button
                     key={action.status}
                     onClick={() => onChangeStatus(reservation.id, action.status)}
-                    className="rounded-lg bg-accent text-accent-ink px-2.5 py-1.5 text-xs font-medium"
+                    className="rounded-[10px] bg-accent text-accent-ink px-2.5 py-1.5 text-[13px] font-semibold"
                   >
                     {action.label}
                   </button>
@@ -246,7 +246,7 @@ function TabButton({ label, active, onClick }: { label: string; active: boolean;
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="text-ink-faint text-xs">{label}</dt>
+      <dt className="text-ink-faint text-[13px]">{label}</dt>
       <dd className="mt-0.5">{children}</dd>
     </div>
   );

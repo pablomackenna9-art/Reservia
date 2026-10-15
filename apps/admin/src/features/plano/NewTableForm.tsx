@@ -65,16 +65,16 @@ export function NewTableForm({
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-xl border border-line bg-surface p-5"
+        className="w-full max-w-sm rounded-2xl bg-surface p-5"
       >
         <h2 className="text-lg font-semibold mb-1">Nueva mesa</h2>
-        <p className="text-xs text-ink-faint mb-4">Aparece en el centro de la zona — arrástrala a su lugar.</p>
+        <p className="text-[13px] text-ink-faint mb-4">Aparece en el centro de la zona — arrástrala a su lugar.</p>
 
         <label className="block text-sm text-ink-muted mb-1">Zona</label>
         <select
           value={zoneId}
           onChange={(e) => setZoneId(e.target.value)}
-          className="w-full mb-3 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+          className="w-full mb-3 rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
         >
           {zones.map((z) => (
             <option key={z.id} value={z.id}>
@@ -89,7 +89,7 @@ export function NewTableForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="18"
-          className="w-full mb-3 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+          className="w-full mb-3 rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
         />
 
         <div className="grid grid-cols-2 gap-2 mb-4">
@@ -98,7 +98,7 @@ export function NewTableForm({
             <select
               value={shape}
               onChange={(e) => setShape(e.target.value as Table["shape"])}
-              className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+              className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
             >
               {SHAPES.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -115,7 +115,7 @@ export function NewTableForm({
               max={30}
               value={capacity}
               onChange={(e) => setCapacity(Number(e.target.value))}
-              className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+              className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
             />
           </div>
         </div>
@@ -129,7 +129,7 @@ export function NewTableForm({
           <button
             type="submit"
             disabled={submitting || !name.trim()}
-            className="rounded-lg bg-accent text-accent-ink px-4 py-2 text-sm font-medium disabled:opacity-60"
+            className="rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold disabled:opacity-60"
           >
             {submitting ? "Creando…" : "Crear mesa"}
           </button>

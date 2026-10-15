@@ -1,4 +1,5 @@
 import type { ReservationStatus } from "@reservia/core";
+import { reservationVisualState, stateCssColor } from "../../lib/stateStyle";
 
 export const RESERVATION_STATUS_LABEL: Record<ReservationStatus, string> = {
   pending: "Pendiente",
@@ -10,15 +11,13 @@ export const RESERVATION_STATUS_LABEL: Record<ReservationStatus, string> = {
   no_show: "No-show",
 };
 
-export const RESERVATION_STATUS_COLOR: Record<ReservationStatus, string> = {
-  pending: "#8a7f6d",
-  confirmed: "#5b9bda",
-  arriving: "#e0ac4e",
-  seated: "#4cae83",
-  completed: "#5fb2a8",
-  cancelled: "#8a7f6d",
-  no_show: "#dd7c68",
-};
+/** Color CSS por estado de reserva, derivado de la gramática de estados (sigue al tema). */
+export const RESERVATION_STATUS_COLOR: Record<ReservationStatus, string> = Object.fromEntries(
+  (["pending", "confirmed", "arriving", "seated", "completed", "cancelled", "no_show"] as const).map((s) => [
+    s,
+    stateCssColor(reservationVisualState(s)),
+  ]),
+) as Record<ReservationStatus, string>;
 
 /** What a reservation can move to next, from wherever it is now. */
 export const NEXT_STATUS_ACTIONS: Partial<Record<ReservationStatus, { label: string; status: ReservationStatus }[]>> = {

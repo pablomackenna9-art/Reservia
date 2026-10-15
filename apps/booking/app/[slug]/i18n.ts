@@ -25,6 +25,12 @@ interface Dictionary {
   emailPlaceholder: string;
   consent: (restaurantName: string) => string;
   continueCta: string;
+  stepOf: (n: number, total: number) => string;
+  seeTimes: string;
+  persShort: string;
+  thanksName: (name: string) => string;
+  referenceLabel: string;
+  continueWith: (time: string) => string;
   back: string;
   stepWhenTitle: string;
   stepWhenSubtitle: string;
@@ -79,6 +85,12 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     emailPlaceholder: "tucorreo@mail.com",
     consent: (name) => `Autorizo a ${name} a usar mis datos para gestionar esta reserva y contactarme por correo sobre ella.`,
     continueCta: "Continuar",
+    stepOf: (n, total) => `Paso ${n} de ${total}`,
+    seeTimes: "Ver horarios",
+    persShort: "pers.",
+    thanksName: (name) => `Gracias, ${name}.`,
+    referenceLabel: "Código",
+    continueWith: (time) => `Continuar con las ${time}`,
     back: "← Volver",
     stepWhenTitle: "¿Cuándo nos visitas?",
     stepWhenSubtitle: "Elegí el día, cuántos son y a qué hora.",
@@ -131,6 +143,12 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     emailPlaceholder: "you@email.com",
     consent: (name) => `I authorize ${name} to use my data to manage this reservation and contact me by email about it.`,
     continueCta: "Continue",
+    stepOf: (n, total) => `Step ${n} of ${total}`,
+    seeTimes: "See times",
+    persShort: "ppl",
+    thanksName: (name) => `Thank you, ${name}.`,
+    referenceLabel: "Code",
+    continueWith: (time) => `Continue with ${time}`,
     back: "← Back",
     stepWhenTitle: "When are you coming?",
     stepWhenSubtitle: "Pick the day, party size, and time.",
@@ -183,6 +201,12 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     emailPlaceholder: "seuemail@mail.com",
     consent: (name) => `Autorizo ${name} a usar meus dados para gerenciar esta reserva e me contatar por e-mail sobre ela.`,
     continueCta: "Continuar",
+    stepOf: (n, total) => `Passo ${n} de ${total}`,
+    seeTimes: "Ver horários",
+    persShort: "pess.",
+    thanksName: (name) => `Obrigado, ${name}.`,
+    referenceLabel: "Código",
+    continueWith: (time) => `Continuar com ${time}`,
     back: "← Voltar",
     stepWhenTitle: "Quando você vem?",
     stepWhenSubtitle: "Escolha o dia, quantas pessoas e o horário.",

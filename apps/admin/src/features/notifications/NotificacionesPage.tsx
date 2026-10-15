@@ -269,7 +269,7 @@ export function NotificacionesPage() {
   return (
     <div className="p-6">
       <header className="mb-4">
-        <h1 className="text-xl font-semibold">Notificaciones</h1>
+        <h1 className="font-serif text-4xl font-normal leading-tight">Notificaciones</h1>
         <p className="text-sm text-ink-muted mt-0.5">Lo que necesita tu decisión antes de que llegue el cliente.</p>
       </header>
 
@@ -277,15 +277,15 @@ export function NotificacionesPage() {
         <h2 className="text-sm font-semibold mb-2.5 flex items-center gap-2">
           Pendientes de aprobación
           {pendingApproval.length > 0 && (
-            <span className="rounded-full bg-accent text-accent-ink text-[11px] px-2 py-0.5">{pendingApproval.length}</span>
+            <span className="rounded-full bg-accent text-accent-ink text-[13px] px-2 py-0.5">{pendingApproval.length}</span>
           )}
         </h2>
         {pendingApproval.length === 0 ? (
-          <div className="rounded-xl border border-line bg-surface px-4 py-6 text-center">
+          <div className="rounded-2xl bg-surface px-4 py-6 text-center">
             <p className="text-sm text-ink-faint">No hay solicitudes esperando respuesta.</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden">
+          <div className="rounded-2xl bg-surface divide-y divide-line overflow-hidden">
             {pendingApproval.map((r) => {
               const insight = insights.get(r.id);
               const customer = customersById.get(r.customerId);
@@ -312,42 +312,42 @@ export function NotificacionesPage() {
                       <p className="text-sm font-medium truncate flex items-center gap-1.5">
                         {r.customerName}
                         {customer && customer.totalVisits >= 5 && (
-                          <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-accent/15 text-accent border border-accent/40 shrink-0">
+                          <span className="text-[13px] rounded-full px-1.5 py-0.5 bg-accent/15 text-accent border border-accent/40 shrink-0">
                             Frecuente
                           </span>
                         )}
                         {customer && customer.noShowCount >= 2 && (
-                          <span className="text-[10px] rounded-full px-1.5 py-0.5 text-status-occupied border border-status-occupied/40 shrink-0">
+                          <span className="text-[13px] rounded-full px-1.5 py-0.5 text-status-occupied border border-status-occupied/40 shrink-0">
                             Riesgo no-show
                           </span>
                         )}
                       </p>
-                      <p className="text-xs text-ink-faint">
+                      <p className="text-[13px] text-ink-faint">
                         {formatWhen(r.startsAt)} · {r.partySize} personas
                         {r.customerPhone ? ` · ${r.customerPhone}` : ""}
                       </p>
                     </button>
                     <button
                       onClick={() => handleAccept(r)}
-                      className="rounded-lg bg-accent text-accent-ink px-2.5 py-1.5 text-xs font-medium shrink-0"
+                      className="rounded-[10px] bg-accent text-accent-ink px-2.5 py-1.5 text-[13px] font-semibold shrink-0"
                     >
                       Aceptar
                     </button>
                     <button
                       onClick={() => handleSendToWaitlist(r)}
-                      className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-xs text-accent hover:border-accent shrink-0"
+                      className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-[13px] text-accent hover:border-accent shrink-0"
                     >
                       Lista de espera
                     </button>
                     <button
                       onClick={() => handleReject(r.id)}
-                      className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-xs text-status-occupied hover:border-status-occupied shrink-0"
+                      className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-[13px] text-status-occupied hover:border-status-occupied shrink-0"
                     >
                       Rechazar
                     </button>
                   </div>
 
-                  <div className="mt-2 pt-2 border-t border-line flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-ink-faint">
+                  <div className="mt-2 pt-2 border-t border-line flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-faint">
                     {insight?.topCandidate ? (
                       <span>
                         🎯 Recomendada: <span className="text-ink">Mesa {insight.topCandidate.tableNames.join("+")}</span>
@@ -370,7 +370,7 @@ export function NotificacionesPage() {
                     <div className="mt-2 pt-2 border-t border-line">
                       <button
                         onClick={() => toggleExpanded(r.id)}
-                        className="text-[11px] text-accent hover:underline"
+                        className="text-[13px] text-accent hover:underline"
                       >
                         {expandedRequestIds.has(r.id) ? "▾ Minimizar" : "▸ Ver reservas y mesas de esa hora"}
                       </button>
@@ -379,17 +379,17 @@ export function NotificacionesPage() {
                         <>
                         <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">
+                            <p className="text-[13px] uppercase tracking-wide text-ink-faint mb-1">
                               Reservas a esa hora ({insight.reservationsAtThatHour.length})
                             </p>
                             {insight.reservationsAtThatHour.length === 0 ? (
-                              <p className="text-[11px] text-ink-faint">Ninguna otra mesa ocupada a esa hora.</p>
+                              <p className="text-[13px] text-ink-faint">Ninguna otra mesa ocupada a esa hora.</p>
                             ) : (
                               <ul className="flex flex-wrap gap-1">
                                 {insight.reservationsAtThatHour.map((other) => (
                                   <li
                                     key={other.id}
-                                    className="rounded-md bg-ground border border-line px-1.5 py-0.5 text-[11px]"
+                                    className="rounded-md bg-ground border border-line px-1.5 py-0.5 text-[13px]"
                                     title={`${other.customerName} · ${other.partySize}p`}
                                   >
                                     {other.tableName ? `Mesa ${other.tableName}` : "Sin mesa"} · {other.customerName}
@@ -399,11 +399,11 @@ export function NotificacionesPage() {
                             )}
                           </div>
                           <div>
-                            <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">
+                            <p className="text-[13px] uppercase tracking-wide text-ink-faint mb-1">
                               Mesas libres para {r.partySize}p ({insight.candidates.length}) — clic para elegir cuál asignar
                             </p>
                             {insight.candidates.length === 0 ? (
-                              <p className="text-[11px] text-ink-faint">Ninguna mesa libre para ese grupo a esa hora.</p>
+                              <p className="text-[13px] text-ink-faint">Ninguna mesa libre para ese grupo a esa hora.</p>
                             ) : (
                               <ul className="flex flex-wrap gap-1">
                                 {insight.candidates.map((c) => {
@@ -416,7 +416,7 @@ export function NotificacionesPage() {
                                           setSelectedCandidateByRequest((prev) => new Map(prev).set(r.id, c))
                                         }
                                         title={c.reasons.join(" · ")}
-                                        className={`rounded-md border px-1.5 py-0.5 text-[11px] ${
+                                        className={`rounded-md border px-1.5 py-0.5 text-[13px] ${
                                           isChosen
                                             ? "bg-accent/15 border-accent text-accent"
                                             : "bg-ground border-line hover:border-accent"
@@ -443,15 +443,15 @@ export function NotificacionesPage() {
                           });
                           return (
                             <div className="mt-3 pt-2 border-t border-line">
-                              <p className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">
+                              <p className="text-[13px] uppercase tracking-wide text-ink-faint mb-1">
                                 Horario de Mesa {chosen.tableNames.join("+")} (±{NEARBY_SCHEDULE_HOURS}h de la hora pedida)
                               </p>
                               {schedule.length === 0 ? (
-                                <p className="text-[11px] text-status-available">Sin nada cerca de esa hora -- mesa tranquila.</p>
+                                <p className="text-[13px] text-status-available">Sin nada cerca de esa hora -- mesa tranquila.</p>
                               ) : (
                                 <ul className="space-y-0.5">
                                   {schedule.map((s) => (
-                                    <li key={s.id} className="text-[11px] text-ink-muted">
+                                    <li key={s.id} className="text-[13px] text-ink-muted">
                                       {formatTime(s.startsAt)} · {s.customerName} · {s.partySize}p
                                       {isOccupyingNow(s, now) && <span className="text-status-occupied font-medium"> · ⚠ ocupada ahora</span>}
                                     </li>
@@ -476,17 +476,17 @@ export function NotificacionesPage() {
         <h2 className="text-sm font-semibold mb-2.5 flex items-center gap-2">
           Sin mesa asignada
           {unassignedTable.length > 0 && (
-            <span className="rounded-full bg-status-arriving text-accent-ink text-[11px] px-2 py-0.5">
+            <span className="rounded-full bg-status-arriving text-accent-ink text-[13px] px-2 py-0.5">
               {unassignedTable.length}
             </span>
           )}
         </h2>
         {unassignedTable.length === 0 ? (
-          <div className="rounded-xl border border-line bg-surface px-4 py-6 text-center">
+          <div className="rounded-2xl bg-surface px-4 py-6 text-center">
             <p className="text-sm text-ink-faint">Todas las reservas aceptadas tienen mesa.</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden">
+          <div className="rounded-2xl bg-surface divide-y divide-line overflow-hidden">
             {unassignedTable.map((r) => (
               <button
                 key={r.id}
@@ -495,11 +495,11 @@ export function NotificacionesPage() {
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{r.customerName}</p>
-                  <p className="text-xs text-ink-faint">
+                  <p className="text-[13px] text-ink-faint">
                     {formatWhen(r.startsAt)} · {r.partySize} personas
                   </p>
                 </div>
-                <span className="text-xs text-accent shrink-0">Asignar mesa →</span>
+                <span className="text-[13px] text-accent shrink-0">Asignar mesa →</span>
               </button>
             ))}
           </div>

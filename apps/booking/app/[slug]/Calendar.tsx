@@ -53,15 +53,15 @@ export function Calendar({
         <button
           onClick={() => onNavigate(-1)}
           aria-label="Mes anterior"
-          className="w-7 h-7 rounded-full border border-line text-ink-muted hover:text-ink hover:border-accent grid place-items-center"
+          className="w-11 h-11 rounded-full bg-surface text-ink hover:bg-line grid place-items-center text-lg"
         >
           ‹
         </button>
-        <p className="text-sm font-medium capitalize">{monthLabel}</p>
+        <p className="font-serif text-[26px] leading-none first-letter:uppercase">{monthLabel}</p>
         <button
           onClick={() => onNavigate(1)}
           aria-label="Mes siguiente"
-          className="w-7 h-7 rounded-full border border-line text-ink-muted hover:text-ink hover:border-accent grid place-items-center"
+          className="w-11 h-11 rounded-full bg-surface text-ink hover:bg-line grid place-items-center text-lg"
         >
           ›
         </button>
@@ -69,7 +69,7 @@ export function Calendar({
 
       <div className="grid grid-cols-7 gap-1 mb-1">
         {weekdayLabels.map((label, i) => (
-          <div key={i} className="text-center text-[10px] text-ink-faint uppercase">
+          <div key={i} className="text-center text-[13px] font-semibold text-ink-faint uppercase tracking-wide">
             {label}
           </div>
         ))}
@@ -81,21 +81,23 @@ export function Calendar({
           const dateISO = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const status = availability.get(dateISO);
           const isPast = dateISO < todayISO;
-          const disabled = isPast || status === "closed" || status === undefined;
+          const closed = status === "closed";
+          const disabled = isPast || closed || status === undefined;
           const selected = dateISO === selectedDate;
+          const isToday = dateISO === todayISO;
 
           return (
             <button
               key={dateISO}
               disabled={disabled}
               onClick={() => onSelectDate(dateISO)}
-              className={`aspect-square rounded-lg text-xs flex flex-col items-center justify-center gap-0.5 transition-colors ${
+              className={`h-[42px] rounded-xl text-[15px] flex flex-col items-center justify-center gap-0.5 transition-colors ${
                 selected
                   ? "bg-accent text-accent-ink font-semibold"
                   : disabled
-                    ? "text-ink-faint/50 cursor-not-allowed"
-                    : "text-ink hover:bg-surface-2 border border-line"
-              }`}
+                    ? `text-day-off cursor-not-allowed ${closed ? "line-through" : ""}`
+                    : "text-ink hover:bg-surface"
+              } ${isToday && !selected ? "ring-[1.5px] ring-inset ring-ink-faint" : ""}`}
             >
               <span>{day}</span>
               {!disabled && status && <span className={`w-1 h-1 rounded-full ${selected ? "bg-accent-ink" : DOT_COLOR[status]}`} />}

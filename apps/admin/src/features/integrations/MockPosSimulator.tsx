@@ -61,26 +61,26 @@ export function MockPosSimulator({ restaurantId, connectionId }: { restaurantId:
     reload();
   }
 
-  if (loading) return <p className="text-xs text-ink-faint mt-4">Cargando simulador…</p>;
+  if (loading) return <p className="text-[13px] text-ink-faint mt-4">Cargando simulador…</p>;
 
   return (
     <div className="mt-6">
-      <h2 className="text-xs uppercase tracking-wide text-ink-faint mb-2">Simulador MockPOS</h2>
-      <p className="text-xs text-ink-faint mb-3 max-w-2xl">
+      <h2 className="text-[13px] uppercase tracking-wide text-ink-faint mb-2">Simulador MockPOS</h2>
+      <p className="text-[13px] text-ink-faint mb-3 max-w-2xl">
         Corre 100% dentro de Reservia — sin ningún POS real detrás. Sirve para ver cómo se va a ver una mesa con
         consumo real una vez que conectes un proveedor de verdad.
       </p>
 
-      <div className="rounded-xl border border-line bg-surface p-4 mb-3">
+      <div className="rounded-2xl bg-surface p-4 mb-3">
         <p className="text-sm font-medium mb-2">Abrir cuenta</p>
         {availableTables.length === 0 ? (
-          <p className="text-xs text-ink-faint">Todas las mesas ya tienen una cuenta mock abierta.</p>
+          <p className="text-[13px] text-ink-faint">Todas las mesas ya tienen una cuenta mock abierta.</p>
         ) : (
           <div className="flex items-center gap-2">
             <select
               value={openTableId}
               onChange={(e) => setOpenTableId(e.target.value)}
-              className="rounded-lg bg-ground border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+              className="rounded-[10px] bg-ground border border-line px-3 py-2 text-[15px] outline-none focus:border-accent"
             >
               <option value="">Mesa…</option>
               {availableTables.map((t) => (
@@ -94,12 +94,12 @@ export function MockPosSimulator({ restaurantId, connectionId }: { restaurantId:
               min={1}
               value={openPartySize}
               onChange={(e) => setOpenPartySize(Number(e.target.value))}
-              className="w-16 rounded-lg bg-ground border border-line px-2 py-1.5 text-sm outline-none focus:border-accent"
+              className="w-16 rounded-[10px] bg-ground border border-line px-2 py-1.5 text-sm outline-none focus:border-accent"
             />
             <button
               onClick={handleOpenCheck}
               disabled={!openTableId}
-              className="rounded-lg bg-accent text-accent-ink px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+              className="rounded-[10px] bg-accent text-accent-ink px-3 py-1.5 text-[13px] font-semibold disabled:opacity-60"
             >
               Abrir
             </button>
@@ -108,7 +108,7 @@ export function MockPosSimulator({ restaurantId, connectionId }: { restaurantId:
       </div>
 
       {checks.length === 0 ? (
-        <p className="text-xs text-ink-faint">Ninguna cuenta mock abierta ahora mismo.</p>
+        <p className="text-[13px] text-ink-faint">Ninguna cuenta mock abierta ahora mismo.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {checks.map((check) => (
@@ -177,18 +177,18 @@ function MockCheckCard({
   }
 
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
+    <div className="rounded-2xl bg-surface p-4">
       <div className="flex items-center justify-between mb-2">
         <p className="text-sm font-medium">
           Mesa {tableName} · {check.guestCount ?? "—"}p
         </p>
-        <span className="text-xs rounded-full border border-line px-2 py-0.5 text-ink-faint">
+        <span className="text-[13px] rounded-full border border-line px-2 py-0.5 text-ink-faint">
           {STATUS_LABEL[check.status] ?? check.status}
         </span>
       </div>
 
       {items.length > 0 && (
-        <ul className="text-xs text-ink-muted mb-2 space-y-0.5">
+        <ul className="text-[13px] text-ink-muted mb-2 space-y-0.5">
           {items.map((item) => (
             <li key={item.id} className="flex justify-between gap-2">
               <span className="truncate">{item.name}</span>
@@ -208,18 +208,18 @@ function MockCheckCard({
           value={itemName}
           onChange={(e) => setItemName(e.target.value)}
           placeholder="Producto"
-          className="flex-1 min-w-0 rounded-lg bg-ground border border-line px-2 py-1.5 text-xs outline-none focus:border-accent"
+          className="flex-1 min-w-0 rounded-[10px] bg-ground border border-line px-2 py-1.5 text-[13px] outline-none focus:border-accent"
         />
         <input
           type="number"
           value={itemPrice}
           onChange={(e) => setItemPrice(e.target.value)}
           placeholder="Precio"
-          className="w-24 rounded-lg bg-ground border border-line px-2 py-1.5 text-xs outline-none focus:border-accent"
+          className="w-24 rounded-[10px] bg-ground border border-line px-2 py-1.5 text-[13px] outline-none focus:border-accent"
         />
         <button
           onClick={handleAddItem}
-          className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-xs hover:border-accent shrink-0"
+          className="rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-[13px] hover:border-accent shrink-0"
         >
           + Agregar
         </button>
@@ -232,11 +232,11 @@ function MockCheckCard({
             value={paymentAmount}
             onChange={(e) => setPaymentAmount(e.target.value)}
             placeholder={`Pagar (${formatCLP(remaining)})`}
-            className="flex-1 min-w-0 rounded-lg bg-ground border border-line px-2 py-1.5 text-xs outline-none focus:border-accent"
+            className="flex-1 min-w-0 rounded-[10px] bg-ground border border-line px-2 py-1.5 text-[13px] outline-none focus:border-accent"
           />
           <button
             onClick={handlePay}
-            className="rounded-lg bg-accent text-accent-ink px-2.5 py-1.5 text-xs font-medium shrink-0"
+            className="rounded-[10px] bg-accent text-accent-ink px-2.5 py-1.5 text-[13px] font-semibold shrink-0"
           >
             Registrar pago
           </button>
@@ -244,7 +244,7 @@ function MockCheckCard({
       ) : (
         <button
           onClick={handleClose}
-          className="w-full rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-xs hover:border-accent"
+          className="w-full rounded-lg bg-surface-2 border border-line px-2.5 py-1.5 text-[13px] hover:border-accent"
         >
           Cerrar cuenta y liberar mesa
         </button>

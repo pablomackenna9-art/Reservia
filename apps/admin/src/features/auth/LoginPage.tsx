@@ -1,3 +1,4 @@
+import { Logo } from "../../components/Logo";
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
@@ -27,7 +28,7 @@ export function LoginPage() {
   return (
     <main className="min-h-screen grid place-items-center px-4">
       <form onSubmit={handleSubmit} className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold mb-1">Reservia</h1>
+        <div className="mb-3"><Logo size={36} /></div>
         <p className="text-ink-muted text-sm mb-8">Inicia sesión en tu Centro de Control.</p>
 
         <label className="block text-sm text-ink-muted mb-1" htmlFor="email">
@@ -61,7 +62,7 @@ export function LoginPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-lg bg-accent text-accent-ink font-medium py-2 text-sm disabled:opacity-60"
+          className="w-full rounded-[10px] bg-accent text-accent-ink h-11 font-semibold text-[15px] disabled:opacity-60"
         >
           {submitting ? "Entrando…" : "Entrar"}
         </button>

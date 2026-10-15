@@ -3,7 +3,22 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-ground text-ink antialiased;
+  html {
+    font-variant-numeric: tabular-nums;
   }
+  body {
+    @apply bg-ground text-ink antialiased font-sans;
+  }
+}
+
+/* El talón: la reserva como ticket con muescas semicirculares a los lados, a la altura del corte punteado.
+   Dos máscaras (mitad izquierda / mitad derecha, con un poco de solape) para que no quede costura. */
+.talon {
+  --cut: 56%;
+  -webkit-mask:
+    radial-gradient(circle 12px at 0 var(--cut), #0000 96%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 12px at 100% var(--cut), #0000 96%, #000) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle 12px at 0 var(--cut), #0000 96%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 12px at 100% var(--cut), #0000 96%, #000) right / 51% 100% no-repeat;
 }

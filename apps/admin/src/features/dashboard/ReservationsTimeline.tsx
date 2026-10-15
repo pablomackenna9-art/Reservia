@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import type { ReservationWithDetails } from "@reservia/api-client";
 import { findTurnoverConflict, minutesSince, type Table, type Zone } from "@reservia/core";
-import { RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
+import { RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
+import { reservationVisualState, stateClass } from "../../lib/stateStyle";
 
-const ROW_HEIGHT = 44;
+const ROW_HEIGHT = 48;
 
 /**
  * Vista mesa × hora, estilo Cover Manager: una fila por mesa mostrando qué
@@ -70,7 +71,7 @@ export function ReservationsTimeline({
             {hourMarks.map((t) => (
               <span
                 key={t}
-                className="absolute top-1 text-[10px] text-ink-faint -translate-x-1/2"
+                className="absolute top-1 text-[13px] text-ink-faint -translate-x-1/2"
                 style={{ left: `${pct(t)}%` }}
               >
                 {new Date(t).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
@@ -101,7 +102,7 @@ export function ReservationsTimeline({
 
           {rowGroups.map(({ zone, tables }) => (
             <div key={zone.id}>
-              <p className="px-3 py-1 text-[10px] uppercase tracking-wide text-ink-faint bg-surface-2/60 sticky left-0">
+              <p className="px-3 py-1 text-[13px] uppercase tracking-wide text-ink-faint bg-surface-2/60 sticky left-0">
                 {zone.name}
               </p>
               {tables.map((table) => {
@@ -123,7 +124,7 @@ export function ReservationsTimeline({
           ))}
 
           {rowGroups.length === 0 && unassigned.length === 0 && (
-            <p className="text-xs text-ink-faint p-4">No hay mesas en esta zona.</p>
+            <p className="text-[13px] text-ink-faint p-4">No hay mesas en esta zona.</p>
           )}
         </div>
       </div>
@@ -150,7 +151,7 @@ function TimelineRow({
 }) {
   return (
     <div className="flex border-b border-line" style={{ height: ROW_HEIGHT }}>
-      <div className={`w-32 shrink-0 flex items-center px-3 text-xs ${highlight ? "text-accent" : "text-ink-muted"}`}>
+      <div className={`w-32 shrink-0 flex items-center px-3 ${highlight ? "text-accent text-[13px]" : "text-ink font-serif text-lg"}`}>
         {conflict && <span title="Alguien sentado y otra reserva por llegar pronto -- puede que haya que reasignarla.">⚠ </span>}
         {label}
       </div>
@@ -159,17 +160,16 @@ function TimelineRow({
           const left = pct(new Date(r.startsAt).getTime());
           const right = pct(new Date(r.endsAt).getTime());
           const width = Math.max(3, right - left);
-          const color = RESERVATION_STATUS_COLOR[r.status];
           return (
             <button
               key={r.id}
               onClick={() => onSelectReservation(r)}
               title={`${r.customerName} · ${r.partySize}p · ${RESERVATION_STATUS_LABEL[r.status]}`}
-              style={{ left: `${left}%`, width: `${width}%`, borderColor: color }}
-              className="absolute top-1 bottom-1 rounded-md border bg-surface px-1.5 text-left overflow-hidden hover:brightness-125"
+              style={{ left: `${left}%`, width: `${width}%` }}
+              className={`${stateClass(reservationVisualState(r.status))} absolute top-1 bottom-1 rounded-md border-2 px-1.5 text-left overflow-hidden hover:brightness-110`}
             >
-              <span className="block truncate text-[11px] font-medium leading-tight">{r.customerName}</span>
-              <span className="block truncate text-[10px] text-ink-faint leading-tight">
+              <span className="block truncate text-[13px] font-semibold leading-tight">{r.customerName}</span>
+              <span className="block truncate text-[13px] opacity-80 leading-tight">
                 {r.partySize}p{r.status === "seated" ? ` · hace ${minutesSince(r.startsAt, now)} min` : ""}
               </span>
             </button>

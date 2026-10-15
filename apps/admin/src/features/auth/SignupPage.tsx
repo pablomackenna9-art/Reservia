@@ -94,7 +94,7 @@ export function SignupPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-lg bg-accent text-accent-ink font-medium py-2 text-sm disabled:opacity-60"
+          className="w-full rounded-[10px] bg-accent text-accent-ink h-11 font-semibold text-[15px] disabled:opacity-60"
         >
           {submitting ? "Creando…" : "Crear cuenta"}
         </button>

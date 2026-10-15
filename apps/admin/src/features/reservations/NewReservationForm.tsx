@@ -160,7 +160,7 @@ export function NewReservationForm({
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-xl border border-line bg-surface p-5 max-h-[85vh] overflow-y-auto"
+        className="w-full max-w-md rounded-2xl bg-surface p-5 max-h-[85vh] overflow-y-auto"
       >
         <h2 className="text-lg font-semibold mb-4">Nueva reserva</h2>
 
@@ -168,7 +168,7 @@ export function NewReservationForm({
           <label className="block text-sm text-ink-muted mb-1">Cliente</label>
           {selectedCustomer ? (
             <div>
-              <div className="flex items-center justify-between rounded-lg bg-ground border border-line px-3 py-2 text-sm">
+              <div className="flex items-center justify-between rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px]">
                 <span>
                   {selectedCustomer.firstName} {selectedCustomer.lastName ?? ""}
                 </span>
@@ -184,7 +184,7 @@ export function NewReservationForm({
                 </button>
               </div>
               {selectedCustomer.blacklisted && (
-                <p className="text-xs text-status-occupied mt-1.5">
+                <p className="text-[13px] text-status-occupied mt-1.5">
                   🚫 Este cliente está bloqueado del portal público
                   {selectedCustomer.blacklistedReason ? ` — ${selectedCustomer.blacklistedReason}` : ""}. Podés cargarle
                   la reserva igual si es una excepción.
@@ -198,29 +198,29 @@ export function NewReservationForm({
                 required
                 value={newFirstName}
                 onChange={(e) => setNewFirstName(e.target.value)}
-                className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+                className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
               />
               <input
                 placeholder="Apellido (opcional)"
                 value={newLastName}
                 onChange={(e) => setNewLastName(e.target.value)}
-                className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+                className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
               />
               <input
                 placeholder="Teléfono"
                 value={newPhone}
                 onChange={(e) => setNewPhone(e.target.value)}
-                className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+                className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
               />
               <input
                 placeholder="Mail"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+                className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
               />
               {duplicateMatches.length > 0 && (
                 <div className="rounded-lg border border-accent/40 bg-accent/10 p-2 space-y-1">
-                  <p className="text-xs text-accent">Ya existe un cliente con estos datos:</p>
+                  <p className="text-[13px] text-accent">Ya existe un cliente con estos datos:</p>
                   {duplicateMatches.map((c) => (
                     <button
                       key={c.id}
@@ -229,14 +229,14 @@ export function NewReservationForm({
                         setSelectedCustomer(c);
                         setDuplicateMatches([]);
                       }}
-                      className="w-full text-left text-xs rounded px-2 py-1 hover:bg-surface-2"
+                      className="w-full text-left text-[13px] rounded px-2 py-1 hover:bg-surface-2"
                     >
                       {c.firstName} {c.lastName ?? ""} {c.phone ? `· ${c.phone}` : ""} {c.email ? `· ${c.email}` : ""} — usar este
                     </button>
                   ))}
                 </div>
               )}
-              <button type="button" onClick={() => setNewCustomerMode(false)} className="text-xs text-ink-faint">
+              <button type="button" onClick={() => setNewCustomerMode(false)} className="text-[13px] text-ink-faint">
                 Buscar cliente existente en cambio
               </button>
             </div>
@@ -246,7 +246,7 @@ export function NewReservationForm({
                 placeholder="Buscar por nombre o teléfono…"
                 value={customerQuery}
                 onChange={(e) => setCustomerQuery(e.target.value)}
-                className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+                className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
               />
               {customerResults.length > 0 && (
                 <ul className="mt-1 rounded-lg border border-line bg-ground overflow-hidden">
@@ -266,7 +266,7 @@ export function NewReservationForm({
               <button
                 type="button"
                 onClick={() => setNewCustomerMode(true)}
-                className="text-xs text-accent mt-1"
+                className="text-[13px] text-accent mt-1"
               >
                 + Cliente nuevo
               </button>
@@ -283,7 +283,7 @@ export function NewReservationForm({
               max={30}
               value={partySize}
               onChange={(e) => setPartySize(Number(e.target.value))}
-              className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+              className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
             />
           </div>
           <div>
@@ -295,9 +295,9 @@ export function NewReservationForm({
         <div className="mb-4">
           <label className="block text-sm text-ink-muted mb-1">Hora</label>
           {hours.length === 0 && rules === null ? (
-            <p className="text-xs text-ink-faint">Cargando horarios…</p>
+            <p className="text-[13px] text-ink-faint">Cargando horarios…</p>
           ) : slots.length === 0 ? (
-            <p className="text-xs text-ink-faint">El restaurante no tiene horario configurado para ese día.</p>
+            <p className="text-[13px] text-ink-faint">El restaurante no tiene horario configurado para ese día.</p>
           ) : (
             <div className="grid grid-cols-4 gap-1.5">
               {slots.map((s) => (
@@ -305,7 +305,7 @@ export function NewReservationForm({
                   key={s.time}
                   type="button"
                   onClick={() => setTime(s.time)}
-                  className={`rounded-lg px-2 py-1.5 text-xs border ${
+                  className={`rounded-lg px-2 py-1.5 text-[13px] border ${
                     s.time === time
                       ? "bg-accent text-accent-ink border-accent"
                       : "bg-ground border-line text-ink-muted hover:text-ink"
@@ -321,9 +321,9 @@ export function NewReservationForm({
         <div className="mb-4">
           <label className="block text-sm text-ink-muted mb-1">Mesa (opcional)</label>
           {!startsAt ? (
-            <p className="text-xs text-ink-faint">Elegí una hora primero.</p>
+            <p className="text-[13px] text-ink-faint">Elegí una hora primero.</p>
           ) : selectedCandidate ? (
-            <div className="flex items-center justify-between rounded-lg bg-ground border border-line px-3 py-2 text-sm">
+            <div className="flex items-center justify-between rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px]">
               <span>
                 {selectedCandidate.candidate.tableNames.join(" + ")} · {selectedCandidate.candidate.capacityMax}p
               </span>
@@ -352,7 +352,7 @@ export function NewReservationForm({
           <button
             type="submit"
             disabled={submitting || !startsAt}
-            className="rounded-lg bg-accent text-accent-ink px-4 py-2 text-sm font-medium disabled:opacity-60"
+            className="rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold disabled:opacity-60"
           >
             {submitting ? "Creando…" : "Crear reserva"}
           </button>

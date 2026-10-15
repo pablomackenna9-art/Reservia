@@ -63,7 +63,7 @@ export function ClientesPage() {
   return (
     <div className="p-6 h-screen flex flex-col">
       <header className="mb-4 flex items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold">Clientes</h1>
+        <h1 className="font-serif text-4xl font-normal leading-tight">Clientes</h1>
         <div className="flex items-center gap-2">
           <input
             value={query}
@@ -82,7 +82,7 @@ export function ClientesPage() {
       </header>
 
       <div className="flex-1 min-h-0 flex gap-4">
-        <div className="flex-1 min-w-0 rounded-xl border border-line bg-surface overflow-y-auto">
+        <div className="flex-1 min-w-0 rounded-2xl bg-surface overflow-y-auto">
           {loading ? (
             <p className="p-4 text-sm text-ink-muted">Cargando…</p>
           ) : filtered.length === 0 ? (
@@ -92,7 +92,7 @@ export function ClientesPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line text-xs text-ink-faint uppercase tracking-wide">
+                <tr className="border-b border-line text-[13px] text-ink-faint uppercase tracking-wide">
                   <th className="text-left font-normal px-4 py-2.5">Nombre</th>
                   <th className="text-left font-normal px-4 py-2.5">Contacto</th>
                   <th className="text-left font-normal px-4 py-2.5">Mail</th>
@@ -120,17 +120,17 @@ export function ClientesPage() {
                       <div className="flex items-center gap-2">
                         {customerFullName(c)}
                         {c.totalVisits >= 5 && (
-                          <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-accent/15 text-accent border border-accent/40">
+                          <span className="text-[13px] rounded-full px-1.5 py-0.5 bg-accent/15 text-accent border border-accent/40">
                             Frecuente
                           </span>
                         )}
                         {c.noShowCount >= 2 && (
-                          <span className="text-[10px] rounded-full px-1.5 py-0.5 text-status-occupied border border-status-occupied/40">
+                          <span className="text-[13px] rounded-full px-1.5 py-0.5 text-status-occupied border border-status-occupied/40">
                             Riesgo no-show
                           </span>
                         )}
                         {c.blacklisted && (
-                          <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-status-occupied/15 text-status-occupied border border-status-occupied/40">
+                          <span className="text-[13px] rounded-full px-1.5 py-0.5 bg-status-occupied/15 text-status-occupied border border-status-occupied/40">
                             🚫 Bloqueado
                           </span>
                         )}
@@ -222,7 +222,7 @@ function CustomerDetailPanel({
   }
 
   return (
-    <aside className="w-80 shrink-0 rounded-xl border border-line bg-surface p-4 overflow-y-auto">
+    <aside className="w-80 shrink-0 rounded-2xl bg-surface p-4 overflow-y-auto">
       <div className="flex items-start justify-between mb-4">
         <h2 className="text-lg font-semibold">{customer.firstName}</h2>
         <button onClick={onClose} className="text-ink-faint hover:text-ink text-sm" aria-label="Cerrar">
@@ -240,12 +240,12 @@ function CustomerDetailPanel({
 
       {consumption && consumption.topProducts.length > 0 && (
         <div className="rounded-lg border border-line bg-ground p-3 mb-4">
-          <p className="text-xs text-ink-faint uppercase tracking-wide mb-2">Productos favoritos</p>
+          <p className="text-[13px] text-ink-faint uppercase tracking-wide mb-2">Productos favoritos</p>
           <ul className="space-y-1">
             {consumption.topProducts.map((p) => (
               <li key={p.name} className="flex items-center justify-between text-sm">
                 <span className="truncate">{p.name}</span>
-                <span className="text-xs text-ink-faint tabular-nums shrink-0 ml-2">×{p.quantity}</span>
+                <span className="text-[13px] text-ink-faint tabular-nums shrink-0 ml-2">×{p.quantity}</span>
               </li>
             ))}
           </ul>
@@ -253,7 +253,7 @@ function CustomerDetailPanel({
       )}
 
       <div className="rounded-lg border border-line bg-ground p-3 mb-4 space-y-2">
-        <label className="flex items-center gap-2 text-xs">
+        <label className="flex items-center gap-2 text-[13px]">
           <input
             type="checkbox"
             checked={customer.blacklisted}
@@ -269,10 +269,10 @@ function CustomerDetailPanel({
             onChange={(e) => setBlacklistReason(e.target.value)}
             onBlur={() => handleToggleBlacklist(true)}
             placeholder="Motivo (opcional)"
-            className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-xs outline-none focus:border-accent"
+            className="w-full rounded-lg bg-surface border border-line px-2.5 py-1.5 text-[13px] outline-none focus:border-accent"
           />
         ) : (
-          <p className="text-[10px] text-ink-faint">
+          <p className="text-[13px] text-ink-faint">
             El staff igual puede cargarle una reserva a mano desde el Centro de Control si hace falta.
           </p>
         )}
@@ -280,52 +280,52 @@ function CustomerDetailPanel({
 
       <div className="space-y-3">
         <div>
-          <label className="block text-xs text-ink-faint mb-1">Apellido</label>
+          <label className="block text-[13px] text-ink-faint mb-1">Apellido</label>
           <input
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
-            className="w-full rounded-lg bg-ground border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+            className="w-full rounded-[10px] bg-ground border border-line px-3 py-2 text-[15px] outline-none focus:border-accent"
           />
         </div>
         <div>
-          <label className="block text-xs text-ink-faint mb-1">Teléfono</label>
+          <label className="block text-[13px] text-ink-faint mb-1">Teléfono</label>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full rounded-lg bg-ground border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+            className="w-full rounded-[10px] bg-ground border border-line px-3 py-2 text-[15px] outline-none focus:border-accent"
           />
         </div>
         <div>
-          <label className="block text-xs text-ink-faint mb-1">Correo</label>
+          <label className="block text-[13px] text-ink-faint mb-1">Correo</label>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg bg-ground border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+            className="w-full rounded-[10px] bg-ground border border-line px-3 py-2 text-[15px] outline-none focus:border-accent"
           />
         </div>
         <div>
-          <label className="block text-xs text-ink-faint mb-1">Cumpleaños</label>
+          <label className="block text-[13px] text-ink-faint mb-1">Cumpleaños</label>
           <input
             type="date"
             value={birthday}
             onChange={(e) => setBirthday(e.target.value)}
-            className="w-full rounded-lg bg-ground border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+            className="w-full rounded-[10px] bg-ground border border-line px-3 py-2 text-[15px] outline-none focus:border-accent"
           />
         </div>
         <div>
-          <label className="block text-xs text-ink-faint mb-1">Notas</label>
+          <label className="block text-[13px] text-ink-faint mb-1">Notas</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="Preferencias, alergias, ocasión especial…"
-            className="w-full rounded-lg bg-ground border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent resize-none"
+            className="w-full rounded-[10px] bg-ground border border-line px-3 py-2 text-[15px] outline-none focus:border-accent resize-none"
           />
         </div>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="w-full rounded-lg bg-accent text-accent-ink px-3 py-2 text-sm font-medium disabled:opacity-60"
+          className="w-full rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold disabled:opacity-60"
         >
           {saving ? "Guardando…" : "Guardar"}
         </button>
@@ -336,9 +336,9 @@ function CustomerDetailPanel({
 
 function MiniStat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-lg bg-ground border border-line px-2 py-2 text-center">
+    <div className="rounded-[10px] bg-ground border border-line px-2 py-2 text-center">
       <p className="text-lg font-semibold tabular-nums">{value}</p>
-      <p className="text-[10px] text-ink-faint">{label}</p>
+      <p className="text-[13px] text-ink-faint">{label}</p>
     </div>
   );
 }
@@ -382,9 +382,9 @@ function BlockPersonForm({
 
   return (
     <div className="fixed inset-0 bg-black/60 grid place-items-center z-50 px-4" onClick={onCancel}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-xl border border-line bg-surface p-5">
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl bg-surface p-5">
         <h2 className="text-lg font-semibold mb-1">Bloquear a alguien</h2>
-        <p className="text-xs text-ink-faint mb-4">
+        <p className="text-[13px] text-ink-faint mb-4">
           No va a poder reservar por el portal público. El staff todavía puede cargarle una reserva a mano si hace falta.
         </p>
 
@@ -394,27 +394,27 @@ function BlockPersonForm({
           autoFocus
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
-          className="w-full mb-3 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+          className="w-full mb-3 rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
         />
         <label className="block text-sm text-ink-muted mb-1">Apellido (opcional)</label>
         <input
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
-          className="w-full mb-3 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+          className="w-full mb-3 rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
         />
         <label className="block text-sm text-ink-muted mb-1">Teléfono</label>
         <input
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="El portal público solo bloquea si hay teléfono cargado"
-          className="w-full mb-3 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+          className="w-full mb-3 rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
         />
         <label className="block text-sm text-ink-muted mb-1">Motivo (opcional)</label>
         <input
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="No-shows repetidos, mal comportamiento…"
-          className="w-full mb-4 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+          className="w-full mb-4 rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent"
         />
 
         {error && <p className="text-sm text-status-occupied mb-3">{error}</p>}

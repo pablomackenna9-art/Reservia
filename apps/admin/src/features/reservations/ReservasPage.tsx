@@ -98,7 +98,7 @@ export function ReservasPage() {
     <div className="p-6">
       <header className="flex items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-xl font-semibold">Reservas</h1>
+          <h1 className="font-serif text-4xl font-normal leading-tight">Reservas</h1>
           <div className="flex items-center gap-2 mt-1 text-sm text-ink-muted">
             <button onClick={() => setDate((d) => shiftDate(d, -1))} className="hover:text-ink">
               ←
@@ -114,7 +114,7 @@ export function ReservasPage() {
               →
             </button>
             {date !== todayISO() && (
-              <button onClick={() => setDate(todayISO())} className="text-accent text-xs ml-1">
+              <button onClick={() => setDate(todayISO())} className="text-accent text-[13px] ml-1">
                 Hoy
               </button>
             )}
@@ -123,7 +123,7 @@ export function ReservasPage() {
         <button
           onClick={() => setShowForm(true)}
           disabled={!restaurantId}
-          className="rounded-lg bg-accent text-accent-ink px-4 py-2 text-sm font-medium disabled:opacity-60"
+          className="rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold disabled:opacity-60"
         >
           + Nueva reserva
         </button>
@@ -132,11 +132,11 @@ export function ReservasPage() {
       {loading ? (
         <p className="text-sm text-ink-muted">Cargando…</p>
       ) : reservations.length === 0 ? (
-        <div className="rounded-xl border border-line bg-surface min-h-[50vh] grid place-items-center">
+        <div className="rounded-2xl bg-surface min-h-[50vh] grid place-items-center">
           <p className="text-sm text-ink-muted">No hay reservas para este día.</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden">
+        <div className="rounded-2xl bg-surface divide-y divide-line overflow-hidden">
           {reservations.map((r) => (
             <div
               key={r.id}
@@ -151,18 +151,18 @@ export function ReservasPage() {
                 <p className="text-sm font-medium truncate flex items-center gap-1.5">
                   {r.customerName}
                   {r.source === "walk_in" && (
-                    <span className="text-[10px] rounded-full px-1.5 py-0.5 border border-line text-ink-faint shrink-0">
+                    <span className="text-[13px] rounded-full px-1.5 py-0.5 border border-line text-ink-faint shrink-0">
                       Walk-in
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-ink-faint">
+                <p className="text-[13px] text-ink-faint">
                   {r.partySize} personas{r.tableName ? ` · Mesa ${r.tableName}` : " · sin mesa asignada"}
                   {r.customerPhone ? ` · ${r.customerPhone}` : ""}
                 </p>
               </div>
               <span
-                className="text-xs rounded-full px-2.5 py-1 border"
+                className="text-[13px] rounded-full px-2.5 py-1 border"
                 style={{ color: RESERVATION_STATUS_COLOR[r.status], borderColor: RESERVATION_STATUS_COLOR[r.status] }}
               >
                 {RESERVATION_STATUS_LABEL[r.status]}
@@ -171,7 +171,7 @@ export function ReservasPage() {
                 value={r.status}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => handleStatusChange(r.id, e.target.value as ReservationStatus)}
-                className="rounded-lg bg-ground border border-line text-xs px-2 py-1.5 outline-none focus:border-accent"
+                className="rounded-[10px] bg-ground border border-line text-[13px] px-2 py-1.5 outline-none focus:border-accent"
               >
                 {RESERVATION_STATUSES.map((s) => (
                   <option key={s} value={s}>

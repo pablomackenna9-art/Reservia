@@ -101,11 +101,11 @@ export function TableAssignmentPicker({
   const zoneNameById = new Map(zones.map((z) => [z.id, z.name]));
 
   if (candidates === null) {
-    return <p className="text-xs text-ink-faint">Buscando la mejor mesa…</p>;
+    return <p className="text-[13px] text-ink-faint">Buscando la mejor mesa…</p>;
   }
 
   if (candidates.length === 0) {
-    return <p className="text-xs text-ink-faint">Ninguna mesa libre a esa hora para {partySize} personas.</p>;
+    return <p className="text-[13px] text-ink-faint">Ninguna mesa libre a esa hora para {partySize} personas.</p>;
   }
 
   const [recommended, ...alternatives] = candidates;
@@ -159,10 +159,10 @@ export function TableAssignmentPicker({
     return (
       <div className="mt-0.5">
         {schedule.length === 0 ? (
-          <p className="text-[10px] text-status-available">Sin reservas cerca de esa hora</p>
+          <p className="text-[13px] text-status-available">Sin reservas cerca de esa hora</p>
         ) : (
           <p
-            className={`text-[10px] truncate ${hasActiveNow ? "text-status-occupied font-medium" : "text-ink-faint"}`}
+            className={`text-[13px] truncate ${hasActiveNow ? "text-status-occupied font-medium" : "text-ink-faint"}`}
             title={schedule.map((s) => `${formatTime(s.startsAt)} ${s.customerName}`).join(" · ")}
           >
             {hasActiveNow ? "⚠ " : ""}
@@ -175,7 +175,7 @@ export function TableAssignmentPicker({
             e.stopPropagation();
             toggleExpanded(key);
           }}
-          className="text-[10px] text-accent mt-0.5"
+          className="text-[13px] text-accent mt-0.5"
         >
           {expanded ? "▾ Ocultar horario del día" : "▸ Ver horario del día"}
         </button>
@@ -190,7 +190,7 @@ export function TableAssignmentPicker({
         <button
           type="button"
           onClick={() => setShowPlan((v) => !v)}
-          className="text-xs text-accent mb-2"
+          className="text-[13px] text-accent mb-2"
         >
           {showPlan ? "Ver como lista" : "Ver en el plano"}
         </button>
@@ -200,7 +200,7 @@ export function TableAssignmentPicker({
         <div className="h-64 rounded-lg border border-line bg-surface-2 overflow-hidden mb-2">
           {zones.length === 0 ? (
             <div className="h-full grid place-items-center">
-              <p className="text-xs text-ink-faint">Cargando plano…</p>
+              <p className="text-[13px] text-ink-faint">Cargando plano…</p>
             </div>
           ) : (
             <ZoneCanvas
@@ -226,30 +226,30 @@ export function TableAssignmentPicker({
                 <span className="text-sm font-medium text-status-available">
                   ✨ {recommended!.tableNames.join(" + ")} recomendada
                 </span>
-                <span className="text-xs text-ink-faint">{recommended!.capacityMax}p</span>
+                <span className="text-[13px] text-ink-faint">{recommended!.capacityMax}p</span>
               </div>
-              <p className="text-xs text-ink-faint mt-0.5">
+              <p className="text-[13px] text-ink-faint mt-0.5">
                 {zoneNameById.get(recommended!.zoneId) ?? "…"}
               </p>
-              <p className="text-xs text-ink-faint mt-1">{recommended!.reasons.join(" · ")}</p>
+              <p className="text-[13px] text-ink-faint mt-1">{recommended!.reasons.join(" · ")}</p>
             </button>
             <ScheduleBlock candidate={recommended!} />
           </div>
 
           {alternatives.length > 0 && (
             <div>
-              <p className="text-xs text-ink-faint mb-1">Otras alternativas</p>
+              <p className="text-[13px] text-ink-faint mb-1">Otras alternativas</p>
               <div className={reservationsForSchedule ? "grid grid-cols-1 sm:grid-cols-2 gap-1.5" : "flex flex-wrap gap-1.5"}>
                 {alternatives.map((c) => (
                   <div
                     key={c.tableIds.join("+")}
-                    className="rounded-lg bg-ground border border-line px-2.5 py-1.5 text-xs hover:border-accent min-w-0"
+                    className="rounded-[10px] bg-ground border border-line px-2.5 py-1.5 text-[13px] hover:border-accent min-w-0"
                   >
                     <button type="button" onClick={() => onSelect(c, false)} title={c.reasons.join(" · ")} className="w-full text-left">
                       <span>
                         {c.tableNames.join("+")} · {c.capacityMax}p
                       </span>
-                      <span className="block text-ink-faint text-[10px]">{zoneNameById.get(c.zoneId) ?? "…"}</span>
+                      <span className="block text-ink-faint text-[13px]">{zoneNameById.get(c.zoneId) ?? "…"}</span>
                     </button>
                     <ScheduleBlock candidate={c} />
                   </div>

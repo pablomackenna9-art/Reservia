@@ -28,7 +28,7 @@ export function ConfiguracionPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-semibold mb-4">Configuración</h1>
+      <h1 className="font-serif text-4xl font-normal leading-tight mb-4">Configuración</h1>
 
       <div className="flex gap-1.5 mb-5">
         {visibleTabs.map((t) => (

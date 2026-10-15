@@ -151,7 +151,7 @@ export function WaitlistPanel({
       {freedByNoShow.length > 0 && (
         <div className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 mb-3 space-y-1">
           {freedByNoShow.map(({ table, match }) => (
-            <p key={table.id} className="text-xs text-accent">
+            <p key={table.id} className="text-[13px] text-accent">
               ⚡ Mesa {table.name} se liberó por no-show
               {match ? ` — ${match.customerName} está esperando ${match.partySize}p, ¿la asignamos?` : " — nadie en la lista entra ahí todavía."}
             </p>
@@ -163,18 +163,18 @@ export function WaitlistPanel({
         <h2 className="text-sm font-semibold">Lista de espera</h2>
         <button
           onClick={() => setShowAdd(true)}
-          className="rounded-lg bg-accent text-accent-ink px-3 py-1.5 text-xs font-medium"
+          className="rounded-[10px] bg-accent text-accent-ink px-3 py-1.5 text-[13px] font-semibold"
         >
           + Agregar a la lista
         </button>
       </div>
 
       {loading ? (
-        <p className="text-xs text-ink-faint">Cargando…</p>
+        <p className="text-[13px] text-ink-faint">Cargando…</p>
       ) : sorted.length === 0 ? (
-        <p className="text-xs text-ink-faint">Nadie está esperando ahora mismo.</p>
+        <p className="text-[13px] text-ink-faint">Nadie está esperando ahora mismo.</p>
       ) : (
-        <div className="rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden">
+        <div className="rounded-2xl bg-surface divide-y divide-line overflow-hidden">
           {sorted.map((entry) => (
             <div key={entry.id} className="px-4 py-3">
               <div className="flex items-center gap-3 flex-wrap">
@@ -184,20 +184,20 @@ export function WaitlistPanel({
                     {entry.customerTotalVisits >= FREQUENT_VISITS_THRESHOLD && (
                       <span
                         title={`Cliente frecuente (${entry.customerTotalVisits} visitas)`}
-                        className="text-[10px] rounded-full px-1.5 py-0.5 border border-accent/50 text-accent"
+                        className="text-[13px] rounded-full px-1.5 py-0.5 border border-accent/50 text-accent"
                       >
                         Frecuente
                       </span>
                     )}
                     {entry.customerName}
                     <span
-                      className="text-[10px] rounded-full px-1.5 py-0.5 border border-line text-ink-faint shrink-0"
+                      className="text-[13px] rounded-full px-1.5 py-0.5 border border-line text-ink-faint shrink-0"
                       title="De dónde vino esta espera"
                     >
                       {WAITLIST_SOURCE_LABEL[entry.source]}
                     </span>
                   </p>
-                  <p className="text-xs text-ink-faint">
+                  <p className="text-[13px] text-ink-faint">
                     {entry.partySize} personas · esperando hace {minutesWaiting(entry.requestedAt)} min
                     {entry.customerPhone ? ` · ${entry.customerPhone}` : ""}
                     {entry.notes ? ` · ${entry.notes}` : ""}
@@ -205,7 +205,7 @@ export function WaitlistPanel({
                 </div>
                 <button
                   onClick={() => handleTogglePriority(entry)}
-                  className={`text-xs rounded-full px-2 py-0.5 border shrink-0 ${
+                  className={`text-[13px] rounded-full px-2 py-0.5 border shrink-0 ${
                     entry.priority > 0
                       ? "text-accent border-accent bg-accent/10"
                       : "text-ink-faint border-line hover:border-accent hover:text-accent"
@@ -214,34 +214,34 @@ export function WaitlistPanel({
                   {entry.priority > 0 ? "★ Prioritaria" : "Marcar prioritaria"}
                 </button>
                 <span
-                  className={`text-[10px] rounded-full px-2 py-0.5 border shrink-0 ${
+                  className={`text-[13px] rounded-full px-2 py-0.5 border shrink-0 ${
                     entry.status === "notified" ? "text-status-arriving border-status-arriving" : "text-ink-faint border-line"
                   }`}
                 >
                   {entry.status === "notified" ? "Notificado" : "Esperando"}
                 </span>
                 {entry.status === "waiting" && (
-                  <button onClick={() => handleNotify(entry.id)} className="text-xs text-accent shrink-0">
+                  <button onClick={() => handleNotify(entry.id)} className="text-[13px] text-accent shrink-0">
                     Notificar
                   </button>
                 )}
-                <button onClick={() => startEdit(entry)} className="text-xs text-ink-faint hover:text-ink shrink-0">
+                <button onClick={() => startEdit(entry)} className="text-[13px] text-ink-faint hover:text-ink shrink-0">
                   Editar
                 </button>
                 <button
                   onClick={() => openAssign(entry)}
-                  className="rounded-lg bg-accent text-accent-ink px-2.5 py-1.5 text-xs font-medium shrink-0"
+                  className="rounded-[10px] bg-accent text-accent-ink px-2.5 py-1.5 text-[13px] font-semibold shrink-0"
                 >
                   Asignar mesa
                 </button>
-                <button onClick={() => handleCancel(entry.id)} className="text-xs text-ink-faint hover:text-status-occupied shrink-0">
+                <button onClick={() => handleCancel(entry.id)} className="text-[13px] text-ink-faint hover:text-status-occupied shrink-0">
                   Cancelar
                 </button>
               </div>
 
               {editingId === entry.id && (
                 <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                  <label className="text-xs text-ink-faint">
+                  <label className="text-[13px] text-ink-faint">
                     Personas{" "}
                     <input
                       type="number"
@@ -249,19 +249,19 @@ export function WaitlistPanel({
                       max={30}
                       value={editPartySize}
                       onChange={(e) => setEditPartySize(Number(e.target.value))}
-                      className="w-16 ml-1 rounded-lg bg-ground border border-line px-2 py-1 text-xs outline-none focus:border-accent"
+                      className="w-16 ml-1 rounded-[10px] bg-ground border border-line px-2 py-1 text-[13px] outline-none focus:border-accent"
                     />
                   </label>
                   <input
                     value={editNotes}
                     onChange={(e) => setEditNotes(e.target.value)}
                     placeholder="Notas"
-                    className="flex-1 min-w-[8rem] rounded-lg bg-ground border border-line px-2 py-1 text-xs outline-none focus:border-accent"
+                    className="flex-1 min-w-[8rem] rounded-[10px] bg-ground border border-line px-2 py-1 text-[13px] outline-none focus:border-accent"
                   />
-                  <button onClick={() => saveEdit(entry.id)} className="text-xs text-accent">
+                  <button onClick={() => saveEdit(entry.id)} className="text-[13px] text-accent">
                     Guardar
                   </button>
-                  <button onClick={() => setEditingId(null)} className="text-xs text-ink-faint">
+                  <button onClick={() => setEditingId(null)} className="text-[13px] text-ink-faint">
                     Cancelar
                   </button>
                 </div>
@@ -270,19 +270,19 @@ export function WaitlistPanel({
               {assigningId === entry.id && (
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
                   {availableTables.length === 0 ? (
-                    <p className="text-xs text-ink-faint">Ninguna mesa libre para {entry.partySize} personas ahora.</p>
+                    <p className="text-[13px] text-ink-faint">Ninguna mesa libre para {entry.partySize} personas ahora.</p>
                   ) : (
                     availableTables.map((t) => (
                       <button
                         key={t.id}
                         onClick={() => assignTable(entry, t)}
-                        className="rounded-lg bg-ground border border-line px-2.5 py-1.5 text-xs hover:border-accent"
+                        className="rounded-[10px] bg-ground border border-line px-2.5 py-1.5 text-[13px] hover:border-accent"
                       >
                         Mesa {t.name} · {t.capacityMax}p
                       </button>
                     ))
                   )}
-                  <button onClick={() => setAssigningId(null)} className="text-xs text-ink-faint">
+                  <button onClick={() => setAssigningId(null)} className="text-[13px] text-ink-faint">
                     Cancelar
                   </button>
                 </div>
@@ -294,20 +294,20 @@ export function WaitlistPanel({
 
       {done.length > 0 && (
         <div className="mt-3">
-          <button onClick={() => setShowCancelled((v) => !v)} className="text-xs text-ink-faint hover:text-ink">
+          <button onClick={() => setShowCancelled((v) => !v)} className="text-[13px] text-ink-faint hover:text-ink">
             {showCancelled ? "▾" : "▸"} Canceladas / no atendidas ({done.length})
           </button>
           {showCancelled && (
-            <div className="mt-2 rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden opacity-70">
+            <div className="mt-2 rounded-2xl bg-surface divide-y divide-line overflow-hidden opacity-70">
               {done.map((entry) => (
                 <div key={entry.id} className="px-4 py-2.5 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm truncate">{entry.customerName}</p>
-                    <p className="text-xs text-ink-faint">
+                    <p className="text-[13px] text-ink-faint">
                       {entry.partySize} personas · pedido hace {minutesWaiting(entry.requestedAt)} min
                     </p>
                   </div>
-                  <span className="text-[10px] rounded-full px-2 py-0.5 border border-line text-ink-faint shrink-0">
+                  <span className="text-[13px] rounded-full px-2 py-0.5 border border-line text-ink-faint shrink-0">
                     {entry.status === "cancelled" ? "Cancelada" : "No se presentó"}
                   </span>
                 </div>
@@ -386,22 +386,22 @@ function AddToWaitlistForm({
 
   return (
     <div className="fixed inset-0 bg-black/60 grid place-items-center z-50 px-4" onClick={onCancel}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-xl border border-line bg-surface p-5">
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl bg-surface p-5">
         <h2 className="text-lg font-semibold mb-4">Agregar a la lista de espera</h2>
 
         {selected ? (
-          <div className="flex items-center justify-between rounded-lg bg-ground border border-line px-3 py-2 text-sm mb-3">
+          <div className="flex items-center justify-between rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] mb-3">
             <span>{selected.firstName} {selected.lastName ?? ""}</span>
             <button onClick={() => { setSelected(null); setQuery(""); }} className="text-ink-faint hover:text-ink">Cambiar</button>
           </div>
         ) : newMode ? (
           <div className="space-y-2 mb-3">
-            <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Nombre" className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent" />
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Teléfono" className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent" />
-            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Mail" className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent" />
+            <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Nombre" className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent" />
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Teléfono" className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent" />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Mail" className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent" />
             {duplicateMatches.length > 0 && (
               <div className="rounded-lg border border-accent/40 bg-accent/10 p-2 space-y-1">
-                <p className="text-xs text-accent">Ya existe un cliente con estos datos:</p>
+                <p className="text-[13px] text-accent">Ya existe un cliente con estos datos:</p>
                 {duplicateMatches.map((c) => (
                   <button
                     key={c.id}
@@ -409,18 +409,18 @@ function AddToWaitlistForm({
                       setSelected(c);
                       setDuplicateMatches([]);
                     }}
-                    className="w-full text-left text-xs rounded px-2 py-1 hover:bg-surface-2"
+                    className="w-full text-left text-[13px] rounded px-2 py-1 hover:bg-surface-2"
                   >
                     {c.firstName} {c.lastName ?? ""} {c.phone ? `· ${c.phone}` : ""} {c.email ? `· ${c.email}` : ""} — usar este
                   </button>
                 ))}
               </div>
             )}
-            <button onClick={() => setNewMode(false)} className="text-xs text-ink-faint">Buscar cliente existente</button>
+            <button onClick={() => setNewMode(false)} className="text-[13px] text-ink-faint">Buscar cliente existente</button>
           </div>
         ) : (
           <div className="mb-3">
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cliente…" className="w-full rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cliente…" className="w-full rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent" />
             {results.length > 0 && (
               <ul className="mt-1 rounded-lg border border-line bg-ground overflow-hidden">
                 {results.map((c) => (
@@ -432,12 +432,12 @@ function AddToWaitlistForm({
                 ))}
               </ul>
             )}
-            <button onClick={() => setNewMode(true)} className="text-xs text-accent mt-1">+ Cliente nuevo</button>
+            <button onClick={() => setNewMode(true)} className="text-[13px] text-accent mt-1">+ Cliente nuevo</button>
           </div>
         )}
 
         <label className="block text-sm text-ink-muted mb-1">Personas</label>
-        <input type="number" min={1} max={30} value={partySize} onChange={(e) => setPartySize(Number(e.target.value))} className="w-full mb-3 rounded-lg bg-ground border border-line px-3 py-2 text-sm outline-none focus:border-accent" />
+        <input type="number" min={1} max={30} value={partySize} onChange={(e) => setPartySize(Number(e.target.value))} className="w-full mb-3 rounded-[10px] bg-ground border border-line px-3 py-2.5 text-[15px] outline-none focus:border-accent" />
 
         <label className="flex items-center gap-2 text-sm text-ink-muted mb-4">
           <input type="checkbox" checked={priority} onChange={(e) => setPriority(e.target.checked)} />
@@ -449,7 +449,7 @@ function AddToWaitlistForm({
           <button
             onClick={handleSubmit}
             disabled={submitting || (!selected && !firstName.trim())}
-            className="rounded-lg bg-accent text-accent-ink px-4 py-2 text-sm font-medium disabled:opacity-60"
+            className="rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold disabled:opacity-60"
           >
             {submitting ? "Agregando…" : "Agregar"}
           </button>

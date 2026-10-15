@@ -71,7 +71,7 @@ export function PlanoDeMesasPage() {
   if (zones.length === 0) {
     return (
       <div className="p-6">
-        <div className="rounded-xl border border-line bg-surface min-h-[80vh] grid place-items-center">
+        <div className="rounded-2xl bg-surface min-h-[80vh] grid place-items-center">
           <p className="text-sm text-ink-muted">Este restaurante todavía no tiene zonas configuradas.</p>
         </div>
       </div>
@@ -81,7 +81,7 @@ export function PlanoDeMesasPage() {
   return (
     <div className="p-6 h-screen flex flex-col">
       <header className="mb-4 flex items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold">Plano de mesas</h1>
+        <h1 className="font-serif text-4xl font-normal leading-tight">Plano de mesas</h1>
         <div className="flex items-center gap-2">
           <div className="flex gap-1.5">
             <ZoneTab label="Todo" active={activeZoneId === "all"} onClick={() => setActiveZoneId("all")} />
@@ -99,7 +99,7 @@ export function PlanoDeMesasPage() {
           {editMode && (
             <button
               onClick={() => setShowNewTable(true)}
-              className="rounded-lg bg-accent text-accent-ink px-3 py-1.5 text-sm font-medium"
+              className="rounded-[10px] bg-accent text-accent-ink px-3 py-1.5 text-sm font-semibold"
             >
               + Agregar mesa
             </button>
@@ -115,7 +115,7 @@ export function PlanoDeMesasPage() {
         </div>
       </header>
 
-      <p className="text-xs text-ink-faint mb-3">
+      <p className="text-[13px] text-ink-faint mb-3">
         Arrastrá una mesa para moverla — se guarda sola.
         {editMode && " En modo edición podés agregar, duplicar y eliminar mesas."}
       </p>

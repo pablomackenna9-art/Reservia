@@ -51,14 +51,14 @@ export function OnboardingPage() {
           placeholder="Restaurante Demo"
           className="w-full mb-2 rounded-lg bg-surface border border-line px-3 py-2 text-sm outline-none focus:border-accent"
         />
-        {name.trim() && <p className="text-xs text-ink-faint mb-6">reservia.com/r/{slugify(name)}</p>}
+        {name.trim() && <p className="text-[13px] text-ink-faint mb-6">reservia.com/r/{slugify(name)}</p>}
 
         {error && <p className="text-sm text-status-occupied mb-4">{error}</p>}
 
         <button
           type="submit"
           disabled={submitting || !name.trim()}
-          className="w-full rounded-lg bg-accent text-accent-ink font-medium py-2 text-sm disabled:opacity-60"
+          className="w-full rounded-[10px] bg-accent text-accent-ink h-11 font-semibold text-[15px] disabled:opacity-60"
         >
           {submitting ? "Creando…" : "Crear restaurante"}
         </button>

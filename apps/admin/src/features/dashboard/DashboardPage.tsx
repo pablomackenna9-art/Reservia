@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { listWaitlist, setAverageTicketPerPerson, type ReservationWithDetails, type WaitlistEntryWithCustomer } from "@reservia/api-client";
 import { compareTableNames, computeCapacityPacing, findLateArrivals, minutesSince, reservationsActiveInWindow } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
@@ -10,7 +10,10 @@ import { useFloorPlan, todayISO } from "../plano/useFloorPlan";
 import { NewReservationForm } from "../reservations/NewReservationForm";
 import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
 import { CompleteReservationModal } from "../reservations/CompleteReservationModal";
-import { RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
+import { RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
+import { reservationVisualState, STATE_LABEL, stateClass, tableVisualState, type VisualState } from "../../lib/stateStyle";
+import { SegTabs, StateSwatch } from "../../components/ui";
+import type { TableInfoLine } from "../plano/TableToken";
 import { WaitlistPanel } from "../waitlist/WaitlistPanel";
 import { ReservationsTimeline } from "./ReservationsTimeline";
 
@@ -23,6 +26,14 @@ function formatTime(iso: string): string {
 function formatCLP(amount: number): string {
   return amount.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 }
+
+function formatElapsed(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+}
+
+const LEGEND_STATES: VisualState[] = ["free", "reserved", "arriving", "occupied", "paying", "blocked"];
 
 export function DashboardPage() {
   const { current } = useRestaurant();
@@ -70,6 +81,18 @@ export function DashboardPage() {
   const [sidebarWaitlist, setSidebarWaitlist] = useState<WaitlistEntryWithCustomer[]>([]);
   const [waitlistMinimized, setWaitlistMinimized] = useState(false);
   const [upcomingSearch, setUpcomingSearch] = useState("");
+
+  // El botón "+ Nueva reserva" vive en la barra superior y llega acá por location.state.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const openNewReservationToken = (location.state as { openNewReservation?: number } | null)?.openNewReservation;
+  useEffect(() => {
+    if (openNewReservationToken) {
+      setShowNewReservation(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openNewReservationToken]);
 
   useEffect(() => {
     if (!restaurantId) return;
@@ -119,15 +142,6 @@ export function DashboardPage() {
   const upcomingFiltered = upcomingSearch.trim()
     ? upcoming.filter((r) => r.customerName.toLowerCase().includes(upcomingSearch.trim().toLowerCase()))
     : upcoming;
-
-  const indicators = [
-    { label: "Reservas hoy", value: String(active.length) },
-    { label: "Cubiertos reservados", value: String(cubiertosReservados) },
-    { label: "Ocupación estimada", value: tables.length ? `${Math.round((occupiedNow / tables.length) * 100)}%` : "—" },
-    { label: "Mesas disponibles", value: tables.length ? String(availableNow) : "—" },
-    { label: "No-shows", value: String(reservationsToday.filter((r) => r.status === "no_show").length) },
-    { label: "Hora actual", value: now.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }) },
-  ];
 
   const insights: string[] = [];
   if (active.length > 0) insights.push(`Tenés ${active.length} reserva${active.length === 1 ? "" : "s"} activa${active.length === 1 ? "" : "s"} hoy.`);
@@ -196,6 +210,30 @@ export function DashboardPage() {
   const selectedTable = tables.find((t) => t.id === selectedTableId) ?? null;
   const selectedTableZone = selectedTable ? zones.find((z) => z.id === selectedTable.zoneId) ?? null : null;
 
+  /** Línea viva bajo cada mesa del plano: tiempo sentados, hora de la reserva, atraso... */
+  function getTableInfo(tableId: string): TableInfoLine | undefined {
+    const status = getTableStatus(tableId);
+    if (status === "blocked") return { text: "bloqueada" };
+    if (status === "available") return { text: "libre" };
+    const list = (reservationsByTable.get(tableId) ?? []).filter((r) => !["cancelled", "completed", "no_show"].includes(r.status));
+    if (status === "occupied" || status === "paying") {
+      const seated = list.find((r) => r.status === "seated");
+      if (!seated) return undefined;
+      if (status === "paying") return { text: seated.totalAmount ? formatCLP(seated.totalAmount) : "pagando" };
+      const mins = minutesSince(seated.startsAt, now);
+      return { text: formatElapsed(mins), alert: mins > 90 };
+    }
+    const next = list
+      .filter((r) => r.status !== "seated")
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0];
+    if (!next) return undefined;
+    if (status === "arriving") return { text: `llega ${formatTime(next.startsAt)}` };
+    const late = minutesSince(next.startsAt, now);
+    if (late > 0) return { text: `+${late} min`, alert: true };
+    const lastName = next.customerName.split(" ").slice(-1)[0];
+    return { text: `${formatTime(next.startsAt)} · ${lastName}` };
+  }
+
   async function handleSelectTable(id: string | null) {
     if (joinSourceId && id && id !== joinSourceId) {
       const groupId = await joinTablesTogether(joinSourceId, id);
@@ -217,78 +255,78 @@ export function DashboardPage() {
   }
 
   if (loading) {
-    return <div className="p-6 text-ink-muted text-sm">Cargando…</div>;
+    return <div className="p-6 text-ink-muted text-[15px]">Cargando…</div>;
   }
 
+  const occupancyPct = tables.length ? Math.round((occupiedNow / tables.length) * 100) : null;
+  const pendingCount = reservationsToday.filter((r) => r.status === "pending").length;
+  const noShowCount = reservationsToday.filter((r) => r.status === "no_show").length;
+  const pulseSegments = (["occupied", "paying", "arriving", "reserved", "available", "blocked"] as const)
+    .map((k) => ({ state: tableVisualState(k), n: tableStatusCounts[k] }))
+    .filter((seg) => seg.n > 0);
+
+  const upcomingGroups = upcomingFiltered.reduce<{ time: string; items: ReservationWithDetails[] }[]>((groups, r) => {
+    const time = formatTime(r.startsAt);
+    const last = groups[groups.length - 1];
+    if (last && last.time === time) last.items.push(r);
+    else groups.push({ time, items: [r] });
+    return groups;
+  }, []);
+
   return (
-    <div className="p-6">
-      <header className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Centro de Control</h1>
-          {current && (
-            <p className="text-sm text-ink-muted mt-0.5">
-              {current.restaurant.name} ·{" "}
-              {now.toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <Link to="/plano-de-mesas" className="text-sm text-accent">
-            Editar plano →
-          </Link>
-          <button
-            onClick={() => setShowNewReservation(true)}
-            disabled={!restaurantId}
-            className="rounded-lg bg-accent text-accent-ink px-4 py-2 text-sm font-medium disabled:opacity-60"
-          >
-            + Nueva reserva
-          </button>
-        </div>
-      </header>
-
-      {lateArrivals.length > 0 && (
-        <div className="rounded-xl border border-status-occupied/50 bg-status-occupied/10 px-4 py-3 mb-4">
-          <p className="text-sm font-medium text-status-occupied mb-2">
-            ⚠ {lateArrivals.length} reserva{lateArrivals.length === 1 ? "" : "s"} sin presentarse a la hora
-          </p>
-          <ul className="space-y-1.5">
-            {lateArrivals.slice(0, 6).map((r) => (
-              <li key={r.id} className="flex items-center justify-between gap-3 text-sm">
-                <button onClick={() => setDetailReservation(r)} className="text-left hover:underline min-w-0">
-                  <span className="font-medium">{r.customerName}</span>
-                  <span className="text-ink-muted">
-                    {" "}
-                    · {r.partySize}p{r.tableName ? ` · Mesa ${r.tableName}` : ""} · debía llegar a las{" "}
-                    {formatTime(r.startsAt)} (hace {minutesSince(r.startsAt, now)} min)
-                  </span>
-                </button>
-                <button
-                  onClick={() => changeReservationStatus(r.id, "no_show")}
-                  className="shrink-0 rounded-lg border border-status-occupied/50 text-status-occupied px-2.5 py-1 text-xs hover:bg-status-occupied/10"
-                >
-                  Marcar no-show
-                </button>
-              </li>
-            ))}
-          </ul>
-          {lateArrivals.length > 6 && (
-            <p className="text-xs text-status-occupied/80 mt-1.5">+{lateArrivals.length - 6} más</p>
-          )}
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-4">
-        {indicators.map((indicator) => (
-          <div key={indicator.label} className="rounded-xl border border-line bg-surface px-4 py-3">
-            <p className="text-xs text-ink-faint">{indicator.label}</p>
-            <p className={`text-xl font-semibold mt-1 ${indicator.value === "—" ? "text-ink-faint" : ""}`}>
-              {indicator.value}
-            </p>
+    <div className="pb-10">
+      {/* ---- Franja de KPIs: celdas separadas por líneas de 1px ---- */}
+      <div className="grid grid-cols-[1.9fr_1fr_1fr_1fr_1fr_1.1fr] gap-px bg-line border-b border-line">
+        <div className="bg-ground p-6">
+          <div className="flex items-end justify-between gap-4">
+            <div className="flex items-baseline gap-3">
+              <span className="font-serif text-[52px] leading-[0.9]">{occupancyPct === null ? "—" : `${occupancyPct}%`}</span>
+              <span className="text-[15px] text-ink-muted">ocupación ahora</span>
+            </div>
+            <span className="text-[15px] font-semibold text-status-available whitespace-nowrap">
+              {availableNow} mesas libres
+            </span>
           </div>
-        ))}
+          <div className="flex gap-[3px] h-4 mt-4">
+            {pulseSegments.map((seg) => (
+              <div
+                key={seg.state}
+                style={{ flex: seg.n }}
+                title={`${STATE_LABEL[seg.state]}: ${seg.n}`}
+                className={`${stateClass(seg.state)} rounded-[5px] border-2`}
+              />
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[13px] text-ink-muted">
+            {pulseSegments.map((seg) => (
+              <span key={seg.state} className="inline-flex items-center gap-1.5">
+                <StateSwatch state={seg.state} small />
+                {seg.n} {STATE_LABEL[seg.state].toLowerCase()}
+              </span>
+            ))}
+          </div>
+        </div>
 
-        <div className="rounded-xl border border-line bg-surface px-4 py-3">
-          <p className="text-xs text-ink-faint flex items-center justify-between">
+        <Kpi label="Reservas hoy" value={String(active.length)}>
+          {pendingCount > 0 ? (
+            <Link to="/notificaciones" className="text-accent font-semibold">
+              {pendingCount} por aprobar →
+            </Link>
+          ) : (
+            "todas al día"
+          )}
+        </Kpi>
+        <Kpi label="Cubiertos reservados" value={String(cubiertosReservados)}>
+          personas esperadas hoy
+        </Kpi>
+        <Kpi label="No-shows" value={String(noShowCount)} valueClass={noShowCount > 0 ? "text-status-occupied" : ""}>
+          {noShowCount > 0 ? "cupo liberado" : "ninguno hoy"}
+        </Kpi>
+        <Kpi label="Facturación hoy" value={completedWithAmount.length ? formatCLP(facturacion) : "—"}>
+          {ticketPromedio != null ? `ticket promedio ${formatCLP(ticketPromedio)}` : "sin reservas completadas"}
+        </Kpi>
+        <div className="bg-ground p-6">
+          <p className="text-[15px] text-ink-muted flex items-center justify-between">
             Ingresos estimados
             {!editingTicket && (
               <button
@@ -296,7 +334,7 @@ export function DashboardPage() {
                   setTicketInput(String(rules?.averageTicketPerPerson ?? 0));
                   setEditingTicket(true);
                 }}
-                className="text-accent"
+                className="text-[13px] text-accent font-semibold"
                 title="Editar ticket promedio estimado"
               >
                 editar
@@ -304,57 +342,91 @@ export function DashboardPage() {
             )}
           </p>
           {editingTicket ? (
-            <div className="flex items-center gap-1 mt-1">
+            <div className="flex items-center gap-2 mt-2">
               <input
                 autoFocus
                 type="number"
                 value={ticketInput}
                 onChange={(e) => setTicketInput(e.target.value)}
-                placeholder="Ticket/persona"
-                className="w-full rounded bg-ground border border-line px-1.5 py-0.5 text-sm outline-none focus:border-accent"
+                placeholder="Ticket por persona"
+                className="w-full h-10 rounded-[10px] bg-surface border border-line px-3 text-[15px] outline-none focus:border-accent"
               />
-              <button onClick={saveTicket} className="text-accent text-xs shrink-0">
+              <button onClick={saveTicket} className="text-accent text-[13px] font-semibold shrink-0">
                 Guardar
               </button>
             </div>
           ) : (
-            <p className={`text-xl font-semibold mt-1 ${!rules?.averageTicketPerPerson ? "text-ink-faint" : ""}`}>
+            <p className={`font-serif text-[44px] leading-none mt-2 ${!rules?.averageTicketPerPerson ? "text-ink-faint" : ""}`}>
               {rules?.averageTicketPerPerson ? formatCLP(estimatedRevenue) : "—"}
             </p>
           )}
+          <p className="text-[13px] text-ink-faint mt-2">según el ticket promedio</p>
         </div>
       </div>
 
-      <div className="mb-3 flex items-center justify-between gap-1.5">
-        <div className="flex gap-1.5">
-          <ZoneTab label="Todo" active={effectiveZoneId === "all"} onClick={() => setActiveZoneId("all")} />
-          {sortedZones.map((zone) => (
-            <ZoneTab
-              key={zone.id}
-              label={zone.name}
-              active={effectiveZoneId === zone.id}
-              onClick={() => setActiveZoneId(zone.id)}
-            />
-          ))}
+      {/* ---- Alerta contextual: reservas atrasadas ---- */}
+      {lateArrivals.length > 0 && (
+        <div className="mx-6 mt-4 rounded-xl border border-status-occupied/45 bg-status-occupied/15 px-5 py-4">
+          <p className="flex items-center gap-3 text-base font-semibold">
+            <span className="h-2.5 w-2.5 rounded-full bg-status-occupied ring-4 ring-status-occupied/30" />
+            {lateArrivals.length} reserva{lateArrivals.length === 1 ? "" : "s"} sin presentarse a la hora
+          </p>
+          <ul className="mt-3 space-y-2">
+            {lateArrivals.slice(0, 6).map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-4">
+                <button onClick={() => setDetailReservation(r)} className="text-left min-w-0 text-[15px]">
+                  <span className="font-semibold">{r.customerName}</span>
+                  <span className="text-ink-muted">
+                    {" "}
+                    · {r.partySize}p{r.tableName ? ` · Mesa ${r.tableName}` : ""} · debía llegar a las {formatTime(r.startsAt)}{" "}
+                  </span>
+                  <span className="text-status-occupied font-semibold">(+{minutesSince(r.startsAt, now)} min)</span>
+                </button>
+                <div className="flex gap-2 shrink-0">
+                  {r.customerPhone && (
+                    <a
+                      href={`tel:${r.customerPhone}`}
+                      className="h-10 px-4 inline-flex items-center rounded-[10px] bg-surface-2 border border-line text-[15px] font-semibold"
+                    >
+                      Llamar
+                    </a>
+                  )}
+                  <button
+                    onClick={() => changeReservationStatus(r.id, "no_show")}
+                    className="h-10 px-4 rounded-[10px] bg-status-occupied text-status-on text-[15px] font-semibold whitespace-nowrap"
+                  >
+                    Marcar no-show y liberar
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {lateArrivals.length > 6 && <p className="text-[13px] text-ink-muted mt-2">+{lateArrivals.length - 6} más</p>}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <div className="flex rounded-lg border border-line overflow-hidden">
-            <button
-              onClick={() => setViewMode("plano")}
-              className={`px-3 py-1.5 text-sm ${viewMode === "plano" ? "bg-accent text-accent-ink" : "bg-surface text-ink-muted hover:text-ink"}`}
-            >
-              Plano
-            </button>
-            <button
-              onClick={() => setViewMode("timeline")}
-              className={`px-3 py-1.5 text-sm ${viewMode === "timeline" ? "bg-accent text-accent-ink" : "bg-surface text-ink-muted hover:text-ink"}`}
-            >
-              Vista de reservas
-            </button>
-          </div>
+      )}
+
+      {/* ---- Barra de controles ---- */}
+      <div className="px-6 mt-4 mb-3 flex items-center justify-between gap-4">
+        <SegTabs
+          value={effectiveZoneId}
+          onChange={(v) => setActiveZoneId(v)}
+          options={[{ value: "all", label: "Todo" }, ...sortedZones.map((z) => ({ value: z.id, label: z.name }))]}
+        />
+        <div className="flex items-center gap-3">
+          <Link to="/plano-de-mesas" className="text-[15px] text-accent font-semibold whitespace-nowrap">
+            Editar plano →
+          </Link>
+          <SegTabs
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { value: "plano", label: "Plano" },
+              { value: "timeline", label: "Línea de tiempo" },
+            ]}
+          />
           <button
             onClick={() => setPlanoExpanded((v) => !v)}
-            className="rounded-lg px-3 py-1.5 text-sm bg-surface text-ink-muted hover:text-ink border border-line transition-colors"
+            className="h-11 px-4 rounded-xl bg-surface text-[15px] text-ink-muted hover:text-ink whitespace-nowrap"
           >
             {planoExpanded ? "↙ Achicar" : "↗ Agrandar"}
           </button>
@@ -362,10 +434,10 @@ export function DashboardPage() {
       </div>
 
       {zoneBreakdown.length > 0 && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-4 text-xs text-ink-faint">
+        <div className="px-6 mb-3 flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-ink-muted">
           {zoneBreakdown.map(({ zone, counts }) => (
             <p key={zone.id}>
-              <span className="text-ink-muted font-medium">{zone.name}</span>
+              <span className="font-semibold text-ink">{zone.name}</span>
               {" — "}
               <span className="text-status-occupied">{counts.occupied} ocupadas</span>
               {" · "}
@@ -378,93 +450,132 @@ export function DashboardPage() {
         </div>
       )}
 
+      {/* ---- Área principal: lista de espera · plano · próximas reservas ---- */}
       <div
-        className={`grid grid-cols-1 gap-4 mb-4 transition-[height] duration-200 ${
-          waitlistMinimized ? "xl:grid-cols-[44px_1fr_320px]" : "xl:grid-cols-[280px_1fr_320px]"
+        className={`grid grid-cols-1 gap-4 px-6 mb-4 transition-[height] duration-200 ${
+          waitlistMinimized ? "xl:grid-cols-[56px_1fr_356px]" : "xl:grid-cols-[268px_1fr_356px]"
         }`}
-        style={{ height: planoExpanded ? "82vh" : "48vh" }}
+        style={{ height: planoExpanded ? "82vh" : 620 }}
       >
         {waitlistMinimized ? (
           <button
             onClick={() => setWaitlistMinimized(false)}
-            className="rounded-xl border border-line bg-surface flex flex-col items-center gap-2 pt-3 hover:border-accent"
+            className="rounded-2xl bg-surface flex flex-col items-center gap-3 pt-4 hover:bg-surface-2"
             title="Mostrar lista de espera"
           >
-            <span className="text-ink-faint">◂</span>
-            <span className="text-[10px] text-ink-faint tracking-wide" style={{ writingMode: "vertical-rl" }}>
-              Lista de espera{sidebarWaitlist.length > 0 ? ` (${sidebarWaitlist.length})` : ""}
+            <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-accent text-accent-ink text-xs font-bold flex items-center justify-center">
+              {sidebarWaitlist.length}
+            </span>
+            <span className="text-[13px] font-semibold uppercase tracking-[0.1em] text-ink-faint" style={{ writingMode: "vertical-rl" }}>
+              Lista de espera
             </span>
           </button>
         ) : (
-          <div className="rounded-xl border border-line bg-surface p-4 min-h-0 overflow-y-auto">
-            <button
-              onClick={() => setWaitlistMinimized(true)}
-              className="w-full flex items-center justify-between"
-            >
-              <h2 className="text-sm font-semibold">Lista de espera</h2>
-              <span className="text-xs text-ink-faint">▾ Minimizar</span>
+          <div className="rounded-2xl bg-surface p-4 min-h-0 overflow-y-auto flex flex-col">
+            <button onClick={() => setWaitlistMinimized(true)} className="w-full flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                Lista de espera <span className="font-serif text-accent text-2xl ml-1">{sidebarWaitlist.length}</span>
+              </h2>
+              <span className="text-[13px] text-ink-faint">◂ Minimizar</span>
             </button>
-            <p className="text-[11px] text-ink-faint mt-1 mb-2">Arrastrá una fila hasta una mesa libre del plano para sentarla ahí.</p>
+            <p className="text-[13px] text-ink-faint mt-1 mb-3">Arrastra a una mesa libre para sentar</p>
             {sidebarWaitlist.length === 0 ? (
-              <p className="text-xs text-ink-faint">Nadie esperando ahora mismo.</p>
+              <p className="text-[15px] text-ink-faint">Nadie esperando ahora mismo.</p>
             ) : (
-              <ul className="space-y-1.5">
-                {sidebarWaitlist.map((w) => (
-                  <li
-                    key={w.id}
-                    draggable
-                    onDragStart={(e) => {
-                      const payload: WaitlistDragPayload = {
-                        waitlistEntryId: w.id,
-                        customerId: w.customerId,
-                        partySize: w.partySize,
-                        customerName: w.customerName,
-                      };
-                      e.dataTransfer.setData(WAITLIST_DRAG_MIME, JSON.stringify(payload));
-                      e.dataTransfer.effectAllowed = "move";
-                    }}
-                    className="flex items-center gap-2 text-sm rounded-lg px-2.5 py-1.5 border border-line hover:border-accent cursor-grab active:cursor-grabbing"
-                    title="Arrastrar hasta una mesa libre"
-                  >
-                    <span className="text-ink-faint">⠿</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate">{w.customerName}</p>
-                      <p className="text-xs text-ink-faint">
-                        {w.partySize}p · {WAITLIST_SOURCE_LABEL[w.source]}
-                      </p>
-                    </div>
-                  </li>
-                ))}
+              <ul className="space-y-2">
+                {sidebarWaitlist.map((w) => {
+                  const waited = minutesSince(w.requestedAt, now);
+                  const quoted = w.estimatedWaitMinutes;
+                  const over = quoted ? waited >= quoted * 0.85 : false;
+                  return (
+                    <li
+                      key={w.id}
+                      draggable
+                      onDragStart={(e) => {
+                        const payload: WaitlistDragPayload = {
+                          waitlistEntryId: w.id,
+                          customerId: w.customerId,
+                          partySize: w.partySize,
+                          customerName: w.customerName,
+                        };
+                        e.dataTransfer.setData(WAITLIST_DRAG_MIME, JSON.stringify(payload));
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      className="flex gap-3 rounded-xl bg-surface-2 p-3 cursor-grab active:cursor-grabbing"
+                      title="Arrastrar hasta una mesa libre"
+                    >
+                      <span className="font-serif text-[34px] leading-none w-9 text-center">{w.partySize}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[15px] font-semibold truncate">{w.customerName}</p>
+                        <p className={`text-[13px] ${over ? "text-status-occupied font-semibold" : "text-ink-muted"}`}>
+                          {waited} min esperando{quoted ? ` · cotizado ${quoted}` : ""}
+                        </p>
+                        {quoted ? (
+                          <div className="h-1 rounded-full bg-surface-3 mt-1.5 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${over ? "bg-status-occupied" : "bg-status-available"}`}
+                              style={{ width: `${Math.min(100, (waited / quoted) * 100)}%` }}
+                            />
+                          </div>
+                        ) : null}
+                        <p className="text-[13px] text-ink-faint mt-1.5">
+                          {WAITLIST_SOURCE_LABEL[w.source]}
+                          {w.notes ? ` · ${w.notes}` : ""}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
+            <Link
+              to="/lista-de-espera"
+              className="mt-3 h-11 rounded-xl border-2 border-dashed border-line text-[15px] text-ink-muted hover:text-ink hover:border-accent flex items-center justify-center"
+            >
+              + Agregar a la espera
+            </Link>
           </div>
         )}
 
-        <div className="rounded-xl border border-line overflow-hidden bg-surface-2">
-          {zones.length === 0 ? (
-            <div className="h-full grid place-items-center">
-              <p className="text-sm text-ink-muted">Este restaurante todavía no tiene zonas configuradas.</p>
+        <div className="rounded-2xl bg-surface p-4 min-h-0 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {LEGEND_STATES.map((st) => (
+                <span key={st} className="inline-flex items-center gap-2 text-[13px] text-ink-muted">
+                  <StateSwatch state={st} />
+                  {STATE_LABEL[st]}
+                </span>
+              ))}
             </div>
-          ) : viewMode === "timeline" ? (
-            <ReservationsTimeline
-              zones={visibleZones}
-              visibleTables={visibleTables}
-              reservationsToday={reservationsToday}
-              now={now}
-              onSelectReservation={setDetailReservation}
-            />
-          ) : (
-            <ZoneCanvas
-              zones={visibleZones}
-              tables={visibleTables}
-              selectedTableId={selectedTableId}
-              onSelectTable={handleSelectTable}
-              onMoveTable={moveTable}
-              getTableStatus={getTableStatus}
-              getTurnoverWarning={getTurnoverWarning}
-              onDropWaitlistEntry={handleDropWaitlistEntry}
-            />
-          )}
+          </div>
+          <div className="flex-1 min-h-0 rounded-xl overflow-hidden bg-surface-2">
+            {zones.length === 0 ? (
+              <div className="h-full grid place-items-center">
+                <p className="text-[15px] text-ink-muted">Este restaurante todavía no tiene zonas configuradas.</p>
+              </div>
+            ) : viewMode === "timeline" ? (
+              <ReservationsTimeline
+                zones={visibleZones}
+                visibleTables={visibleTables}
+                reservationsToday={reservationsToday}
+                now={now}
+                onSelectReservation={setDetailReservation}
+              />
+            ) : (
+              <ZoneCanvas
+                zones={sortedZones}
+                tables={tables.slice().sort((a, b) => compareTableNames(a.name, b.name))}
+                activeZoneId={effectiveZoneId === "all" ? null : effectiveZoneId}
+                selectedTableId={selectedTableId}
+                onSelectTable={handleSelectTable}
+                onMoveTable={moveTable}
+                getTableStatus={getTableStatus}
+                getTurnoverWarning={getTurnoverWarning}
+                getTableInfo={getTableInfo}
+                onDropWaitlistEntry={handleDropWaitlistEntry}
+              />
+            )}
+          </div>
         </div>
 
         {selectedTable && selectedTableZone && restaurantId ? (
@@ -493,69 +604,84 @@ export function DashboardPage() {
             onUnjoin={() => unjoinTable(selectedTable.id)}
           />
         ) : (
-          <div className="rounded-xl border border-line bg-surface p-4 min-h-0 overflow-y-auto flex flex-col">
-            <h2 className="text-sm font-semibold mb-2">Próximas reservas (3 horas)</h2>
+          <div className="rounded-2xl bg-surface p-4 min-h-0 overflow-y-auto flex flex-col">
+            <h2 className="text-lg font-semibold mb-3">Próximas reservas · 3 horas</h2>
             <input
               type="text"
               value={upcomingSearch}
               onChange={(e) => setUpcomingSearch(e.target.value)}
               placeholder="Buscar por nombre…"
-              className="w-full rounded-lg bg-ground border border-line px-2.5 py-1.5 text-xs outline-none focus:border-accent mb-2 shrink-0"
+              className="w-full h-[42px] rounded-[10px] bg-ground border border-line px-3 text-[15px] placeholder:text-ink-faint outline-none focus:border-accent mb-3 shrink-0"
             />
             {upcoming.length === 0 ? (
-              <p className="text-xs text-ink-faint">No hay reservas en las próximas 3 horas.</p>
+              <p className="text-[15px] text-ink-faint">No hay reservas en las próximas 3 horas.</p>
             ) : upcomingFiltered.length === 0 ? (
-              <p className="text-xs text-ink-faint">Ninguna reserva coincide con "{upcomingSearch}".</p>
+              <p className="text-[15px] text-ink-faint">Ninguna reserva coincide con "{upcomingSearch}".</p>
             ) : (
-              <ul className="space-y-1">
-                {upcomingFiltered.map((r) => {
-                  const zoneName = zones.find((z) => z.id === tables.find((t) => t.id === r.tableId)?.zoneId)?.name;
-                  return (
-                    <li key={r.id}>
-                      <button
-                        onClick={() => setDetailReservation(r)}
-                        className="w-full flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-surface-2"
-                      >
-                        <span className="w-12 text-xs tabular-nums text-ink-muted shrink-0">{formatTime(r.startsAt)}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="truncate">{r.customerName}</p>
-                          <p className="text-xs text-ink-faint truncate">
-                            {r.partySize}p · {r.tableName ? `${zoneName ? `${zoneName} · ` : ""}Mesa ${r.tableName}` : "Sin mesa"}
-                          </p>
-                        </div>
-                        <span
-                          className="text-[10px] rounded-full px-2 py-0.5 border shrink-0"
-                          style={{ color: RESERVATION_STATUS_COLOR[r.status], borderColor: RESERVATION_STATUS_COLOR[r.status] }}
-                        >
-                          {RESERVATION_STATUS_LABEL[r.status]}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="space-y-4">
+                {upcomingGroups.map((group) => (
+                  <section key={group.time}>
+                    <div className="flex items-baseline justify-between mb-1.5">
+                      <span className="font-serif text-[26px] leading-none">{group.time}</span>
+                      <span className="text-[13px] text-ink-faint">
+                        {group.items.length} reserva{group.items.length === 1 ? "" : "s"} ·{" "}
+                        {group.items.reduce((sum, r) => sum + r.partySize, 0)} personas
+                      </span>
+                    </div>
+                    <ul className="space-y-1.5">
+                      {group.items.map((r) => {
+                        const zoneName = zones.find((z) => z.id === tables.find((t) => t.id === r.tableId)?.zoneId)?.name;
+                        const vs = reservationVisualState(r.status);
+                        return (
+                          <li key={r.id}>
+                            <button
+                              onClick={() => setDetailReservation(r)}
+                              className="w-full flex items-center gap-3 text-left rounded-xl bg-surface-2 px-3 py-2.5 hover:bg-surface-3"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[15px] font-semibold truncate">
+                                  {r.customerName} <span className="font-normal text-ink-muted">· {r.partySize}p</span>
+                                </p>
+                                <p className="text-[13px] text-ink-muted inline-flex items-center gap-1.5">
+                                  <StateSwatch state={vs} small />
+                                  {RESERVATION_STATUS_LABEL[r.status]}
+                                  {zoneName ? ` · ${zoneName}` : ""}
+                                </p>
+                              </div>
+                              {r.tableName ? (
+                                <span className="font-serif text-[26px] leading-none shrink-0">{r.tableName}</span>
+                              ) : (
+                                <span className="st-pending border-2 rounded-lg px-2 h-7 inline-flex items-center text-[13px] font-semibold shrink-0">
+                                  Sin mesa
+                                </span>
+                              )}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ))}
+              </div>
             )}
           </div>
         )}
       </div>
 
-      <div className="rounded-xl border border-line bg-surface p-4 mb-4">
-        <h2 className="text-sm font-semibold mb-1">Capacidad por horario</h2>
-        <p className="text-xs text-ink-faint mb-3">
-          Mesas ocupadas de verdad en cada franja — cuenta tanto lo que ya está sentado y todavía no debería
-          liberarse (con el colchón de {rules?.bufferMinutes ?? 15} min) como lo que arranca ahí.
+      {/* ---- Capacidad por horario ---- */}
+      <div className="mx-6 rounded-2xl bg-surface p-5 mb-4">
+        <h2 className="text-lg font-semibold mb-1">Capacidad por horario</h2>
+        <p className="text-[13px] text-ink-faint mb-4">
+          Mesas ocupadas de verdad en cada franja — cuenta lo que ya está sentado y todavía no debería liberarse (colchón de{" "}
+          {rules?.bufferMinutes ?? 15} min) y lo que arranca ahí.
         </p>
         {pacing.length === 0 || tables.length === 0 ? (
-          <p className="text-xs text-ink-faint">Sin mesas o sin datos todavía.</p>
+          <p className="text-[15px] text-ink-faint">Sin mesas o sin datos todavía.</p>
         ) : (
           <div className="flex gap-2 overflow-x-auto pb-1">
             {pacing.map((slot) => {
-              const colorClass =
-                slot.pctOccupied >= 90
-                  ? "text-status-occupied"
-                  : slot.pctOccupied >= 70
-                    ? "text-status-arriving"
-                    : "text-status-available";
+              const barClass =
+                slot.pctOccupied >= 85 ? "bg-status-occupied" : slot.pctOccupied >= 60 ? "bg-status-arriving" : "bg-status-available";
               const slotStartMs = new Date(slot.startsAt).getTime();
               const slotEndMs = slotStartMs + CAPACITY_SLOT_MINUTES * 60_000;
               const isNow = now.getTime() >= slotStartMs && now.getTime() < slotEndMs;
@@ -564,20 +690,20 @@ export function DashboardPage() {
                 <button
                   key={slot.startsAt}
                   onClick={() => setExpandedSlotStart(isExpanded ? null : slot.startsAt)}
-                  className={`shrink-0 w-24 rounded-lg border px-2 py-2 text-center ${
-                    isNow ? "border-accent bg-accent/10" : isExpanded ? "border-accent" : "border-line bg-ground"
+                  className={`shrink-0 w-[104px] rounded-[10px] px-3 py-2.5 text-left ${isExpanded ? "bg-surface-3" : "bg-surface-2"} ${
+                    isNow ? "outline outline-2 outline-accent" : ""
                   }`}
                 >
-                  <p className={`text-[11px] tabular-nums ${isNow ? "text-accent font-medium" : "text-ink-faint"}`}>
+                  <p className={`text-[13px] tabular-nums ${isNow ? "text-accent font-semibold" : "text-ink-muted"}`}>
                     {isNow ? "Ahora" : new Date(slot.startsAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
                   </p>
-                  <p className={`text-lg font-semibold tabular-nums mt-0.5 ${colorClass}`}>{slot.pctOccupied}%</p>
-                  <p className="text-[10px] text-ink-faint tabular-nums">
-                    {slot.occupiedTables} reservas · {slot.freeTables} libres
+                  <p className="text-sm font-bold tabular-nums mt-0.5">{slot.pctOccupied}%</p>
+                  <div className="h-2 rounded-full bg-surface-3 mt-1.5 overflow-hidden">
+                    <div className={`h-full rounded-full ${barClass}`} style={{ width: `${slot.pctOccupied}%` }} />
+                  </div>
+                  <p className="text-[13px] text-ink-faint tabular-nums mt-1.5">
+                    {slot.occupiedTables} · {slot.freeTables} libres
                   </p>
-                  {slot.newArrivals > 0 && (
-                    <p className="text-[10px] text-accent tabular-nums">+{slot.newArrivals} nuevas ahí</p>
-                  )}
                 </button>
               );
             })}
@@ -588,27 +714,27 @@ export function DashboardPage() {
           (() => {
             const slotStart = new Date(expandedSlotStart);
             const slotEnd = new Date(slotStart.getTime() + CAPACITY_SLOT_MINUTES * 60_000);
-            const atThatHour = reservationsActiveInWindow(active, slotStart, slotEnd, rules?.bufferMinutes ?? 15).sort(
-              (a, b) => compareTableNames(a.tableName ?? "", b.tableName ?? ""),
+            const atThatHour = reservationsActiveInWindow(active, slotStart, slotEnd, rules?.bufferMinutes ?? 15).sort((a, b) =>
+              compareTableNames(a.tableName ?? "", b.tableName ?? ""),
             );
             return (
-              <div className="mt-3 pt-3 border-t border-line">
-                <p className="text-xs text-ink-faint mb-2">
+              <div className="mt-4 pt-4 border-t border-line">
+                <p className="text-[15px] text-ink-muted mb-2">
                   Reservas en {slotStart.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })} –{" "}
                   {slotEnd.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
                 </p>
                 {atThatHour.length === 0 ? (
-                  <p className="text-xs text-ink-faint">Ninguna mesa ocupada en esa franja.</p>
+                  <p className="text-[15px] text-ink-faint">Ninguna mesa ocupada en esa franja.</p>
                 ) : (
-                  <ul className="flex flex-wrap gap-1.5">
+                  <ul className="flex flex-wrap gap-2">
                     {atThatHour.map((r) => (
                       <li key={r.id}>
                         <button
                           onClick={() => setDetailReservation(r)}
-                          className="rounded-lg bg-ground border border-line px-2.5 py-1.5 text-xs hover:border-accent text-left"
+                          className="rounded-[10px] bg-surface-2 px-3 py-2 text-[15px] hover:bg-surface-3 text-left"
                         >
-                          <span className="font-medium">{r.customerName}</span>
-                          <span className="text-ink-faint"> · {r.partySize}p{r.tableName ? ` · Mesa ${r.tableName}` : ""}</span>
+                          <span className="font-semibold">{r.customerName}</span>
+                          <span className="text-ink-muted"> · {r.partySize}p{r.tableName ? ` · Mesa ${r.tableName}` : ""}</span>
                         </button>
                       </li>
                     ))}
@@ -620,36 +746,36 @@ export function DashboardPage() {
       </div>
 
       {restaurantId && (
-        <div className="rounded-xl border border-line bg-surface p-4 mb-4">
+        <div className="mx-6 rounded-2xl bg-surface p-5 mb-4">
           <WaitlistPanel restaurantId={restaurantId} tables={tables} reservationsToday={reservationsToday} />
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="rounded-xl border border-line bg-surface p-4">
-          <h2 className="text-sm font-semibold mb-3">Cubiertos por hora</h2>
+      <div className="mx-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="rounded-2xl bg-surface p-5">
+          <h2 className="text-lg font-semibold mb-3">Cubiertos por hora</h2>
           {hourly.length === 0 ? (
-            <p className="text-xs text-ink-faint">Sin reservas hoy todavía.</p>
+            <p className="text-[15px] text-ink-faint">Sin reservas hoy todavía.</p>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {hourly.map(({ hour, covers, pct }) => (
-                <div key={hour} className="flex items-center gap-2 text-xs">
-                  <span className="w-9 tabular-nums text-ink-faint">{String(hour).padStart(2, "0")}:00</span>
-                  <div className="flex-1 h-2 rounded-full bg-ground overflow-hidden">
+                <div key={hour} className="flex items-center gap-3 text-[13px]">
+                  <span className="w-11 tabular-nums text-ink-muted">{String(hour).padStart(2, "0")}:00</span>
+                  <div className="flex-1 h-2 rounded-full bg-surface-3 overflow-hidden">
                     <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
                   </div>
-                  <span className="w-6 tabular-nums text-ink-faint text-right">{covers}</span>
+                  <span className="w-8 tabular-nums text-ink-muted text-right">{covers}</span>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        <div className="rounded-xl border border-line bg-surface p-4">
-          <h2 className="text-sm font-semibold mb-3">Insights del día</h2>
-          <ul className="space-y-2">
+        <div className="rounded-2xl bg-surface p-5">
+          <h2 className="text-lg font-semibold mb-3">Insights del día</h2>
+          <ul className="space-y-2.5">
             {insights.map((insight, i) => (
-              <li key={i} className="text-sm text-ink-muted">
+              <li key={i} className="text-[15px] text-ink-muted">
                 {insight}
               </li>
             ))}
@@ -664,10 +790,7 @@ export function DashboardPage() {
             value={completedWithAmount.length ? formatCLP(facturacion) : "—"}
             note={completedWithAmount.length ? undefined : "sin reservas completadas con monto cargado"}
           />
-          <StatTile
-            label="Ticket promedio"
-            value={ticketPromedio != null ? formatCLP(ticketPromedio) : "—"}
-          />
+          <StatTile label="Ticket promedio" value={ticketPromedio != null ? formatCLP(ticketPromedio) : "—"} />
         </div>
       </div>
 
@@ -685,9 +808,7 @@ export function DashboardPage() {
 
       {detailReservation && restaurantId && (
         <ReservationDetailModal
-          reservation={
-            reservationsToday.find((r) => r.id === detailReservation.id) ?? detailReservation
-          }
+          reservation={reservationsToday.find((r) => r.id === detailReservation.id) ?? detailReservation}
           restaurantId={restaurantId}
           zoneName={zones.find((z) => z.id === tables.find((t) => t.id === detailReservation.tableId)?.zoneId)?.name ?? null}
           reservationsToday={reservationsToday}
@@ -715,26 +836,32 @@ export function DashboardPage() {
   );
 }
 
-function StatTile({ label, value, note }: { label: string; value: string; note?: string }) {
+function Kpi({
+  label,
+  value,
+  valueClass = "",
+  children,
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+  children?: ReactNode;
+}) {
   return (
-    <div className="rounded-xl border border-line bg-surface p-3">
-      <p className="text-xs text-ink-faint">{label}</p>
-      <p className={`text-lg font-semibold mt-1 ${value === "—" ? "text-ink-faint" : ""}`}>{value}</p>
-      {note && <p className="text-[10px] text-ink-faint mt-0.5">{note}</p>}
+    <div className="bg-ground p-6">
+      <p className="text-[15px] text-ink-muted">{label}</p>
+      <p className={`font-serif text-[44px] leading-none mt-2 ${value === "—" ? "text-ink-faint" : ""} ${valueClass}`}>{value}</p>
+      <p className="text-[13px] text-ink-faint mt-2">{children}</p>
     </div>
   );
 }
 
-function ZoneTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function StatTile({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
-        active ? "bg-accent text-accent-ink" : "bg-surface text-ink-muted hover:text-ink border border-line"
-      }`}
-    >
-      {label}
-    </button>
+    <div className="rounded-2xl bg-surface p-4">
+      <p className="text-[13px] text-ink-faint">{label}</p>
+      <p className={`font-serif text-[30px] leading-none mt-2 ${value === "—" ? "text-ink-faint" : ""}`}>{value}</p>
+      {note && <p className="text-[13px] text-ink-faint mt-1.5">{note}</p>}
+    </div>
   );
 }

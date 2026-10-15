@@ -1,16 +1,33 @@
 import { Circle, Group, Rect, Text } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import { computeSeats, tableStatusLabel, type Table, type TableLiveStatusValue, type Zone } from "@reservia/core";
-import { STATUS_COLORS } from "./statusColors";
+import type { Table, Zone } from "@reservia/core";
+import type { KonvaLook } from "../../lib/stateStyle";
 
 /** Used only by the Smart Table Engine's floor-plan picker — undefined everywhere else, so the normal plano is untouched. */
 export type TableHighlightState = "recommended" | "alternative" | "dimmed";
 
+export interface TableInfoLine {
+  text: string;
+  /** En el color de alerta (ocupada hace mucho, reserva atrasada). */
+  alert?: boolean;
+}
+
+/** Colores del tema ya resueltos a rgb() -- Konva no entiende var(). Los arma ZoneCanvas una vez por tema. */
+export interface TablePalette {
+  ink: string;
+  ink2: string;
+  acc: string;
+  occ: string;
+  free: string;
+  arr: string;
+  onS: string;
+}
+
 interface TableTokenProps {
   table: Table;
   zone: Zone;
-  /** Fase 4 wires real live status; until then every table reads as available. */
-  status?: TableLiveStatusValue;
+  look: KonvaLook;
+  palette: TablePalette;
   selected: boolean;
   onSelect: () => void;
   draggable?: boolean;
@@ -19,32 +36,38 @@ interface TableTokenProps {
   highlightState?: TableHighlightState;
   /** Alguien está sentado ahora y hay otra reserva por llegar pronto -- ver findTurnoverConflict. */
   turnoverWarning?: boolean;
+  /** Línea viva bajo la mesa: tiempo sentados, hora de la reserva, "libre"... */
+  info?: TableInfoLine;
+  /** Mesa de una zona que no es la elegida -- se atenúa en vez de ocultarse. */
+  dimmed?: boolean;
+  /** Mientras se arrastra una persona de la lista de espera, las mesas libres se agrandan con halo verde. */
+  dropReady?: boolean;
 }
 
-const SEAT_RADIUS = 4;
 const RING_WIDTH = 3;
-const RECOMMENDED_COLOR = "#4cae83";
-const TURNOVER_BADGE_COLOR = "#e0ac4e";
+const SERIF = "Instrument Serif";
+const SANS = "Instrument Sans";
 
 export function TableToken({
   table,
   zone,
-  status = "available",
+  look,
+  palette,
   selected,
   onSelect,
   draggable = false,
   onDragEnd,
   highlightState,
   turnoverWarning = false,
+  info,
+  dimmed = false,
+  dropReady = false,
 }: TableTokenProps) {
-  const seats = computeSeats({
-    shape: table.shape,
-    capacity: table.capacityMax,
-    width: table.width,
-    height: table.height,
-  });
-  const ringColor = highlightState === "recommended" ? RECOMMENDED_COLOR : STATUS_COLORS[status];
-  const groupOpacity = highlightState === "dimmed" ? 0.32 : 1;
+  const ringColor = highlightState === "recommended" ? palette.free : look.stroke;
+  const strokeWidth = highlightState === "recommended" ? RING_WIDTH + 1.5 : RING_WIDTH;
+  const groupOpacity = dimmed ? 0.2 : highlightState === "dimmed" ? 0.32 : 1;
+  const isRound = table.shape === "round";
+  const radius = Math.min(table.width, table.height) / 2;
 
   // positionX/Y are 0–100% of the zone's logical canvas, not absolute units.
   const x = (table.positionX / 100) * zone.width;
@@ -54,164 +77,155 @@ export function TableToken({
     onDragEnd?.(e.target.x(), e.target.y());
   }
 
+  const fillProps = look.pattern
+    ? { fillPatternImage: look.pattern as unknown as HTMLImageElement, fillPatternRepeat: "repeat" }
+    : look.fill
+      ? { fill: look.fill }
+      : {};
+
+  const shapeProps = {
+    ...fillProps,
+    stroke: ringColor,
+    strokeWidth,
+    dash: look.dash,
+  };
+
+  const haloColor = dropReady ? palette.free : look.halo;
+
   return (
     <Group
       x={x}
       y={y}
       rotation={table.rotation}
       opacity={groupOpacity}
+      scaleX={dropReady ? 1.08 : 1}
+      scaleY={dropReady ? 1.08 : 1}
       onClick={onSelect}
       onTap={onSelect}
       draggable={draggable}
       onDragEnd={handleDragEnd}
       listening
     >
-      {/* Ambient glow in the status color — reads at a glance, before the ring registers. */}
-      {table.shape === "round" ? (
-        <Circle
-          radius={Math.min(table.width, table.height) / 2 + 6}
-          fill={ringColor}
-          opacity={0.16}
-          shadowColor={ringColor}
-          shadowBlur={18}
-          shadowOpacity={0.55}
-        />
-      ) : (
-        <Rect
-          x={-table.width / 2 - 6}
-          y={-table.height / 2 - 6}
-          width={table.width + 12}
-          height={table.height + 12}
-          cornerRadius={10}
-          fill={ringColor}
-          opacity={0.16}
-          shadowColor={ringColor}
-          shadowBlur={18}
-          shadowOpacity={0.55}
-        />
-      )}
+      {haloColor &&
+        (isRound ? (
+          <Circle radius={radius + 6} fill={haloColor} opacity={dropReady ? 0.3 : 1} />
+        ) : (
+          <Rect
+            x={-table.width / 2 - 6}
+            y={-table.height / 2 - 6}
+            width={table.width + 12}
+            height={table.height + 12}
+            cornerRadius={16}
+            fill={haloColor}
+            opacity={dropReady ? 0.3 : 1}
+          />
+        ))}
 
-      {seats.map((seat, i) => (
-        <Rect
-          key={i}
-          x={seat.x - SEAT_RADIUS}
-          y={seat.y - SEAT_RADIUS}
-          width={SEAT_RADIUS * 2}
-          height={SEAT_RADIUS * 2}
-          cornerRadius={2.5}
-          fill="#2c2419"
-          stroke="#4a3f31"
-          strokeWidth={0.75}
-        />
-      ))}
-
-      {table.shape === "round" ? (
-        <Circle
-          radius={Math.min(table.width, table.height) / 2}
-          fillLinearGradientStartPoint={{ x: -table.width / 2, y: -table.height / 2 }}
-          fillLinearGradientEndPoint={{ x: table.width / 2, y: table.height / 2 }}
-          fillLinearGradientColorStops={[0, "#4a3826", 1, "#2b2015"]}
-          stroke={ringColor}
-          strokeWidth={highlightState === "recommended" ? RING_WIDTH + 1.5 : RING_WIDTH}
-          shadowColor="#000"
-          shadowBlur={10}
-          shadowOpacity={0.4}
-          shadowOffsetY={4}
-        />
+      {isRound ? (
+        <Circle radius={radius} {...shapeProps} />
       ) : (
         <Rect
           x={-table.width / 2}
           y={-table.height / 2}
           width={table.width}
           height={table.height}
-          cornerRadius={6}
-          fillLinearGradientStartPoint={{ x: -table.width / 2, y: -table.height / 2 }}
-          fillLinearGradientEndPoint={{ x: table.width / 2, y: table.height / 2 }}
-          fillLinearGradientColorStops={[0, "#4a3826", 1, "#2b2015"]}
-          stroke={ringColor}
-          strokeWidth={highlightState === "recommended" ? RING_WIDTH + 1.5 : RING_WIDTH}
-          shadowColor="#000"
-          shadowBlur={10}
-          shadowOpacity={0.4}
-          shadowOffsetY={4}
+          cornerRadius={12}
+          {...shapeProps}
         />
       )}
 
       {highlightState === "recommended" && (
         <Text
           text="RECOMENDADA"
-          fontSize={9}
+          fontSize={10}
+          fontFamily={SANS}
           fontStyle="700"
-          letterSpacing={0.5}
-          fill={RECOMMENDED_COLOR}
+          letterSpacing={0.6}
+          fill={palette.free}
           width={table.width + 40}
           align="center"
           offsetX={(table.width + 40) / 2}
-          y={-table.height / 2 - 22}
+          y={-table.height / 2 - 24}
           rotation={-table.rotation}
         />
       )}
 
       {turnoverWarning && (
         <Group x={table.width / 2} y={-table.height / 2} rotation={-table.rotation}>
-          <Circle
-            radius={9}
-            fill={TURNOVER_BADGE_COLOR}
-            stroke="#2c2419"
-            strokeWidth={1.5}
-            shadowColor="#000"
-            shadowBlur={4}
-            shadowOpacity={0.4}
-          />
+          <Circle radius={10} fill={palette.arr} />
           <Text
             text="!"
-            fontSize={12}
+            fontSize={13}
+            fontFamily={SANS}
             fontStyle="700"
-            fill="#2c2419"
-            width={18}
-            height={18}
+            fill={palette.onS}
+            width={20}
+            height={20}
             align="center"
             verticalAlign="middle"
-            offsetX={9}
-            offsetY={9}
+            offsetX={10}
+            offsetY={10}
           />
         </Group>
       )}
 
       {selected && (
-        <Rect
-          x={-table.width / 2 - 6}
-          y={-table.height / 2 - 6}
-          width={table.width + 12}
-          height={table.height + 12}
-          cornerRadius={8}
-          stroke="#de9a4c"
-          strokeWidth={1.5}
-          dash={[4, 3]}
-        />
+        <>
+          {isRound ? (
+            <Circle radius={radius + 4 + RING_WIDTH / 2} stroke={palette.ink} strokeWidth={3} />
+          ) : (
+            <Rect
+              x={-table.width / 2 - 4 - RING_WIDTH / 2}
+              y={-table.height / 2 - 4 - RING_WIDTH / 2}
+              width={table.width + 8 + RING_WIDTH}
+              height={table.height + 8 + RING_WIDTH}
+              cornerRadius={15}
+              stroke={palette.ink}
+              strokeWidth={3}
+            />
+          )}
+        </>
       )}
 
       <Text
         text={table.name}
-        fontSize={13}
-        fontStyle="600"
-        fill="#f3eee4"
+        fontSize={22}
+        fontFamily={SERIF}
+        fill={look.text}
         width={table.width}
         align="center"
         offsetX={table.width / 2}
-        y={-9}
+        y={-17}
         rotation={-table.rotation}
       />
       <Text
-        text={`${table.capacityMax}p · ${tableStatusLabel(status)}`}
-        fontSize={10}
-        fill="#8a7f6d"
+        text={`${table.capacityMax}p`}
+        fontSize={12}
+        fontFamily={SANS}
+        fontStyle="600"
+        fill={look.text}
         width={table.width}
         align="center"
         offsetX={table.width / 2}
-        y={7}
+        y={6}
         rotation={-table.rotation}
       />
+
+      {info && (
+        <Text
+          text={info.text}
+          fontSize={13}
+          fontFamily={SANS}
+          fontStyle="600"
+          fill={info.alert ? palette.occ : palette.ink2}
+          width={Math.max(table.width + 40, 90)}
+          align="center"
+          offsetX={Math.max(table.width + 40, 90) / 2}
+          y={Math.max(table.width, table.height) / 2 + 10}
+          rotation={-table.rotation}
+          listening={false}
+        />
+      )}
     </Group>
   );
 }

@@ -133,7 +133,7 @@ export function ReglasTab({ restaurantId }: { restaurantId: string }) {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="rounded-lg bg-accent text-accent-ink px-4 py-2 text-sm font-medium disabled:opacity-60"
+          className="rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold disabled:opacity-60"
         >
           {saving ? "Guardando…" : saved ? "Guardado ✓" : "Guardar"}
         </button>

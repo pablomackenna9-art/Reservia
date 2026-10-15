@@ -29,7 +29,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-sm text-ink-muted mb-4">{this.state.error.message}</p>
             <button
               onClick={() => window.location.reload()}
-              className="rounded-lg bg-accent text-accent-ink px-4 py-2 text-sm font-medium"
+              className="rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold"
             >
               Recargar
             </button>

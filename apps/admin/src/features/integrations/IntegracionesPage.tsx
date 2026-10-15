@@ -76,7 +76,7 @@ export function IntegracionesPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-semibold mb-1">Integraciones</h1>
+      <h1 className="font-serif text-4xl font-normal leading-tight mb-1">Integraciones</h1>
       <p className="text-sm text-ink-muted mb-6 max-w-2xl">
         Ninguna está conectada todavía — conectar cualquiera de estas requiere una cuenta y credenciales reales del
         proveedor, que solo vos podés crear. La arquitectura ya está preparada para que, cuando llegue el momento,
@@ -85,8 +85,8 @@ export function IntegracionesPage() {
 
       <div className="space-y-6 max-w-2xl">
         <div>
-          <h2 className="text-xs uppercase tracking-wide text-ink-faint mb-2">POS / caja</h2>
-          <div className="rounded-xl border border-line bg-surface divide-y divide-line">
+          <h2 className="text-[13px] uppercase tracking-wide text-ink-faint mb-2">POS / caja</h2>
+          <div className="rounded-2xl bg-surface divide-y divide-line">
             {loading
               ? null
               : POS_PROVIDERS.map((p) => {
@@ -96,14 +96,14 @@ export function IntegracionesPage() {
                     <div key={p.provider} className="flex items-center justify-between gap-4 px-4 py-3">
                       <div>
                         <p className="text-sm font-medium">{p.name}</p>
-                        <p className="text-xs text-ink-faint">{p.desc}</p>
+                        <p className="text-[13px] text-ink-faint">{p.desc}</p>
                       </div>
                       {p.connectable ? (
                         connected ? (
                           <button
                             onClick={handleDisconnectMock}
                             disabled={connecting}
-                            className="text-xs text-status-occupied border border-status-occupied/40 rounded-full px-2.5 py-1 shrink-0 hover:bg-status-occupied/10 disabled:opacity-60"
+                            className="text-[13px] text-status-occupied border border-status-occupied/40 rounded-full px-2.5 py-1 shrink-0 hover:bg-status-occupied/10 disabled:opacity-60"
                           >
                             Desconectar
                           </button>
@@ -111,13 +111,13 @@ export function IntegracionesPage() {
                           <button
                             onClick={handleConnectMock}
                             disabled={connecting}
-                            className="text-xs text-accent-ink bg-accent rounded-full px-2.5 py-1 shrink-0 font-medium disabled:opacity-60"
+                            className="text-[13px] text-accent-ink bg-accent rounded-full px-2.5 py-1 shrink-0 font-medium disabled:opacity-60"
                           >
                             Conectar
                           </button>
                         )
                       ) : (
-                        <span className="text-xs text-ink-faint border border-line rounded-full px-2.5 py-1 shrink-0">
+                        <span className="text-[13px] text-ink-faint border border-line rounded-full px-2.5 py-1 shrink-0">
                           Próximamente
                         </span>
                       )}
@@ -129,15 +129,15 @@ export function IntegracionesPage() {
 
         {STATIC_CATEGORIES.map((category) => (
           <div key={category.name}>
-            <h2 className="text-xs uppercase tracking-wide text-ink-faint mb-2">{category.name}</h2>
-            <div className="rounded-xl border border-line bg-surface divide-y divide-line">
+            <h2 className="text-[13px] uppercase tracking-wide text-ink-faint mb-2">{category.name}</h2>
+            <div className="rounded-2xl bg-surface divide-y divide-line">
               {category.items.map((item) => (
                 <div key={item.name} className="flex items-center justify-between gap-4 px-4 py-3">
                   <div>
                     <p className="text-sm font-medium">{item.name}</p>
-                    <p className="text-xs text-ink-faint">{item.desc}</p>
+                    <p className="text-[13px] text-ink-faint">{item.desc}</p>
                   </div>
-                  <span className="text-xs text-ink-faint border border-line rounded-full px-2.5 py-1 shrink-0">
+                  <span className="text-[13px] text-ink-faint border border-line rounded-full px-2.5 py-1 shrink-0">
                     No conectado
                   </span>
                 </div>

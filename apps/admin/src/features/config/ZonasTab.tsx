@@ -73,7 +73,7 @@ export function ZonasTab({ restaurantId }: { restaurantId: string }) {
         <span className="text-ink">Plano de mesas → Editar plano</span>.
       </p>
 
-      <div className="rounded-xl border border-line bg-surface divide-y divide-line mb-4">
+      <div className="rounded-2xl bg-surface divide-y divide-line mb-4">
         {ordered.length === 0 ? (
           <p className="p-4 text-sm text-ink-muted">Todavía no hay zonas.</p>
         ) : (
@@ -104,7 +104,7 @@ export function ZonasTab({ restaurantId }: { restaurantId: string }) {
               />
               <button
                 onClick={() => handleDeactivate(zone.id)}
-                className="text-xs text-ink-faint hover:text-status-occupied"
+                className="text-[13px] text-ink-faint hover:text-status-occupied"
               >
                 Eliminar
               </button>
@@ -124,7 +124,7 @@ export function ZonasTab({ restaurantId }: { restaurantId: string }) {
         <button
           onClick={handleCreate}
           disabled={creating || !newName.trim()}
-          className="rounded-lg bg-accent text-accent-ink px-4 py-2 text-sm font-medium disabled:opacity-60"
+          className="rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold disabled:opacity-60"
         >
           Agregar
         </button>

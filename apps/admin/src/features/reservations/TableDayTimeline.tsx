@@ -1,6 +1,7 @@
 import type { ReservationWithDetails } from "@reservia/api-client";
 import { minutesSince } from "@reservia/core";
-import { RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "./statusStyles";
+import { RESERVATION_STATUS_LABEL } from "./statusStyles";
+import { reservationVisualState, stateClass } from "../../lib/stateStyle";
 
 const RANGE_START_HOUR = 12;
 const RANGE_END_HOUR = 22;
@@ -43,30 +44,29 @@ export function TableDayTimeline({
     <div className="rounded-lg border border-line bg-ground overflow-hidden mt-1.5">
       <div className="relative h-4 border-b border-line">
         {hourMarks.map((t) => (
-          <span key={t} className="absolute top-0 text-[9px] text-ink-faint -translate-x-1/2" style={{ left: `${pct(t)}%` }}>
+          <span key={t} className="absolute top-0 text-[13px] text-ink-faint -translate-x-1/2" style={{ left: `${pct(t)}%` }}>
             {new Date(t).toLocaleTimeString("es-CL", { hour: "2-digit" })}
           </span>
         ))}
       </div>
-      <div className="relative h-8">
+      <div className="relative h-12">
         {nowPct !== null && <div className="absolute top-0 bottom-0 w-px bg-accent z-10" style={{ left: `${nowPct}%` }} />}
         {reservations.length === 0 ? (
-          <p className="absolute inset-0 grid place-items-center text-[10px] text-ink-faint">Sin reservas hoy en esta mesa</p>
+          <p className="absolute inset-0 grid place-items-center text-[13px] text-ink-faint">Sin reservas hoy en esta mesa</p>
         ) : (
           reservations.map((r) => {
             const left = pct(new Date(r.startsAt).getTime());
             const right = pct(new Date(r.endsAt).getTime());
             const width = Math.max(3, right - left);
-            const color = RESERVATION_STATUS_COLOR[r.status];
             return (
               <div
                 key={r.id}
                 title={`${r.customerName} · ${r.partySize}p · ${RESERVATION_STATUS_LABEL[r.status]}`}
-                style={{ left: `${left}%`, width: `${width}%`, borderColor: color }}
-                className="absolute top-0.5 bottom-0.5 rounded border bg-surface px-1 overflow-hidden"
+                style={{ left: `${left}%`, width: `${width}%` }}
+                className={`${stateClass(reservationVisualState(r.status))} absolute top-0.5 bottom-0.5 rounded border-2 px-1 overflow-hidden`}
               >
-                <span className="block truncate text-[9px] font-medium leading-tight">{r.customerName}</span>
-                <span className="block truncate text-[8px] text-ink-faint leading-tight">
+                <span className="block truncate text-[13px] font-medium leading-tight">{r.customerName}</span>
+                <span className="block truncate text-[13px] opacity-80 leading-tight">
                   {r.partySize}p{r.status === "seated" ? ` · hace ${minutesSince(r.startsAt, now)} min` : ""}
                 </span>
               </div>

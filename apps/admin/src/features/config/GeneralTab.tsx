@@ -53,13 +53,13 @@ export function GeneralTab({ restaurant }: { restaurant: Restaurant }) {
     <div className="max-w-md space-y-6">
       <div>
         <h2 className="text-sm font-semibold mb-1">Logo</h2>
-        <p className="text-xs text-ink-faint mb-3">Aparece en el portal público de reservas, arriba del nombre.</p>
+        <p className="text-[13px] text-ink-faint mb-3">Aparece en el portal público de reservas, arriba del nombre.</p>
         <div className="flex items-center gap-4">
           <div className="w-20 h-20 rounded-xl border border-line bg-ground grid place-items-center overflow-hidden shrink-0">
             {restaurant.logoUrl ? (
               <img src={restaurant.logoUrl} alt="Logo" className="w-full h-full object-contain" />
             ) : (
-              <span className="text-[10px] text-ink-faint text-center px-1">Sin logo</span>
+              <span className="text-[13px] text-ink-faint text-center px-1">Sin logo</span>
             )}
           </div>
           <div className="space-y-1.5">
@@ -73,16 +73,16 @@ export function GeneralTab({ restaurant }: { restaurant: Restaurant }) {
             />
             <label
               htmlFor="logo-upload"
-              className="inline-block rounded-lg bg-surface-2 border border-line px-3 py-1.5 text-xs text-ink hover:border-accent cursor-pointer"
+              className="inline-block rounded-lg bg-surface-2 border border-line px-3 py-1.5 text-[13px] text-ink hover:border-accent cursor-pointer"
             >
               {uploading ? "Subiendo…" : restaurant.logoUrl ? "Cambiar logo" : "Subir logo"}
             </label>
             {restaurant.logoUrl && (
-              <button onClick={handleRemoveLogo} className="block text-xs text-status-occupied hover:opacity-80">
+              <button onClick={handleRemoveLogo} className="block text-[13px] text-status-occupied hover:opacity-80">
                 Quitar logo
               </button>
             )}
-            {error && <p className="text-xs text-status-occupied">{error}</p>}
+            {error && <p className="text-[13px] text-status-occupied">{error}</p>}
           </div>
         </div>
       </div>
@@ -90,34 +90,34 @@ export function GeneralTab({ restaurant }: { restaurant: Restaurant }) {
       <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
         <h2 className="text-sm font-semibold">Datos del restaurante</h2>
         <div>
-          <label className="block text-xs text-ink-faint mb-1">Nombre</label>
+          <label className="block text-[13px] text-ink-faint mb-1">Nombre</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg bg-ground border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+            className="w-full rounded-[10px] bg-ground border border-line px-3 py-2 text-[15px] outline-none focus:border-accent"
           />
         </div>
         <div>
-          <label className="block text-xs text-ink-faint mb-1">Dirección</label>
+          <label className="block text-[13px] text-ink-faint mb-1">Dirección</label>
           <input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             placeholder="Calle 1234, Comuna"
-            className="w-full rounded-lg bg-ground border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+            className="w-full rounded-[10px] bg-ground border border-line px-3 py-2 text-[15px] outline-none focus:border-accent"
           />
         </div>
         <div>
-          <label className="block text-xs text-ink-faint mb-1">Teléfono</label>
+          <label className="block text-[13px] text-ink-faint mb-1">Teléfono</label>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full rounded-lg bg-ground border border-line px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+            className="w-full rounded-[10px] bg-ground border border-line px-3 py-2 text-[15px] outline-none focus:border-accent"
           />
         </div>
         <button
           onClick={handleSaveDetails}
           disabled={saving || !name.trim()}
-          className="rounded-lg bg-accent text-accent-ink px-4 py-2 text-sm font-medium disabled:opacity-60"
+          className="rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold disabled:opacity-60"
         >
           {saving ? "Guardando…" : "Guardar"}
         </button>
