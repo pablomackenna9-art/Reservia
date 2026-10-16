@@ -95,14 +95,12 @@ export function useFloorPlan(restaurantId: string | undefined) {
   const reservationsByTable = useMemo(() => {
     const map = new Map<string, ReservationWithDetails[]>();
     for (const r of reservationsToday) {
-      // Una reserva con mesas unidas ocupa todas sus mesas, no solo la principal.
-      for (const id of [r.tableId, ...(r.extraTableIds ?? [])]) {
-        if (!id) continue;
-        map.set(id, [...(map.get(id) ?? []), r]);
-      }
+      // Una reserva con mesas unidas (unión de la reserva o grupo armado a mano) ocupa todas sus mesas, no solo la principal.
+      const ids = new Set<string>([...(r.tableId ? [r.tableId, ...(tableGroups.get(r.tableId)?.tableIds ?? [])] : []), ...(r.extraTableIds ?? [])]);
+      for (const id of ids) map.set(id, [...(map.get(id) ?? []), r]);
     }
     return map;
-  }, [reservationsToday]);
+  }, [reservationsToday, tableGroups]);
 
   function getTableStatus(tableId: string): TableLiveStatusValue {
     const derived = deriveTableStatus(reservationsByTable.get(tableId) ?? []);

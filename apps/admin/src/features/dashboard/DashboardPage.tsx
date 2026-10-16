@@ -220,6 +220,8 @@ export function DashboardPage() {
     if (status === "occupied" || status === "paying") {
       const seated = list.find((r) => r.status === "seated");
       if (!seated) return undefined;
+      // Mesa secundaria de una unión: muestra el nombre de la reserva para que no parezca vacía.
+      if (seated.tableId !== tableId) return { text: `🔗 ${seated.customerName.split(" ").slice(-1)[0]}` };
       if (status === "paying") {
         const amount = payingTotals.get(tableId);
         return { text: amount ? formatCLP(amount) : "pagando" };
@@ -231,11 +233,12 @@ export function DashboardPage() {
       .filter((r) => r.status !== "seated")
       .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0];
     if (!next) return undefined;
-    if (status === "arriving") return { text: `llega ${formatTime(next.startsAt)}` };
+    const joined = next.tableId !== tableId ? "🔗 " : "";
+    if (status === "arriving") return { text: `${joined}llega ${formatTime(next.startsAt)}` };
     const late = minutesSince(next.startsAt, now);
-    if (late > 0) return { text: `+${late} min`, alert: true };
+    if (late > 0) return { text: `${joined}+${late} min`, alert: true };
     const lastName = next.customerName.split(" ").slice(-1)[0];
-    return { text: `${formatTime(next.startsAt)} · ${lastName}` };
+    return { text: `${joined}${formatTime(next.startsAt)} · ${lastName}` };
   }
 
   async function handleSelectTable(id: string | null) {
@@ -576,8 +579,10 @@ export function DashboardPage() {
                 zones={visibleZones}
                 visibleTables={visibleTables}
                 reservationsToday={reservationsToday}
+                tableGroups={tableGroups}
                 now={now}
                 onSelectReservation={setDetailReservation}
+                onMoveReservation={(id, tableId) => moveReservationToTable(id, tableId, "manual")}
               />
             ) : (
               <ZoneCanvas
