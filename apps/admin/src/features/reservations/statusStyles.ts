@@ -32,3 +32,16 @@ export const NEXT_STATUS_ACTIONS: Partial<Record<ReservationStatus, { label: str
   ],
   seated: [{ label: "Completar", status: "completed" }],
 };
+
+/**
+ * Pide confirmación antes de cancelar (o rechazar) una reserva, para evitar toques por error.
+ * Devuelve true si se puede seguir: cualquier otro cambio de estado no pregunta nada.
+ */
+export function confirmStatusChange(status: ReservationStatus, customerName: string, wasPending = false): boolean {
+  if (status !== "cancelled") return true;
+  return window.confirm(
+    wasPending
+      ? `¿Rechazar la solicitud de ${customerName}? Se le avisará que no fue aceptada.`
+      : `¿Cancelar la reserva de ${customerName}? Se libera la mesa y no se puede deshacer.`,
+  );
+}

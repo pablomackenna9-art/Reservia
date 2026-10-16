@@ -25,7 +25,7 @@ import type { TableAssignmentSource, TableCandidate } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { StatePill } from "../../components/ui";
 import { tableVisualState } from "../../lib/stateStyle";
-import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
+import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL, confirmStatusChange } from "../reservations/statusStyles";
 import { TableAssignmentPicker } from "../reservations/TableAssignmentPicker";
 import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
 
@@ -234,7 +234,9 @@ export function TableDetailPanel({
             {NEXT_STATUS_ACTIONS[reservation.status]?.map((action) => (
               <button
                 key={action.status}
-                onClick={() => onChangeReservationStatus(reservation.id, action.status)}
+                onClick={() => {
+                  if (confirmStatusChange(action.status, reservation.customerName)) onChangeReservationStatus(reservation.id, action.status);
+                }}
                 className="h-11 px-[18px] rounded-[10px] bg-accent text-accent-ink text-[15px] font-semibold"
               >
                 {action.label}

@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { minutesSince, type ReservationStatus, type TableAssignmentSource, type TableCandidate, type Zone } from "@reservia/core";
 import { acceptReservationWithTable, assignCandidateToReservation, getSmartTableCandidates, listZones, type ReservationWithDetails } from "@reservia/api-client";
 import { supabase } from "../../lib/supabase";
-import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "./statusStyles";
+import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL, confirmStatusChange } from "./statusStyles";
 import { TableAssignmentPicker } from "./TableAssignmentPicker";
 import { CustomerResponseTag } from "./CustomerResponseTag";
 import { Tag } from "../../components/ui";
@@ -336,7 +336,9 @@ export function ReservationDetailModal({
                       : "Aceptar reserva"}
                 </button>
                 <button
-                  onClick={() => onChangeStatus(reservation.id, "cancelled")}
+                  onClick={() => {
+                    if (confirmStatusChange("cancelled", reservation.customerName, true)) onChangeStatus(reservation.id, "cancelled");
+                  }}
                   className="flex-1 rounded-lg bg-surface-2 border border-line px-3 py-2 text-sm text-status-occupied hover:border-status-occupied"
                 >
                   Rechazar
@@ -349,7 +351,9 @@ export function ReservationDetailModal({
                 {NEXT_STATUS_ACTIONS[reservation.status]?.map((action) => (
                   <button
                     key={action.status}
-                    onClick={() => onChangeStatus(reservation.id, action.status)}
+                    onClick={() => {
+                      if (confirmStatusChange(action.status, reservation.customerName)) onChangeStatus(reservation.id, action.status);
+                    }}
                     className="rounded-[10px] bg-accent text-accent-ink px-2.5 py-1.5 text-[13px] font-semibold"
                   >
                     {action.label}

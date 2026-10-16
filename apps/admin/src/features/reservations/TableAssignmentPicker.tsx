@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase";
 import { ZoneCanvas } from "../plano/ZoneCanvas";
 import type { TableHighlightState } from "../plano/TableToken";
 import { TableDayTimeline } from "./TableDayTimeline";
+import { ManualTablePicker } from "./ManualTablePicker";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
@@ -104,8 +105,25 @@ export function TableAssignmentPicker({
     return <p className="text-[13px] text-ink-faint">Buscando la mejor mesa…</p>;
   }
 
+  const manualPicker = (
+    <ManualTablePicker
+      restaurantId={restaurantId}
+      partySize={partySize}
+      startsAt={startsAt}
+      endsAt={endsAt}
+      excludeReservationId={excludeReservationId}
+      reservationsForSchedule={reservationsForSchedule}
+      onSelect={onSelect}
+    />
+  );
+
   if (candidates.length === 0) {
-    return <p className="text-[13px] text-ink-faint">Ninguna mesa libre a esa hora para {partySize} personas.</p>;
+    return (
+      <div>
+        <p className="text-[13px] text-ink-faint">Ninguna mesa recomendada a esa hora para {partySize} personas.</p>
+        {manualPicker}
+      </div>
+    );
   }
 
   const [recommended, ...alternatives] = candidates;
@@ -265,6 +283,7 @@ export function TableAssignmentPicker({
           )}
         </div>
       )}
+      {manualPicker}
     </div>
   );
 }
