@@ -430,7 +430,7 @@ export function NotificacionesPage() {
                                         }`}
                                       >
                                         Mesa {c.tableNames.join("+")} · {c.capacityMax}p
-                                        {c.isCombination && " 🔗 combinada"}
+                                        {c.isCombination && (c.tableIds.length > 2 ? ` 🔗 unión de ${c.tableIds.length}` : " 🔗 combinada")}
                                       </button>
                                     </li>
                                   );

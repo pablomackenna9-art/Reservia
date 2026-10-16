@@ -14,6 +14,7 @@ import {
   addConsumptionItem,
   ensureOpenCheck,
   getOpenCheckForReservation,
+  assignCandidateToReservation,
   joinTables,
   listConsumptionItems,
   removeConsumptionItem,
@@ -149,10 +150,8 @@ export function TableDetailPanel({
   async function handlePickTable(candidate: TableCandidate, wasRecommended: boolean) {
     if (!reservation) return;
     const source: TableAssignmentSource = wasRecommended ? "suggested" : "manual";
+    if (candidate.tableIds.length > 1) await assignCandidateToReservation(supabase, reservation.id, candidate, source);
     onMoveReservation(reservation.id, candidate.tableIds[0]!, source);
-    if (candidate.isCombination && candidate.tableIds.length > 1) {
-      await joinTables(supabase, restaurantId, candidate.tableIds[0]!, candidate.tableIds[1]!, `Mesa ${candidate.tableNames.join("+")}`);
-    }
     setShowMoveTo(false);
   }
 

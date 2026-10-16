@@ -60,7 +60,7 @@ export async function listReservationsInRange(
 
   const { data, error } = await supabase
     .from("reservations")
-    .select("*, customers(*), tables!reservations_table_id_fkey(name)")
+    .select("*, customers(*), tables!reservations_table_id_fkey(name), reservation_tables(table_id, tables(name))")
     .eq("restaurant_id", restaurantId)
     .gte("starts_at", startOfRange)
     .lte("starts_at", endOfRange)
@@ -82,7 +82,7 @@ export async function listReservationsNeedingAttention(
 ): Promise<{ pendingApproval: ReservationWithDetails[]; unassignedTable: ReservationWithDetails[] }> {
   const { data, error } = await supabase
     .from("reservations")
-    .select("*, customers(*), tables!reservations_table_id_fkey(name)")
+    .select("*, customers(*), tables!reservations_table_id_fkey(name), reservation_tables(table_id, tables(name))")
     .eq("restaurant_id", restaurantId)
     .in("status", ["pending", "confirmed", "arriving"])
     .order("starts_at", { ascending: true });
@@ -169,6 +169,26 @@ export async function updateReservationTable(
     p_source: source,
   });
   if (error) throw error;
+}
+
+/**
+ * Asigna a la reserva lo que eligió el staff o el motor: una mesa, o una UNIÓN de varias. Con varias,
+ * la reserva recibe un número de unión (1, 2, 3... del día) y todas las mesas quedan ocupadas.
+ * Devuelve ese número (null si fue una sola mesa).
+ */
+export async function assignCandidateToReservation(
+  supabase: SupabaseClient,
+  reservationId: string,
+  candidate: Pick<TableCandidate, "tableIds">,
+  source: TableAssignmentSource,
+): Promise<number | null> {
+  await updateReservationTable(supabase, reservationId, candidate.tableIds[0]!, source);
+  const { data, error } = await supabase.rpc("assign_reservation_tables", {
+    p_reservation: reservationId,
+    p_table_ids: candidate.tableIds,
+  });
+  if (error) throw error;
+  return (data as number | null) ?? null;
 }
 
 export async function checkTableAvailability(
@@ -375,10 +395,7 @@ export async function acceptReservationWithTable(
 ): Promise<void> {
   await updateReservationStatus(supabase, reservation.id, "confirmed");
   if (!chosen) return;
-  await updateReservationTable(supabase, reservation.id, chosen.tableIds[0]!, wasRecommended ? "suggested" : "manual");
-  if (chosen.isCombination && chosen.tableIds.length > 1) {
-    await joinTables(supabase, reservation.restaurantId, chosen.tableIds[0]!, chosen.tableIds[1]!, `Mesa ${chosen.tableNames.join("+")}`);
-  }
+  await assignCandidateToReservation(supabase, reservation.id, chosen, wasRecommended ? "suggested" : "manual");
 }
 
 /**
@@ -405,19 +422,11 @@ export async function acceptReservation(
   });
   if (!candidate) return;
 
-  await updateReservationTable(supabase, reservation.id, candidate.tableIds[0]!, "automatic");
-  if (candidate.isCombination && candidate.tableIds.length > 1) {
-    await joinTables(
-      supabase,
-      reservation.restaurantId,
-      candidate.tableIds[0]!,
-      candidate.tableIds[1]!,
-      `Mesa ${candidate.tableNames.join("+")}`,
-    );
-  }
+  await assignCandidateToReservation(supabase, reservation.id, candidate, "automatic");
 }
 
 export function mapReservation(row: Record<string, unknown>): Reservation {
+  const extra = (row.reservation_tables as { table_id: string; tables: { name: string } | null }[] | undefined) ?? [];
   return {
     id: row.id as string,
     restaurantId: row.restaurant_id as string,
@@ -440,6 +449,9 @@ export function mapReservation(row: Record<string, unknown>): Reservation {
     confirmationToken: (row.confirmation_token as string) ?? null,
     customerResponse: (row.customer_response as "confirmed" | "declined") ?? null,
     customerRespondedAt: (row.customer_responded_at as string) ?? null,
+    extraTableIds: extra.map((e) => e.table_id),
+    extraTableNames: extra.map((e) => e.tables?.name ?? "?"),
+    unionNumber: (row.union_number as number) ?? null,
   };
 }
 
@@ -447,7 +459,7 @@ export function mapReservation(row: Record<string, unknown>): Reservation {
 export async function listReservationsDeclinedByCustomer(supabase: SupabaseClient, restaurantId: string): Promise<ReservationWithDetails[]> {
   const { data, error } = await supabase
     .from("reservations")
-    .select("*, customers(*), tables!reservations_table_id_fkey(name)")
+    .select("*, customers(*), tables!reservations_table_id_fkey(name), reservation_tables(table_id, tables(name))")
     .eq("restaurant_id", restaurantId)
     .eq("customer_response", "declined")
     .gte("ends_at", new Date().toISOString())
@@ -466,7 +478,7 @@ export async function listReservationsMissingFeedback(
   const since = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
   const { data, error } = await supabase
     .from("reservations")
-    .select("*, customers(*), tables!reservations_table_id_fkey(name)")
+    .select("*, customers(*), tables!reservations_table_id_fkey(name), reservation_tables(table_id, tables(name))")
     .eq("restaurant_id", restaurantId)
     .eq("status", "completed")
     .is("feedback_rating", null)

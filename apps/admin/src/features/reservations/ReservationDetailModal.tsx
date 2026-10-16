@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { minutesSince, type ReservationStatus, type TableAssignmentSource, type TableCandidate, type Zone } from "@reservia/core";
-import { acceptReservationWithTable, getSmartTableCandidates, joinTables, listZones, type ReservationWithDetails } from "@reservia/api-client";
+import { acceptReservationWithTable, assignCandidateToReservation, getSmartTableCandidates, listZones, type ReservationWithDetails } from "@reservia/api-client";
 import { supabase } from "../../lib/supabase";
 import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "./statusStyles";
 import { TableAssignmentPicker } from "./TableAssignmentPicker";
 import { CustomerResponseTag } from "./CustomerResponseTag";
+import { Tag } from "../../components/ui";
 import { NotifyCustomerModal } from "./NotifyCustomerModal";
 
 const SOURCE_LABEL: Record<ReservationWithDetails["source"], string> = {
@@ -121,10 +122,9 @@ export function ReservationDetailModal({
 
   async function handlePickTable(candidate: TableCandidate, wasRecommended: boolean) {
     const source: TableAssignmentSource = wasRecommended ? "suggested" : "manual";
+    // Con varias mesas se arma primero la unión (número + mesas bloqueadas) y después la pantalla se refresca.
+    if (candidate.tableIds.length > 1) await assignCandidateToReservation(supabase, reservation.id, candidate, source);
     await onAssignTable(reservation.id, candidate.tableIds[0]!, source);
-    if (candidate.isCombination && candidate.tableIds.length > 1) {
-      await joinTables(supabase, restaurantId, candidate.tableIds[0]!, candidate.tableIds[1]!, `Mesa ${candidate.tableNames.join("+")}`);
-    }
     setActiveTab("detalle");
   }
 
@@ -156,6 +156,7 @@ export function ReservationDetailModal({
           </span>
           <span className="text-[13px] text-ink-faint">{SOURCE_LABEL[reservation.source]}</span>
           <CustomerResponseTag reservation={reservation} />
+          {reservation.unionNumber != null && <Tag tone="accent">Unión N° {reservation.unionNumber}</Tag>}
         </div>
 
         {showTabs && (
@@ -214,7 +215,11 @@ export function ReservationDetailModal({
               </Row>
               <Row label="Personas">{reservation.partySize}</Row>
               <Row label="Lugar">
-                {reservation.tableName ? `${zoneName ? `${zoneName} · ` : ""}Mesa ${reservation.tableName}` : "Sin mesa asignada"}
+                {reservation.tableName
+                  ? reservation.extraTableNames && reservation.extraTableNames.length > 0
+                    ? `Unión N° ${reservation.unionNumber ?? "?"} · Mesas ${[reservation.tableName, ...reservation.extraTableNames].join(" + ")}`
+                    : `${zoneName ? `${zoneName} · ` : ""}Mesa ${reservation.tableName}`
+                  : "Sin mesa asignada"}
               </Row>
               {(needsApproval || reservation.preferredZoneId) && <Row label="Ubicación pedida">{requestedZoneName}</Row>}
               <Row label="Teléfono">{reservation.customerPhone ?? "—"}</Row>
@@ -229,12 +234,19 @@ export function ReservationDetailModal({
                 ) : plannedTable ? (
                   <>
                     <p className="text-[15px] font-semibold">
-                      Mesa {plannedTable.candidate.tableNames.join(" + ")}
+                      {plannedTable.candidate.tableIds.length > 1 ? "Unión de mesas " : "Mesa "}
+                      {plannedTable.candidate.tableNames.join(" + ")}
                       <span className="font-normal text-ink-muted">
                         {" "}
                         · {zoneNameById.get(plannedTable.candidate.zoneId) ?? "…"} · hasta {plannedTable.candidate.capacityMax} personas
                       </span>
                     </p>
+                    {plannedTable.candidate.tableIds.length > 1 && (
+                      <p className="text-[13px] text-status-arriving mt-1">
+                        🔗 Ninguna mesa sola alcanza para {reservation.partySize} personas. Se unirían {plannedTable.candidate.tableIds.length} mesas libres (
+                        {plannedTable.candidate.capacityMax} asientos) y la reserva recibirá un número de unión para identificar la mesa y su cuenta.
+                      </p>
+                    )}
                     {reservation.preferredZoneId && plannedTable.candidate.zoneId !== reservation.preferredZoneId && (
                       <p className="text-[13px] text-status-arriving mt-1">
                         ⚠ El cliente pidió {requestedZoneName}, pero no hay mesa libre ahí a esa hora.
@@ -315,7 +327,13 @@ export function ReservationDetailModal({
                   disabled={accepting || suggested === undefined}
                   className="flex-1 rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold disabled:opacity-60"
                 >
-                  {accepting ? "Aceptando…" : plannedTable ? `Aceptar en Mesa ${plannedTable.candidate.tableNames.join("+")}` : "Aceptar reserva"}
+                  {accepting
+                    ? "Aceptando…"
+                    : plannedTable
+                      ? plannedTable.candidate.tableIds.length > 1
+                        ? `Unir ${plannedTable.candidate.tableIds.length} mesas y aceptar`
+                        : `Aceptar en Mesa ${plannedTable.candidate.tableNames.join("+")}`
+                      : "Aceptar reserva"}
                 </button>
                 <button
                   onClick={() => onChangeStatus(reservation.id, "cancelled")}

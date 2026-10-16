@@ -45,6 +45,11 @@ export const reservationSchema = z
     /** 'confirmed' = el cliente confirmó asistencia; 'declined' = avisó que no puede ir (la reserva queda cancelada). */
     customerResponse: z.enum(["confirmed", "declined"]).nullable().optional(),
     customerRespondedAt: z.string().nullable().optional(),
+    /** Mesas EXTRA de una unión (la principal es `tableId`). Vacío o ausente = una sola mesa. */
+    extraTableIds: z.array(z.string().uuid()).optional(),
+    extraTableNames: z.array(z.string()).optional(),
+    /** Número de la unión (1, 2, 3... por día): identifica la mesa unida y su cuenta. */
+    unionNumber: z.number().int().nullable().optional(),
   })
   .refine((r) => new Date(r.endsAt) > new Date(r.startsAt), {
     message: "endsAt debe ser posterior a startsAt",

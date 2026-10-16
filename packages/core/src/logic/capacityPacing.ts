@@ -20,7 +20,7 @@ export interface CapacitySlot {
  */
 export function computeCapacityPacing(
   totalTables: number,
-  reservations: Pick<Reservation, "tableId" | "startsAt" | "endsAt" | "status">[],
+  reservations: (Pick<Reservation, "tableId" | "startsAt" | "endsAt" | "status"> & { extraTableIds?: string[] })[],
   now: Date,
   options: { slotMinutes?: number; horizonMinutes?: number; bufferMinutes?: number } = {},
 ): CapacitySlot[] {
@@ -50,7 +50,7 @@ export function computeCapacityPacing(
       const endMs = new Date(r.endsAt).getTime();
       // Misma prueba de solape que check_table_availability, con el mismo colchón.
       if (startMs < slotEnd && endMs + bufferMs > slotStart) {
-        occupiedTableIds.add(r.tableId!);
+        for (const id of [r.tableId!, ...(r.extraTableIds ?? [])]) occupiedTableIds.add(id);
       }
       if (startMs >= slotStart && startMs < slotEnd) newArrivals++;
     }
@@ -98,7 +98,7 @@ export function reservationsActiveInWindow<
  * decidir si conviene asignarla. Usado tanto en Notificaciones (candidato
  * elegido) como en TableAssignmentPicker (cada candidato a la vez).
  */
-export function nearbyTableSchedule<T extends Pick<Reservation, "id" | "tableId" | "startsAt" | "endsAt" | "status">>(
+export function nearbyTableSchedule<T extends Pick<Reservation, "id" | "tableId" | "startsAt" | "endsAt" | "status"> & { extraTableIds?: string[] }>(
   dayReservations: T[],
   tableIds: string[],
   referenceStartsAt: string,
@@ -113,7 +113,7 @@ export function nearbyTableSchedule<T extends Pick<Reservation, "id" | "tableId"
   const windowMs = windowHours * 60 * 60_000;
 
   return dayReservations
-    .filter((r) => r.tableId && tableIds.includes(r.tableId) && r.status !== "cancelled" && r.id !== options.excludeId)
+    .filter((r) => reservationUsesAnyTable(r, tableIds) && r.status !== "cancelled" && r.id !== options.excludeId)
     .filter((r) => {
       if (r.status === "seated") return true;
       if (Math.abs(new Date(r.startsAt).getTime() - referenceMs) <= windowMs) return true;
@@ -142,7 +142,7 @@ export interface OccupancyEstimate {
  */
 export function estimateOccupancyAt(
   totalTables: number,
-  reservations: Pick<Reservation, "tableId" | "startsAt" | "endsAt" | "status">[],
+  reservations: (Pick<Reservation, "tableId" | "startsAt" | "endsAt" | "status"> & { extraTableIds?: string[] })[],
   targetStart: Date,
   targetEnd: Date,
   bufferMinutes = 15,
@@ -156,7 +156,7 @@ export function estimateOccupancyAt(
   for (const r of active) {
     const startMs = new Date(r.startsAt).getTime();
     const endMs = new Date(r.endsAt).getTime();
-    if (startMs < targetEndMs && endMs + bufferMs > targetStartMs) occupiedTableIds.add(r.tableId!);
+    if (startMs < targetEndMs && endMs + bufferMs > targetStartMs) for (const id of [r.tableId!, ...(r.extraTableIds ?? [])]) occupiedTableIds.add(id);
   }
 
   const occupiedTables = occupiedTableIds.size;
@@ -167,4 +167,10 @@ export function estimateOccupancyAt(
     freeTables,
     pctOccupied: totalTables > 0 ? Math.round((occupiedTables / totalTables) * 100) : 0,
   };
+}
+
+/** ¿La reserva ocupa alguna de estas mesas, ya sea como mesa principal o como parte de una unión? */
+export function reservationUsesAnyTable(r: { tableId: string | null; extraTableIds?: string[] }, tableIds: string[]): boolean {
+  if (r.tableId && tableIds.includes(r.tableId)) return true;
+  return (r.extraTableIds ?? []).some((id) => tableIds.includes(id));
 }

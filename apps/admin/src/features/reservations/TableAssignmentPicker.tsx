@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getSmartTableCandidates, listTables, listZones, type ReservationWithDetails } from "@reservia/api-client";
-import { nearbyTableSchedule, type Table, type TableCandidate, type Zone, type ZonePreferenceMode } from "@reservia/core";
+import { nearbyTableSchedule, reservationUsesAnyTable, type Table, type TableCandidate, type Zone, type ZonePreferenceMode } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { ZoneCanvas } from "../plano/ZoneCanvas";
 import type { TableHighlightState } from "../plano/TableToken";
@@ -133,8 +133,7 @@ export function TableAssignmentPicker({
     return reservationsForSchedule
       .filter(
         (r) =>
-          r.tableId &&
-          candidate.tableIds.includes(r.tableId) &&
+          reservationUsesAnyTable(r, candidate.tableIds) &&
           r.status !== "cancelled" &&
           r.id !== excludeReservationId,
       )
@@ -231,7 +230,7 @@ export function TableAssignmentPicker({
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-status-available">
-                  ✨ {recommended!.tableNames.join(" + ")} recomendada
+                  ✨ {recommended!.tableIds.length > 1 ? "Unión " : ""}{recommended!.tableNames.join(" + ")} recomendada
                 </span>
                 <span className="text-[13px] text-ink-faint">hasta {recommended!.capacityMax} personas</span>
               </div>
@@ -254,7 +253,7 @@ export function TableAssignmentPicker({
                   >
                     <button type="button" onClick={() => onSelect(c, false)} title={c.reasons.join(" · ")} className="w-full text-left">
                       <span>
-                        {c.tableNames.join("+")} · hasta {c.capacityMax} personas
+                        {c.tableIds.length > 1 ? "🔗 " : ""}{c.tableNames.join("+")} · hasta {c.capacityMax} personas
                       </span>
                       <span className="block text-ink-faint text-[13px]">{zoneNameById.get(c.zoneId) ?? "…"}</span>
                     </button>

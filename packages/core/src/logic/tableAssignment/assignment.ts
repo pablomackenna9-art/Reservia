@@ -1,5 +1,5 @@
 import type { Table } from "../../types/floorplan";
-import { buildTablePairCombinations } from "./combinations";
+import { buildTablePairCombinations, buildTableUnionCombinations } from "./combinations";
 import { scoreTableForReservation } from "./scoring";
 import type { DayReservationForLookahead, ReservationForScoring, TableCandidate } from "./types";
 
@@ -49,6 +49,16 @@ export function buildTableCandidates(input: BuildTableCandidatesInput): TableCan
     const base = { ...combo, isCombination: true as const };
     const { score, reasons } = scoreTableForReservation(base, reservation, laterReservations);
     candidates.push({ ...base, score, reasons });
+  }
+
+  // Ni una mesa ni un par alcanzan: se ofrece UNIR 3 o 4 mesas libres (ej. 2 + 4 + 4 para 9 personas).
+  if (candidates.length === 0) {
+    for (const combo of buildTableUnionCombinations(eligibleJoinableTables, reservation.partySize)) {
+      if (zoneRequired && combo.zoneId !== reservation.preferredZoneId) continue;
+      const base = { ...combo, isCombination: true as const };
+      const { score, reasons } = scoreTableForReservation(base, reservation, laterReservations);
+      candidates.push({ ...base, score, reasons });
+    }
   }
 
   return candidates.sort((a, b) => b.score - a.score).slice(0, MAX_CANDIDATES);

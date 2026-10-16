@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { ReservationWithDetails } from "@reservia/api-client";
-import { findTurnoverConflict, minutesSince, type Table, type Zone } from "@reservia/core";
+import { findTurnoverConflict, minutesSince, reservationUsesAnyTable, type Table, type Zone } from "@reservia/core";
 import { RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
 import { reservationVisualState, stateClass } from "../../lib/stateStyle";
 
@@ -106,7 +106,7 @@ export function ReservationsTimeline({
                 {zone.name}
               </p>
               {tables.map((table) => {
-                const tableReservations = active.filter((r) => r.tableId === table.id);
+                const tableReservations = active.filter((r) => reservationUsesAnyTable(r, [table.id]));
                 const conflict = findTurnoverConflict(tableReservations, now);
                 return (
                   <TimelineRow
@@ -180,7 +180,10 @@ function TimelineRow({
               style={{ left: `${left}%`, width: `${width}%` }}
               className={`${stateClass(reservationVisualState(r.status))} absolute top-1 bottom-1 rounded-md border-2 px-1.5 text-left overflow-hidden hover:brightness-110`}
             >
-              <span className="block truncate text-[13px] font-semibold leading-tight">{r.customerName}</span>
+              <span className="block truncate text-[13px] font-semibold leading-tight">
+                {r.unionNumber != null && <span title="Mesas unidas para este grupo">🔗 U{r.unionNumber} · </span>}
+                {r.customerName}
+              </span>
               <span className="block truncate text-[13px] opacity-80 leading-tight">
                 {r.partySize}p{r.status === "seated" ? ` · hace ${minutesSince(r.startsAt, now)} min` : ""}
               </span>

@@ -11,6 +11,9 @@
 //   node supabase/seed/simulate-day.mjs --drip 6 --every 75
 //        # además, sigue llegando una solicitud nueva cada 75 s (6 en total), como en un día real
 //   node supabase/seed/simulate-day.mjs --slug otro-restaurante
+//   node supabase/seed/simulate-day.mjs --union-demo
+//        # NO borra nada: agrega para mañana a las 20:00 una solicitud de 9 personas con todas las mesas
+//        # grandes ya ocupadas, para probar la UNIÓN de mesas (2 + 4 + 4, etc.)
 //
 // Solo toca el restaurante indicado (por defecto restaurante-demo). Reemplaza su actividad de
 // ejemplo: borra reservas no completadas y la lista de espera, y las completadas marcadas '[sim]'
@@ -132,6 +135,11 @@ async function main() {
   if (!restaurant) throw new Error(`No existe el restaurante '${SLUG}'.`);
   const rid = restaurant.id;
   const ownerId = restaurant.created_by;
+
+  if (args.includes("--union-demo")) {
+    await unionDemo(rid, ownerId);
+    return;
+  }
 
   console.log(`Simulando un día en ${restaurant.name}...`);
 
@@ -330,6 +338,43 @@ async function main() {
     });
     console.log(`  Llegó solicitud nueva (${n}/${DRIP}): ${party} personas, ${useToday ? "hoy" : "mañana"} ${String(slot[0]).padStart(2, "0")}:${String(slot[1]).padStart(2, "0")}`);
   }
+}
+
+/** Mañana 20:00: las mesas de 5+ personas ya están ocupadas y llega una solicitud de 9 personas -> solo se puede atender uniendo mesas. */
+async function unionDemo(rid, ownerId) {
+  const [tables, customers, zones] = await Promise.all([
+    rest(`tables?restaurant_id=eq.${rid}&active=eq.true&select=id,name,capacity_max`),
+    rest(`customers?restaurant_id=eq.${rid}&email=like.*@example.com&select=id&limit=50`),
+    rest(`zones?restaurant_id=eq.${rid}&active=eq.true&select=id,name&order=sort_order`),
+  ]);
+  const startsAt = at(1, 20, 0);
+  const endsAt = new Date(startsAt.getTime() + DURATION_MIN * 60_000);
+  const common = { restaurant_id: rid, notes: null, internal_notes: null, total_amount: null, created_by: ownerId, preferred_zone_id: null, customer_response: null, customer_responded_at: null };
+  const big = tables.filter((t) => t.capacity_max >= 5); // nada de 5+ personas libre: ni una mesa ni un par (4 + 4) alcanza para 9
+  const rows = big.map((t, i) => ({
+    ...common,
+    customer_id: customers[i % customers.length].id,
+    table_id: t.id,
+    starts_at: startsAt.toISOString(),
+    ends_at: endsAt.toISOString(),
+    party_size: t.capacity_max - 1,
+    status: "confirmed",
+    source: "phone",
+  }));
+  rows.push({
+    ...common,
+    customer_id: customers[customers.length - 1].id,
+    table_id: null,
+    starts_at: startsAt.toISOString(),
+    ends_at: endsAt.toISOString(),
+    party_size: 9,
+    status: "pending",
+    source: "public_portal",
+    notes: "Cena de cumpleaños, somos 9",
+    preferred_zone_id: zones.find((z) => z.name === "Salón Principal")?.id ?? null,
+  });
+  await rest("reservations", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(rows) });
+  console.log(`Listo: ${big.length} mesas grandes ocupadas mañana a las 20:00 y 1 solicitud de 9 personas esperando (hay que unir mesas).`);
 }
 
 main().catch((err) => {

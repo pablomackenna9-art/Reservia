@@ -95,8 +95,11 @@ export function useFloorPlan(restaurantId: string | undefined) {
   const reservationsByTable = useMemo(() => {
     const map = new Map<string, ReservationWithDetails[]>();
     for (const r of reservationsToday) {
-      if (!r.tableId) continue;
-      map.set(r.tableId, [...(map.get(r.tableId) ?? []), r]);
+      // Una reserva con mesas unidas ocupa todas sus mesas, no solo la principal.
+      for (const id of [r.tableId, ...(r.extraTableIds ?? [])]) {
+        if (!id) continue;
+        map.set(id, [...(map.get(id) ?? []), r]);
+      }
     }
     return map;
   }, [reservationsToday]);

@@ -252,3 +252,64 @@ describe("buildTableCandidates", () => {
     expect(candidates[0]!.tableIds).toEqual(["single4"]);
   });
 });
+
+describe("uniones de 3 o 4 mesas", () => {
+  const join = (name: string, max: number) => makeTable({ id: `u-${name}`, name, capacityMin: 1, capacityMax: max, joinable: true });
+
+  it("9 personas con mesas libres de 2 + 4 + 4: ofrece unir las tres", () => {
+    const tables = [join("A", 2), join("B", 4), join("C", 4)];
+    const candidates = buildTableCandidates({
+      reservation: makeReservation({ partySize: 9 }),
+      availableSingleTables: [],
+      availableJoinableTables: tables,
+      laterReservations: [],
+    });
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]!.isCombination).toBe(true);
+    expect(candidates[0]!.tableIds.sort()).toEqual(["u-A", "u-B", "u-C"]);
+    expect(candidates[0]!.capacityMax).toBe(10);
+  });
+
+  it("no ofrece uniones de 3 cuando un par ya alcanza", () => {
+    const tables = [join("A", 6), join("B", 4), join("C", 2)];
+    const candidates = buildTableCandidates({
+      reservation: makeReservation({ partySize: 9 }),
+      availableSingleTables: [],
+      availableJoinableTables: tables,
+      laterReservations: [],
+    });
+    expect(candidates.length).toBeGreaterThan(0);
+    expect(candidates.every((c) => c.tableIds.length === 2)).toBe(true);
+  });
+
+  it("no mezcla zonas ni ofrece mesas de sobra (unión mínima)", () => {
+    const tables = [
+      join("A", 4),
+      join("B", 4),
+      makeTable({ id: "u-C", name: "C", capacityMax: 4, joinable: true, zoneId: "zone-terraza" }),
+      join("D", 2),
+      join("E", 2),
+    ];
+    const candidates = buildTableCandidates({
+      reservation: makeReservation({ partySize: 9 }),
+      availableSingleTables: [],
+      availableJoinableTables: tables,
+      laterReservations: [],
+    });
+    for (const c of candidates) {
+      expect(new Set(c.tableIds.map((id) => tables.find((t) => t.id === id)!.zoneId)).size).toBe(1);
+      const smallest = Math.min(...c.tableIds.map((id) => tables.find((t) => t.id === id)!.capacityMax));
+      expect(c.capacityMax - smallest).toBeLessThan(9);
+    }
+  });
+
+  it("sin mesas suficientes no devuelve nada", () => {
+    const candidates = buildTableCandidates({
+      reservation: makeReservation({ partySize: 12 }),
+      availableSingleTables: [],
+      availableJoinableTables: [join("A", 2), join("B", 4), join("C", 4)],
+      laterReservations: [],
+    });
+    expect(candidates).toEqual([]);
+  });
+});
