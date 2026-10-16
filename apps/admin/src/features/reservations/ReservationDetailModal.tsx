@@ -4,6 +4,8 @@ import { joinTables, type ReservationWithDetails } from "@reservia/api-client";
 import { supabase } from "../../lib/supabase";
 import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "./statusStyles";
 import { TableAssignmentPicker } from "./TableAssignmentPicker";
+import { CustomerResponseTag } from "./CustomerResponseTag";
+import { NotifyCustomerModal } from "./NotifyCustomerModal";
 
 const SOURCE_LABEL: Record<ReservationWithDetails["source"], string> = {
   admin: "Cargada por el staff",
@@ -49,6 +51,7 @@ export function ReservationDetailModal({
 
   const [internalNotes, setInternalNotes] = useState(reservation.internalNotes ?? "");
   const [savingNotes, setSavingNotes] = useState(false);
+  const [notifying, setNotifying] = useState(false);
   const [activeTab, setActiveTab] = useState<"detalle" | "mesa">(needsTable ? "mesa" : "detalle");
 
   const occupant =
@@ -92,6 +95,7 @@ export function ReservationDetailModal({
             {RESERVATION_STATUS_LABEL[reservation.status]}
           </span>
           <span className="text-[13px] text-ink-faint">{SOURCE_LABEL[reservation.source]}</span>
+          <CustomerResponseTag reservation={reservation} />
         </div>
 
         {canPickTable && (
@@ -146,6 +150,15 @@ export function ReservationDetailModal({
               <Row label="Teléfono">{reservation.customerPhone ?? "—"}</Row>
               <Row label="Email">{reservation.customerEmail ?? "—"}</Row>
             </dl>
+
+            {["confirmed", "arriving"].includes(reservation.status) && reservation.confirmationToken && (
+              <button
+                onClick={() => setNotifying(true)}
+                className="h-11 px-4 mb-4 rounded-[10px] bg-surface-3 text-[15px] font-semibold hover:bg-line"
+              >
+                {reservation.customerResponse === "confirmed" ? "Reenviar confirmación" : "Avisar al cliente (WhatsApp)"}
+              </button>
+            )}
 
             {reservation.tableId && reservationsToday && (
               <div
@@ -225,6 +238,9 @@ export function ReservationDetailModal({
           </>
         )}
       </div>
+      {notifying && (
+        <NotifyCustomerModal reservation={reservation} zoneName={zoneName} accepted={false} onClose={() => setNotifying(false)} />
+      )}
     </div>
   );
 }

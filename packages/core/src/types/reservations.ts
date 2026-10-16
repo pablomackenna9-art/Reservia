@@ -38,6 +38,13 @@ export const reservationSchema = z
     /** Post-visita, cargado a mano por el staff hasta que exista un canal para pedirlo automático. */
     feedbackRating: z.number().int().min(1).max(5).nullable().default(null),
     feedbackComment: z.string().nullable().default(null),
+    /** Zona que pidió el cliente al reservar (salón, terraza...); null = le da lo mismo. */
+    preferredZoneId: z.string().uuid().nullable().optional(),
+    /** Enlace personal para que el cliente re-confirme o avise que no viene: {booking}/c/{token}. */
+    confirmationToken: z.string().nullable().optional(),
+    /** 'confirmed' = el cliente confirmó asistencia; 'declined' = avisó que no puede ir (la reserva queda cancelada). */
+    customerResponse: z.enum(["confirmed", "declined"]).nullable().optional(),
+    customerRespondedAt: z.string().nullable().optional(),
   })
   .refine((r) => new Date(r.endsAt) > new Date(r.startsAt), {
     message: "endsAt debe ser posterior a startsAt",

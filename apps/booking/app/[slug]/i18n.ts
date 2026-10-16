@@ -31,7 +31,10 @@ interface Dictionary {
   viewHours: string;
   morePeople: (max: number) => string;
   contactRestaurant: string;
-  tablesLeft: string;
+  locationLabel: string;
+  anyLocation: string;
+  noTimesInZone: (zone: string) => string;
+  emailSummaryLabel: string;
   stepEmailTitle: string;
   stepEmailSubtitle: string;
   emailLabel: string;
@@ -96,7 +99,10 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     viewHours: "Ver horarios",
     morePeople: (max) => `¿Más de ${max} personas? Contacta directamente al restaurante.`,
     contactRestaurant: "Llamar al restaurante",
-    tablesLeft: "Quedan mesas para este turno",
+    locationLabel: "Ubicación",
+    anyLocation: "Me da lo mismo",
+    noTimesInZone: (zone) => `No queda disponibilidad en ${zone} ese día. Prueba con otra ubicación o con «Me da lo mismo».`,
+    emailSummaryLabel: "Correo",
     stepEmailTitle: "Reserva tu mesa",
     stepEmailSubtitle: "Empecemos por tu correo: ahí te confirmamos.",
     emailLabel: "TU CORREO",
@@ -159,7 +165,10 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     viewHours: "View hours",
     morePeople: (max) => `More than ${max} people? Please contact the restaurant directly.`,
     contactRestaurant: "Call the restaurant",
-    tablesLeft: "Tables left for this service",
+    locationLabel: "Seating",
+    anyLocation: "No preference",
+    noTimesInZone: (zone) => `Nothing left in ${zone} that day. Try another area or "No preference".`,
+    emailSummaryLabel: "Email",
     stepEmailTitle: "Book your table",
     stepEmailSubtitle: "Let's start with your email — we'll confirm there.",
     emailLabel: "YOUR EMAIL",
@@ -222,7 +231,10 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     viewHours: "Ver horários",
     morePeople: (max) => `Mais de ${max} pessoas? Entre em contato diretamente com o restaurante.`,
     contactRestaurant: "Ligar para o restaurante",
-    tablesLeft: "Ainda há mesas neste turno",
+    locationLabel: "Ambiente",
+    anyLocation: "Tanto faz",
+    noTimesInZone: (zone) => `Não há disponibilidade em ${zone} nesse dia. Tente outro ambiente ou "Tanto faz".`,
+    emailSummaryLabel: "E-mail",
     stepEmailTitle: "Reserve sua mesa",
     stepEmailSubtitle: "Vamos começar pelo seu e-mail: é lá que confirmamos.",
     emailLabel: "SEU E-MAIL",

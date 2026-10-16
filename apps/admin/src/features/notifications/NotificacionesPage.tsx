@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   acceptReservation,
   addToWaitlist,
@@ -8,6 +9,7 @@ import {
   getSmartTableCandidates,
   joinTables,
   listCustomers,
+  listReservationsDeclinedByCustomer,
   listReservationsForDate,
   listReservationsNeedingAttention,
   listTables,
@@ -32,6 +34,8 @@ import {
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
+import { TableDayTimeline } from "../reservations/TableDayTimeline";
+import { NotifyCustomerModal } from "../reservations/NotifyCustomerModal";
 
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleString("es-CL", {
@@ -95,6 +99,8 @@ async function buildInsight(
       partySize: reservation.partySize,
       startsAt: reservation.startsAt,
       endsAt: reservation.endsAt,
+      preferredZoneId: reservation.preferredZoneId ?? null,
+      zonePreference: "preferred",
     }),
   ]);
 
@@ -138,6 +144,9 @@ export function NotificacionesPage() {
   const [consumption, setConsumption] = useState<Map<string, CustomerConsumptionStats>>(new Map());
   const [expandedRequestIds, setExpandedRequestIds] = useState<Set<string>>(new Set());
   const [selectedCandidateByRequest, setSelectedCandidateByRequest] = useState<Map<string, TableCandidate>>(new Map());
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [declined, setDeclined] = useState<ReservationWithDetails[]>([]);
+  const [notifyFor, setNotifyFor] = useState<ReservationWithDetails | null>(null);
 
   function toggleExpanded(id: string) {
     setExpandedRequestIds((prev) => {
@@ -150,14 +159,17 @@ export function NotificacionesPage() {
 
   async function reload() {
     if (!restaurantId) return;
-    const [{ pendingApproval: p, unassignedTable: u }, rr, zones, customers, avg, cons] = await Promise.all([
+    const [{ pendingApproval: p, unassignedTable: u }, rr, zonesList, customers, avg, cons, declinedList] = await Promise.all([
       listReservationsNeedingAttention(supabase, restaurantId),
       getReservationRules(supabase, restaurantId),
       listZones(supabase, restaurantId),
       listCustomers(supabase, restaurantId),
       getAveragePurchaseByCustomer(supabase, restaurantId),
       getCustomerConsumptionStats(supabase, restaurantId),
+      listReservationsDeclinedByCustomer(supabase, restaurantId),
     ]);
+    setZones(zonesList);
+    setDeclined(declinedList);
     setPendingApproval(p);
     setUnassignedTable(u);
     setRules(rr);
@@ -184,9 +196,11 @@ export function NotificacionesPage() {
     const reservationsByDate = new Map(uniqueDates.map((d, i) => [d, reservationsPerDate[i]!]));
 
     const entries = await Promise.all(
-      relevant.map(async (r) => [r.id, await buildInsight(restaurantId, r, zones, tablesCountByDate, reservationsByDate)] as const),
+      relevant.map(async (r) => [r.id, await buildInsight(restaurantId, r, zonesList, tablesCountByDate, reservationsByDate)] as const),
     );
     setInsights(new Map(entries));
+    // Con pocas solicitudes el detalle (mesas libres + línea de tiempo) ya viene abierto.
+    if (relevant.length <= 3) setExpandedRequestIds((prev) => (prev.size === 0 ? new Set(relevant.map((r) => r.id)) : prev));
   }
 
   useEffect(() => {
@@ -215,6 +229,8 @@ export function NotificacionesPage() {
       }
     }
     await reload();
+    // Aceptada: se le ofrece avisar al cliente (WhatsApp con enlace para re-confirmar).
+    setNotifyFor(reservation);
   }
 
   async function handleReject(id: string) {
@@ -325,6 +341,10 @@ export function NotificacionesPage() {
                       <p className="text-[13px] text-ink-faint">
                         {formatWhen(r.startsAt)} · {r.partySize} personas
                         {r.customerPhone ? ` · ${r.customerPhone}` : ""}
+                      </p>
+                      <p className="text-[13px] text-ink-faint truncate">
+                        {r.customerEmail ?? "Sin correo"}
+                        {" · "}Ubicación: <span className="text-ink">{zones.find((z) => z.id === r.preferredZoneId)?.name ?? "Me da lo mismo"}</span>
                       </p>
                     </button>
                     <button
@@ -441,23 +461,56 @@ export function NotificacionesPage() {
                             windowHours: NEARBY_SCHEDULE_HOURS,
                             now,
                           });
+                          const reqStart = new Date(r.startsAt);
+                          const reqEnd = new Date(r.endsAt);
+                          const tableLabel = `Mesa ${chosen.tableNames.join("+")}`;
+                          const overlapping = schedule.filter((s) => new Date(s.startsAt) < reqEnd && new Date(s.endsAt) > reqStart);
+                          const before = schedule.filter((s) => new Date(s.endsAt) <= reqStart);
+                          const after = schedule.filter((s) => new Date(s.startsAt) >= reqEnd);
+                          const nowOccupying = schedule.filter((s) => isOccupyingNow(s, now));
                           return (
                             <div className="mt-3 pt-2 border-t border-line">
-                              <p className="text-[13px] uppercase tracking-wide text-ink-faint mb-1">
-                                Horario de Mesa {chosen.tableNames.join("+")} (±{NEARBY_SCHEDULE_HOURS}h de la hora pedida)
+                              <p className="text-[13px] uppercase tracking-wide text-ink-faint">
+                                Línea de tiempo de {tableLabel} (±{NEARBY_SCHEDULE_HOURS} h de la hora pedida)
                               </p>
-                              {schedule.length === 0 ? (
-                                <p className="text-[13px] text-status-available">Sin nada cerca de esa hora -- mesa tranquila.</p>
-                              ) : (
-                                <ul className="space-y-0.5">
-                                  {schedule.map((s) => (
-                                    <li key={s.id} className="text-[13px] text-ink-muted">
-                                      {formatTime(s.startsAt)} · {s.customerName} · {s.partySize}p
-                                      {isOccupyingNow(s, now) && <span className="text-status-occupied font-medium"> · ⚠ ocupada ahora</span>}
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
+                              <TableDayTimeline
+                                reservations={schedule.filter((s) => s.id !== r.id)}
+                                now={now}
+                                window={{
+                                  start: new Date(reqStart.getTime() - NEARBY_SCHEDULE_HOURS * 3_600_000),
+                                  end: new Date(reqEnd.getTime() + NEARBY_SCHEDULE_HOURS * 3_600_000),
+                                }}
+                                proposed={{
+                                  startsAt: r.startsAt,
+                                  endsAt: r.endsAt,
+                                  label: `Esta solicitud · ${r.customerName} · ${r.partySize}p`,
+                                }}
+                                emptyText="Sin otras reservas cerca: mesa libre antes y después"
+                              />
+                              <ul className="mt-2 space-y-0.5 text-[13px]">
+                                {overlapping.length > 0 && (
+                                  <li className="text-status-occupied font-medium">
+                                    ⚠ Se cruza con {overlapping.map((s) => `${s.customerName} (${formatTime(s.startsAt)})`).join(", ")}: elige otra mesa.
+                                  </li>
+                                )}
+                                {nowOccupying.length > 0 && (
+                                  <li className="text-status-occupied">
+                                    Ocupada ahora por {nowOccupying.map((s) => `${s.customerName} (desde ${formatTime(s.startsAt)})`).join(", ")}.
+                                  </li>
+                                )}
+                                <li className="text-ink-muted">
+                                  Antes:{" "}
+                                  {before.length === 0
+                                    ? "nada"
+                                    : before.map((s) => `${formatTime(s.startsAt)} ${s.customerName} (${s.partySize}p)`).join(" · ")}
+                                </li>
+                                <li className="text-ink-muted">
+                                  Después:{" "}
+                                  {after.length === 0
+                                    ? "nada"
+                                    : after.map((s) => `${formatTime(s.startsAt)} ${s.customerName} (${s.partySize}p)`).join(" · ")}
+                                </li>
+                              </ul>
                             </div>
                           );
                         })()}
@@ -505,6 +558,40 @@ export function NotificacionesPage() {
           </div>
         )}
       </section>
+
+      {declined.length > 0 && (
+        <section className="mt-6">
+          <h2 className="text-sm font-semibold mb-2.5 flex items-center gap-2">
+            Clientes que avisaron que no vienen
+            <span className="rounded-full bg-status-occupied text-white text-[13px] px-2 py-0.5">{declined.length}</span>
+          </h2>
+          <div className="rounded-2xl bg-surface divide-y divide-line overflow-hidden">
+            {declined.map((r) => (
+              <div key={r.id} className="px-4 py-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{r.customerName}</p>
+                  <p className="text-[13px] text-ink-faint">
+                    {formatWhen(r.startsAt)} · {r.partySize} personas
+                    {r.tableName ? ` · Mesa ${r.tableName} liberada` : ""}
+                  </p>
+                </div>
+                <Link to="/lista-de-espera" className="text-[13px] text-accent shrink-0">
+                  Ofrecer a la lista de espera →
+                </Link>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {notifyFor && (
+        <NotifyCustomerModal
+          reservation={notifyFor}
+          zoneName={zones.find((z) => z.id === notifyFor.preferredZoneId)?.name ?? null}
+          accepted
+          onClose={() => setNotifyFor(null)}
+        />
+      )}
 
       {detailReservation && restaurantId && (
         <ReservationDetailModal

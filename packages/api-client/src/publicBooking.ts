@@ -5,9 +5,9 @@ import { mapWaitlistEntry } from "./waitlist";
 
 export async function isSlotAvailable(
   supabase: SupabaseClient,
-  params: { restaurantId: string; partySize: number; startsAt: string; endsAt: string },
+  params: { restaurantId: string; partySize: number; startsAt: string; endsAt: string; zoneId?: string | null },
 ): Promise<boolean> {
-  const tables = await listAvailableTables(supabase, params);
+  const tables = await listAvailableTables(supabase, { ...params, zoneId: params.zoneId ?? undefined });
   return tables.length > 0;
 }
 
@@ -23,6 +23,7 @@ export async function createPublicReservation(
     phone: string;
     email?: string;
     notes?: string;
+    zoneId?: string | null;
   },
 ): Promise<Reservation> {
   const { data, error } = await supabase.rpc("create_public_reservation", {
@@ -35,6 +36,7 @@ export async function createPublicReservation(
     p_phone: input.phone,
     p_email: input.email ?? null,
     p_notes: input.notes ?? null,
+    p_zone_id: input.zoneId ?? null,
   });
 
   if (error) throw error;
@@ -88,6 +90,59 @@ export async function lookupPublicCustomer(
   const row = data?.[0];
   if (!row) return null;
   return { firstName: row.first_name, lastName: row.last_name ?? null, phone: row.phone ?? null };
+}
+
+export interface PublicZone {
+  id: string;
+  name: string;
+  type: string;
+}
+
+/** Ubicaciones que el cliente puede pedir (salón, terraza...): solo zonas activas con mesas. */
+export async function listPublicZones(supabase: SupabaseClient, restaurantSlug: string): Promise<PublicZone[]> {
+  const { data, error } = await supabase.rpc("list_public_zones", { p_restaurant_slug: restaurantSlug });
+  if (error) throw error;
+  return (data ?? []).map((row: Record<string, unknown>) => ({ id: row.id as string, name: row.name as string, type: row.type as string }));
+}
+
+export interface PublicReservationView {
+  restaurantName: string;
+  restaurantSlug: string;
+  restaurantLogo: string | null;
+  timezone: string;
+  startsAt: string;
+  partySize: number;
+  status: string;
+  customerResponse: "confirmed" | "declined" | null;
+  firstName: string;
+  zoneName: string | null;
+}
+
+/** La reserva detrás de un enlace de confirmación (el token es el "permiso": largo y aleatorio). */
+export async function getReservationByToken(supabase: SupabaseClient, token: string): Promise<PublicReservationView | null> {
+  const { data, error } = await supabase.rpc("get_reservation_by_token", { p_token: token });
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row) return null;
+  return {
+    restaurantName: row.restaurant_name,
+    restaurantSlug: row.restaurant_slug,
+    restaurantLogo: row.restaurant_logo ?? null,
+    timezone: row.timezone,
+    startsAt: row.starts_at,
+    partySize: row.party_size,
+    status: row.status,
+    customerResponse: row.customer_response ?? null,
+    firstName: row.first_name,
+    zoneName: row.zone_name ?? null,
+  };
+}
+
+/** El cliente re-confirma ("confirm") o avisa que no podrá ir ("decline": la reserva se cancela y la mesa queda libre). */
+export async function respondToReservation(supabase: SupabaseClient, token: string, action: "confirm" | "decline"): Promise<"confirmed" | "declined"> {
+  const { data, error } = await supabase.rpc("respond_to_reservation", { p_token: token, p_action: action });
+  if (error) throw error;
+  return data as "confirmed" | "declined";
 }
 
 export type DayAvailability = "available" | "waitlist" | "closed";

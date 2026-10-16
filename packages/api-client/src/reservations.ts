@@ -418,7 +418,25 @@ export function mapReservation(row: Record<string, unknown>): Reservation {
     tableAssignmentSource: (row.table_assignment_source as TableAssignmentSource) ?? null,
     feedbackRating: (row.feedback_rating as number) ?? null,
     feedbackComment: (row.feedback_comment as string) ?? null,
+    preferredZoneId: (row.preferred_zone_id as string) ?? null,
+    confirmationToken: (row.confirmation_token as string) ?? null,
+    customerResponse: (row.customer_response as "confirmed" | "declined") ?? null,
+    customerRespondedAt: (row.customer_responded_at as string) ?? null,
   };
+}
+
+/** Reservas que el cliente canceló él mismo desde su enlace ("no podré ir") y que todavía no han pasado -- el equipo puede ofrecer esa mesa a otra persona. */
+export async function listReservationsDeclinedByCustomer(supabase: SupabaseClient, restaurantId: string): Promise<ReservationWithDetails[]> {
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("*, customers(*), tables!reservations_table_id_fkey(name)")
+    .eq("restaurant_id", restaurantId)
+    .eq("customer_response", "declined")
+    .gte("ends_at", new Date().toISOString())
+    .order("customer_responded_at", { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  return (data ?? []).map(mapReservationWithDetails);
 }
 
 /** Reservas completadas recientes sin feedback cargado todavía -- para que el staff sepa a quién preguntarle. */

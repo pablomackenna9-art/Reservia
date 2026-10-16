@@ -6,9 +6,11 @@ import {
   createPublicWaitlistEntry,
   getMonthAvailability,
   isSlotAvailable,
+  listPublicZones,
   lookupPublicCustomer,
   type DayAvailability,
   type PublicCustomerMatch,
+  type PublicZone,
 } from "@reservia/api-client";
 import type { OpeningHours, Reservation, ReservationRules, RestaurantHours, Restaurant, WaitlistEntry } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
@@ -65,6 +67,8 @@ export function BookingFlow({
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth() + 1); // 1-12
   const [partySize, setPartySize] = useState(2);
+  const [zones, setZones] = useState<PublicZone[]>([]);
+  const [zoneId, setZoneId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [availability, setAvailability] = useState<Map<string, DayAvailability>>(new Map());
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
@@ -83,6 +87,12 @@ export function BookingFlow({
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<Reservation | null>(null);
   const [waitlistConfirmed, setWaitlistConfirmed] = useState<WaitlistEntry | null>(null);
+
+  useEffect(() => {
+    listPublicZones(supabase, restaurant.slug)
+      .then(setZones)
+      .catch(() => setZones([]));
+  }, [restaurant.slug]);
 
   useEffect(() => {
     setAvailabilityLoading(true);
@@ -166,7 +176,7 @@ export function BookingFlow({
 
     const availabilityChecks = await Promise.all(
       candidates.map((slot) =>
-        isSlotAvailable(supabase, { restaurantId: restaurant.id, partySize, startsAt: slot.startsAt, endsAt: slot.endsAt }),
+        isSlotAvailable(supabase, { restaurantId: restaurant.id, partySize, startsAt: slot.startsAt, endsAt: slot.endsAt, zoneId }),
       ),
     );
     setSlots(candidates.filter((_, i) => availabilityChecks[i]));
@@ -197,6 +207,7 @@ export function BookingFlow({
         phone: phone.trim(),
         email: email.trim() || undefined,
         notes: notes.trim() || undefined,
+        zoneId,
       });
       setConfirmed(reservation);
       setStep("confirmed");
@@ -349,6 +360,25 @@ export function BookingFlow({
             )}
           </p>
 
+          {zones.length > 1 && (
+            <div className="mb-6">
+              <p className="text-[15px] font-semibold mb-2">{t.locationLabel}</p>
+              <div className="flex flex-wrap gap-2">
+                {[{ id: null as string | null, name: t.anyLocation }, ...zones].map((z) => (
+                  <button
+                    key={z.id ?? "any"}
+                    onClick={() => setZoneId(z.id)}
+                    className={`h-11 px-4 rounded-xl text-[15px] font-semibold ${
+                      z.id === zoneId ? "bg-ink-dark text-white" : "bg-surface text-ink hover:bg-line"
+                    }`}
+                  >
+                    {z.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="sticky bottom-4">
             <button onClick={handleWhenContinue} disabled={!selectedDate} className="w-full h-[54px] rounded-[14px] bg-ink-dark text-white text-base font-semibold disabled:opacity-40">
               {selectedDate
@@ -369,7 +399,9 @@ export function BookingFlow({
             <p className="text-sm text-ink-muted">{t.loadingTimes}</p>
           ) : slots.length === 0 ? (
             <div>
-              <p className="text-sm text-ink-muted mb-3">{t.noTimesThatDay}</p>
+              <p className="text-sm text-ink-muted mb-3">
+                {zoneId ? t.noTimesInZone(zones.find((z) => z.id === zoneId)?.name ?? "") : t.noTimesThatDay}
+              </p>
               <button
                 onClick={() => setStep("waitlist")}
                 className="w-full h-[54px] rounded-[14px] border-2 border-dashed border-accent text-accent text-base font-semibold hover:bg-accent/10"
@@ -380,8 +412,7 @@ export function BookingFlow({
           ) : (
             Object.entries(groupedSlots).map(([serviceName, serviceSlots]) => (
               <div key={serviceName} className="mb-4 last:mb-0">
-                <p className="text-[13px] font-semibold text-ink-faint uppercase tracking-[0.1em] mb-1">{serviceName}</p>
-                <p className="text-[13px] font-semibold text-status-available mb-2.5">{t.tablesLeft}</p>
+                <p className="text-[13px] font-semibold text-ink-faint uppercase tracking-[0.1em] mb-2">{serviceName}</p>
                 <div className="grid grid-cols-3 gap-2">
                   {serviceSlots.map((slot) => (
                     <button
@@ -415,10 +446,14 @@ export function BookingFlow({
               })}
             />
             <SummaryRow label={t.turnLabel} value={selectedSlot.serviceName} />
+            {zones.length > 1 && (
+              <SummaryRow label={t.locationLabel} value={zones.find((z) => z.id === zoneId)?.name ?? t.anyLocation} />
+            )}
             <SummaryRow
               label={t.timeLabel}
               value={formatTime(new Date(selectedSlot.startsAt), locale)}
             />
+            <SummaryRow label={t.emailSummaryLabel} value={email.trim()} raw />
           </div>
 
           {knownFullName && !editingKnownCustomer ? (
@@ -494,7 +529,7 @@ export function BookingFlow({
                 <p className="font-serif text-[64px] leading-none mt-5 tabular-nums">
                   {formatTime(new Date(confirmed.startsAt), locale)}
                 </p>
-                <p className="text-base text-ink-muted mt-2 capitalize">
+                <p className="text-base text-ink-muted mt-2 first-letter:uppercase">
                   {new Date(confirmed.startsAt).toLocaleDateString(LOCALE_TAG[locale], {
                     weekday: "long",
                     day: "numeric",
@@ -599,11 +634,11 @@ function StepCard({ title, subtitle, onBack, children }: { title: string; subtit
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function SummaryRow({ label, value, raw = false }: { label: string; value: string; raw?: boolean }) {
   return (
     <div className="flex justify-between gap-2 text-[15px] py-1">
-      <span className="text-ink-muted capitalize">{label}</span>
-      <span className="font-medium capitalize text-right">{value}</span>
+      <span className="text-ink-muted first-letter:uppercase">{label}</span>
+      <span className={`font-medium text-right block break-all ${raw ? "" : "first-letter:uppercase"}`}>{value}</span>
     </div>
   );
 }
