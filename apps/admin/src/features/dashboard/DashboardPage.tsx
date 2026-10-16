@@ -838,6 +838,9 @@ export function DashboardPage() {
             await moveReservationToTable(id, tableId, source);
           }}
           onSaveNotes={saveReservationNotes}
+          onAccepted={async () => {
+            await reload();
+          }}
         />
       )}
 

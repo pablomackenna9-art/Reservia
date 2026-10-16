@@ -179,7 +179,14 @@ export function TableAssignmentPicker({
         >
           {expanded ? "▾ Ocultar horario del día" : "▸ Ver horario del día"}
         </button>
-        {expanded && <TableDayTimeline reservations={dayScheduleFor(candidate)} now={now} />}
+        {expanded && (
+          <TableDayTimeline
+            reservations={dayScheduleFor(candidate)}
+            now={now}
+            proposed={{ startsAt, endsAt, label: "Esta reserva" }}
+            emptyText="Sin otras reservas hoy en esta mesa"
+          />
+        )}
       </div>
     );
   }
@@ -226,7 +233,7 @@ export function TableAssignmentPicker({
                 <span className="text-sm font-medium text-status-available">
                   ✨ {recommended!.tableNames.join(" + ")} recomendada
                 </span>
-                <span className="text-[13px] text-ink-faint">{recommended!.capacityMax}p</span>
+                <span className="text-[13px] text-ink-faint">hasta {recommended!.capacityMax} personas</span>
               </div>
               <p className="text-[13px] text-ink-faint mt-0.5">
                 {zoneNameById.get(recommended!.zoneId) ?? "…"}
@@ -247,7 +254,7 @@ export function TableAssignmentPicker({
                   >
                     <button type="button" onClick={() => onSelect(c, false)} title={c.reasons.join(" · ")} className="w-full text-left">
                       <span>
-                        {c.tableNames.join("+")} · {c.capacityMax}p
+                        {c.tableNames.join("+")} · hasta {c.capacityMax} personas
                       </span>
                       <span className="block text-ink-faint text-[13px]">{zoneNameById.get(c.zoneId) ?? "…"}</span>
                     </button>

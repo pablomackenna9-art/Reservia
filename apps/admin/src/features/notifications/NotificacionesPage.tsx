@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   acceptReservation,
+  acceptReservationWithTable,
   addToWaitlist,
   getAveragePurchaseByCustomer,
   getCustomerConsumptionStats,
@@ -211,23 +212,9 @@ export function NotificacionesPage() {
 
   /** Acepta con la mesa que el staff eligió (o la recomendada, si no tocó nada) -- no vuelve a pedirle candidatos al motor, ya los tenemos de buildInsight. */
   async function handleAccept(reservation: ReservationWithDetails) {
-    await updateReservationStatus(supabase, reservation.id, "confirmed");
-
     const insight = insights.get(reservation.id);
     const chosen = selectedCandidateByRequest.get(reservation.id) ?? insight?.topCandidate ?? null;
-    if (chosen) {
-      const source: TableAssignmentSource = chosen === insight?.topCandidate ? "suggested" : "manual";
-      await updateReservationTable(supabase, reservation.id, chosen.tableIds[0]!, source);
-      if (chosen.isCombination && chosen.tableIds.length > 1) {
-        await joinTables(
-          supabase,
-          reservation.restaurantId,
-          chosen.tableIds[0]!,
-          chosen.tableIds[1]!,
-          `Mesa ${chosen.tableNames.join("+")}`,
-        );
-      }
-    }
+    await acceptReservationWithTable(supabase, reservation, chosen, chosen === insight?.topCandidate);
     await reload();
     // Aceptada: se le ofrece avisar al cliente (WhatsApp con enlace para re-confirmar).
     setNotifyFor(reservation);
@@ -603,6 +590,7 @@ export function NotificacionesPage() {
           reservationsToday={insights.get(detailReservation.id)?.dayReservations}
           onClose={() => setDetailReservation(null)}
           onChangeStatus={handleChangeStatus}
+          onAccepted={reload}
           onAssignTable={handleAssignTable}
           onSaveNotes={handleSaveNotes}
         />

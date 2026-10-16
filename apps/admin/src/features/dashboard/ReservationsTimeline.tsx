@@ -74,7 +74,7 @@ export function ReservationsTimeline({
                 className="absolute top-1 text-[13px] text-ink-faint -translate-x-1/2"
                 style={{ left: `${pct(t)}%` }}
               >
-                {new Date(t).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                {new Date(t).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}
               </span>
             ))}
           </div>
@@ -112,6 +112,7 @@ export function ReservationsTimeline({
                   <TimelineRow
                     key={table.id}
                     label={`Mesa ${table.name}`}
+                    sublabel={capacityLabel(table.capacityMin, table.capacityMax)}
                     conflict={!!conflict}
                     reservations={tableReservations}
                     pct={pct}
@@ -132,8 +133,15 @@ export function ReservationsTimeline({
   );
 }
 
+/** "2–4 personas", "6 personas", "1 persona": cuánta gente cabe en la mesa. */
+function capacityLabel(min: number, max: number): string {
+  if (max === 1) return "1 persona";
+  return min < max ? `${min}–${max} personas` : `${max} personas`;
+}
+
 function TimelineRow({
   label,
+  sublabel,
   reservations,
   pct,
   now,
@@ -142,6 +150,7 @@ function TimelineRow({
   conflict,
 }: {
   label: string;
+  sublabel?: string;
   reservations: ReservationWithDetails[];
   pct: (ms: number) => number;
   now: Date;
@@ -151,9 +160,12 @@ function TimelineRow({
 }) {
   return (
     <div className="flex border-b border-line" style={{ height: ROW_HEIGHT }}>
-      <div className={`w-32 shrink-0 flex items-center px-3 ${highlight ? "text-accent text-[13px]" : "text-ink font-serif text-lg"}`}>
-        {conflict && <span title="Alguien sentado y otra reserva por llegar pronto -- puede que haya que reasignarla.">⚠ </span>}
-        {label}
+      <div className={`w-32 shrink-0 flex flex-col justify-center px-3 ${highlight ? "text-accent text-[13px]" : "text-ink"}`}>
+        <span className={highlight ? "" : "font-serif text-lg leading-tight"}>
+          {conflict && <span title="Alguien sentado y otra reserva por llegar pronto -- puede que haya que reasignarla.">⚠ </span>}
+          {label}
+        </span>
+        {sublabel && <span className="text-[13px] leading-tight text-ink-faint">{sublabel}</span>}
       </div>
       <div className="relative flex-1">
         {reservations.map((r) => {

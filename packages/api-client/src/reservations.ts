@@ -364,6 +364,24 @@ export async function completeReservationWithConsumption(
 }
 
 /**
+ * Acepta una solicitud dejándola ya con la mesa que el staff vio y eligió (o la recomendada), en vez de
+ * aceptar a ciegas y asignar después. Si el candidato es una combinación, une las mesas.
+ */
+export async function acceptReservationWithTable(
+  supabase: SupabaseClient,
+  reservation: Pick<ReservationWithDetails, "id" | "restaurantId">,
+  chosen: TableCandidate | null,
+  wasRecommended: boolean,
+): Promise<void> {
+  await updateReservationStatus(supabase, reservation.id, "confirmed");
+  if (!chosen) return;
+  await updateReservationTable(supabase, reservation.id, chosen.tableIds[0]!, wasRecommended ? "suggested" : "manual");
+  if (chosen.isCombination && chosen.tableIds.length > 1) {
+    await joinTables(supabase, reservation.restaurantId, chosen.tableIds[0]!, chosen.tableIds[1]!, `Mesa ${chosen.tableNames.join("+")}`);
+  }
+}
+
+/**
  * Confirms a pending reservation and, when the restaurant's mode is
  * 'automatic', immediately assigns it the Smart Table Engine's top pick
  * (joining a second table too, if the recommendation was a combination) —

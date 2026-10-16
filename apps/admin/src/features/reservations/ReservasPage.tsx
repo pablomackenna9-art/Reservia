@@ -214,6 +214,7 @@ export function ReservasPage() {
             await updateReservationNotes(supabase, id, notes);
             await reload();
           }}
+          onAccepted={reload}
         />
       )}
 

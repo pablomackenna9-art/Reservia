@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from "react";
-import { minutesSince, type ReservationStatus, type TableAssignmentSource, type TableCandidate } from "@reservia/core";
-import { joinTables, type ReservationWithDetails } from "@reservia/api-client";
+import { useEffect, useState, type ReactNode } from "react";
+import { minutesSince, type ReservationStatus, type TableAssignmentSource, type TableCandidate, type Zone } from "@reservia/core";
+import { acceptReservationWithTable, getSmartTableCandidates, joinTables, listZones, type ReservationWithDetails } from "@reservia/api-client";
 import { supabase } from "../../lib/supabase";
 import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL } from "./statusStyles";
 import { TableAssignmentPicker } from "./TableAssignmentPicker";
@@ -33,6 +33,7 @@ export function ReservationDetailModal({
   onChangeStatus,
   onAssignTable,
   onSaveNotes,
+  onAccepted,
 }: {
   reservation: ReservationWithDetails;
   restaurantId: string;
@@ -43,15 +44,74 @@ export function ReservationDetailModal({
   onChangeStatus: (id: string, status: ReservationStatus) => void | Promise<void>;
   onAssignTable: (reservationId: string, tableId: string, source?: TableAssignmentSource) => void | Promise<void>;
   onSaveNotes: (id: string, notes: string) => void | Promise<void>;
+  /** Se llama después de aceptar una solicitud desde acá (ya con mesa asignada), para que la pantalla se refresque. */
+  onAccepted?: () => void | Promise<void>;
 }) {
   const needsApproval = reservation.status === "pending";
   const needsTable = !needsApproval && reservation.tableId === null && ["confirmed", "arriving"].includes(reservation.status);
   const isFinal = ["cancelled", "completed", "no_show"].includes(reservation.status);
   const canPickTable = needsTable || (!needsApproval && !isFinal && !!reservation.tableId);
+  const showTabs = canPickTable || needsApproval;
 
   const [internalNotes, setInternalNotes] = useState(reservation.internalNotes ?? "");
   const [savingNotes, setSavingNotes] = useState(false);
-  const [notifying, setNotifying] = useState(false);
+  const [notifying, setNotifying] = useState<null | "accepted" | "resend">(null);
+  const [zones, setZones] = useState<Zone[]>([]);
+  // Solicitud pendiente: la mesa que se le pondrá, visible ANTES de aceptar.
+  const [suggested, setSuggested] = useState<TableCandidate | null | undefined>(undefined);
+  const [chosen, setChosen] = useState<{ candidate: TableCandidate; isTop: boolean } | null>(null);
+  const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listZones(supabase, restaurantId)
+      .then(setZones)
+      .catch(() => setZones([]));
+  }, [restaurantId]);
+
+  useEffect(() => {
+    if (!needsApproval) return;
+    let cancelled = false;
+    setSuggested(undefined);
+    getSmartTableCandidates(supabase, {
+      restaurantId,
+      partySize: reservation.partySize,
+      startsAt: reservation.startsAt,
+      endsAt: reservation.endsAt,
+      preferredZoneId: reservation.preferredZoneId ?? null,
+      zonePreference: "preferred",
+      excludeReservationId: reservation.id,
+    })
+      .then((list) => {
+        if (!cancelled) setSuggested(list[0] ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setSuggested(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsApproval, reservation.id, reservation.startsAt, reservation.partySize, reservation.preferredZoneId]);
+
+  const zoneNameById = new Map(zones.map((z) => [z.id, z.name]));
+  const requestedZoneName = reservation.preferredZoneId ? (zoneNameById.get(reservation.preferredZoneId) ?? "…") : "Me da lo mismo";
+  const plannedTable = chosen ?? (suggested ? { candidate: suggested, isTop: true } : null);
+
+  async function acceptWithTable() {
+    setAccepting(true);
+    setAcceptError(null);
+    try {
+      await acceptReservationWithTable(supabase, reservation, plannedTable?.candidate ?? null, plannedTable?.isTop ?? false);
+      setNotifying("accepted");
+      if (onAccepted) await onAccepted();
+      else await onChangeStatus(reservation.id, "confirmed");
+    } catch (err) {
+      setAcceptError(err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "No se pudo aceptar.");
+    } finally {
+      setAccepting(false);
+    }
+  }
   const [activeTab, setActiveTab] = useState<"detalle" | "mesa">(needsTable ? "mesa" : "detalle");
 
   const occupant =
@@ -98,11 +158,11 @@ export function ReservationDetailModal({
           <CustomerResponseTag reservation={reservation} />
         </div>
 
-        {canPickTable && (
+        {showTabs && (
           <div className="flex gap-1 mb-4 border-b border-line">
             <TabButton label="Detalle" active={activeTab === "detalle"} onClick={() => setActiveTab("detalle")} />
             <TabButton
-              label={needsTable ? "Asignar mesa" : "Cambiar de mesa"}
+              label={needsApproval ? "Elegir mesa" : needsTable ? "Asignar mesa" : "Cambiar de mesa"}
               active={activeTab === "mesa"}
               onClick={() => setActiveTab("mesa")}
             />
@@ -118,7 +178,16 @@ export function ReservationDetailModal({
             excludeReservationId={reservation.id}
             showFloorPlanToggle={false}
             reservationsForSchedule={reservationsToday}
-            onSelect={handlePickTable}
+            preferredZoneId={reservation.preferredZoneId ?? null}
+            zonePreference="preferred"
+            onSelect={
+              needsApproval
+                ? (candidate, wasRecommended) => {
+                    setChosen({ candidate, isTop: wasRecommended });
+                    setActiveTab("detalle");
+                  }
+                : handlePickTable
+            }
           />
         ) : (
           <>
@@ -147,13 +216,46 @@ export function ReservationDetailModal({
               <Row label="Lugar">
                 {reservation.tableName ? `${zoneName ? `${zoneName} · ` : ""}Mesa ${reservation.tableName}` : "Sin mesa asignada"}
               </Row>
+              {(needsApproval || reservation.preferredZoneId) && <Row label="Ubicación pedida">{requestedZoneName}</Row>}
               <Row label="Teléfono">{reservation.customerPhone ?? "—"}</Row>
               <Row label="Email">{reservation.customerEmail ?? "—"}</Row>
             </dl>
 
+            {needsApproval && (
+              <div className="rounded-lg border border-line bg-ground px-3 py-2.5 mb-4">
+                <p className="text-[13px] text-ink-faint mb-1">Mesa en la que la pondrás</p>
+                {suggested === undefined ? (
+                  <p className="text-[15px] text-ink-muted">Buscando la mejor mesa…</p>
+                ) : plannedTable ? (
+                  <>
+                    <p className="text-[15px] font-semibold">
+                      Mesa {plannedTable.candidate.tableNames.join(" + ")}
+                      <span className="font-normal text-ink-muted">
+                        {" "}
+                        · {zoneNameById.get(plannedTable.candidate.zoneId) ?? "…"} · hasta {plannedTable.candidate.capacityMax} personas
+                      </span>
+                    </p>
+                    {reservation.preferredZoneId && plannedTable.candidate.zoneId !== reservation.preferredZoneId && (
+                      <p className="text-[13px] text-status-arriving mt-1">
+                        ⚠ El cliente pidió {requestedZoneName}, pero no hay mesa libre ahí a esa hora.
+                      </p>
+                    )}
+                    {!chosen && <p className="text-[13px] text-ink-faint mt-1">Recomendada por el sistema. Puedes cambiarla antes de aceptar.</p>}
+                  </>
+                ) : (
+                  <p className="text-[15px] text-status-occupied">
+                    No hay mesa libre a esa hora para {reservation.partySize} personas. Puedes aceptar y asignarla después, o pasarla a lista de espera.
+                  </p>
+                )}
+                <button onClick={() => setActiveTab("mesa")} className="mt-2 text-[13px] font-semibold text-accent">
+                  {plannedTable ? "Ver línea de tiempo y elegir otra mesa →" : "Ver mesas →"}
+                </button>
+              </div>
+            )}
+
             {["confirmed", "arriving"].includes(reservation.status) && reservation.confirmationToken && (
               <button
-                onClick={() => setNotifying(true)}
+                onClick={() => setNotifying("resend")}
                 className="h-11 px-4 mb-4 rounded-[10px] bg-surface-3 text-[15px] font-semibold hover:bg-line"
               >
                 {reservation.customerResponse === "confirmed" ? "Reenviar confirmación" : "Avisar al cliente (WhatsApp)"}
@@ -205,13 +307,15 @@ export function ReservationDetailModal({
               )}
             </div>
 
+            {needsApproval && acceptError && <p className="text-[13px] text-status-occupied mb-2">{acceptError}</p>}
             {needsApproval && (
               <div className="flex gap-2">
                 <button
-                  onClick={() => onChangeStatus(reservation.id, "confirmed")}
-                  className="flex-1 rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold"
+                  onClick={acceptWithTable}
+                  disabled={accepting || suggested === undefined}
+                  className="flex-1 rounded-[10px] bg-accent text-accent-ink h-11 px-[18px] text-[15px] font-semibold disabled:opacity-60"
                 >
-                  Aceptar reserva
+                  {accepting ? "Aceptando…" : plannedTable ? `Aceptar en Mesa ${plannedTable.candidate.tableNames.join("+")}` : "Aceptar reserva"}
                 </button>
                 <button
                   onClick={() => onChangeStatus(reservation.id, "cancelled")}
@@ -239,7 +343,16 @@ export function ReservationDetailModal({
         )}
       </div>
       {notifying && (
-        <NotifyCustomerModal reservation={reservation} zoneName={zoneName} accepted={false} onClose={() => setNotifying(false)} />
+        <NotifyCustomerModal
+          reservation={reservation}
+          zoneName={zoneName ?? (reservation.preferredZoneId ? (zoneNameById.get(reservation.preferredZoneId) ?? null) : null)}
+          accepted={notifying === "accepted"}
+          onClose={() => {
+            const wasAccepted = notifying === "accepted";
+            setNotifying(null);
+            if (wasAccepted) onClose();
+          }}
+        />
       )}
     </div>
   );
