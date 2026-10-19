@@ -8,22 +8,33 @@ export interface MyRestaurant {
 
 /** Restaurants the signed-in user belongs to, via restaurant_users — never a bare `select *` on restaurants. */
 export async function listMyRestaurants(supabase: SupabaseClient): Promise<MyRestaurant[]> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+  if (!userId) return [];
+
+  // La política de lectura deja ver a TODO el equipo de un restaurante donde eres miembro, así que sin este
+  // filtro por usuario el restaurante aparecía una vez por cada persona con acceso (y con el rol de otra).
   const { data, error } = await supabase
     .from("restaurant_users")
     .select("role, restaurants(*)")
+    .eq("user_id", userId)
     .eq("status", "active");
 
   if (error) throw error;
 
-  return (data ?? []).map((row) => {
+  const byId = new Map<string, MyRestaurant>();
+  for (const row of data ?? []) {
     // Supabase infers restaurant_users -> restaurants as to-many by default;
     // the FK is actually one-to-one, so it's always exactly one row here.
     const restaurantRow = (Array.isArray(row.restaurants) ? row.restaurants[0] : row.restaurants) as Record<
       string,
       unknown
     >;
-    return { restaurant: mapRestaurant(restaurantRow), role: row.role as RestaurantRole };
-  });
+    if (!restaurantRow) continue;
+    const restaurant = mapRestaurant(restaurantRow);
+    byId.set(restaurant.id, { restaurant, role: row.role as RestaurantRole });
+  }
+  return [...byId.values()];
 }
 
 export async function getRestaurantBySlug(supabase: SupabaseClient, slug: string): Promise<Restaurant | null> {
