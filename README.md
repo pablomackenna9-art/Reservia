@@ -21,6 +21,12 @@ pnpm dev:booking    # apps/booking
 
 Cada app necesita su propio `.env` (ver `.env.example` en cada carpeta) con las credenciales del proyecto Supabase.
 
-## Estado
+## Estado y continuidad
 
-Fase 0 — infraestructura y modelo de datos base (`0001_tenancy`, `0002_operacion_config`). Sin proyecto Supabase ni repositorio remoto todavía.
+El producto está en uso real (panel + páginas públicas desplegadas en Vercel, base en Supabase). Para retomar el trabajo lee, en este orden:
+
+1. [`CLAUDE.md`](CLAUDE.md) — reglas de trabajo y comandos.
+2. [`docs/GUIA_SESION_NUEVA.md`](docs/GUIA_SESION_NUEVA.md) — cómo operar (despliegue, base de datos, credenciales sin exponerlas, trampas conocidas).
+3. [`docs/ESTADO.md`](docs/ESTADO.md) — qué está implementado.
+4. [`docs/DECISIONES.md`](docs/DECISIONES.md) — por qué se hizo así.
+5. [`docs/PENDIENTES.md`](docs/PENDIENTES.md) — qué falta (del usuario y de desarrollo).

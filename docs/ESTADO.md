@@ -1,0 +1,38 @@
+# Estado de Reservia (octubre 2026)
+
+Todo lo de abajo está **implementado, desplegado y en `main`** salvo que diga lo contrario.
+
+## Arquitectura
+- Multi-tenant: cada tabla lleva `restaurant_id`; RLS por pertenencia (`is_member_of`, `has_role`). El **administrador de plataforma** (`platform_admins`, `is_platform_admin()`) pasa todas las RLS y ve todos los restaurantes. Los dueños solo ven los suyos.
+- `packages/core`: tipos (zod) y lógica pura con tests (50 tests): motor de recomendación de mesas, uniones, ocupación, horarios cercanos de mesa.
+- `packages/api-client`: toda llamada a Supabase (tablas y RPC). Las pantallas no hablan directo con Supabase.
+- Correos transaccionales: triggers en Postgres → `send_transactional_email` → Resend vía pg_net (plantilla oscura en SQL).
+
+## Panel de administración (`apps/admin`)
+- **Diseño** (de Claude Design): tokens oscuro/claro (`styles/index.css`, `lib/theme.ts`), Instrument Sans/Serif, gramática "estado = forma + color" (`lib/stateStyle.ts`), barra superior responsive, hoja inferior en celular para el detalle de mesa.
+- **Centro de Control** (`features/dashboard`): KPIs, plano interactivo (Konva) y **Línea de tiempo** mesa × hora, lista de espera, próximas reservas. En la línea de tiempo: capacidad bajo cada mesa ("2–4 personas"), **arrastrar y soltar** reservas entre mesas libres (el consumo viaja con ellas), mesas unidas con 🔗 y nombre en todas.
+- **Notificaciones** (`features/notifications`): solicitudes pendientes de aprobación, con correo, teléfono, **ubicación pedida**, mesas libres, **línea de tiempo de la mesa elegida (±3 h)** con la solicitud dibujada (rojo si se cruza), aviso por WhatsApp al aceptar, "clientes que avisaron que no vienen" (mesa liberada).
+- **Detalle de reserva** (`ReservationDetailModal`): ubicación pedida, "Mesa en la que la pondrás" **antes de aceptar** (recomendada, o elegida), botón "Aceptar en Mesa X" / "Unir N mesas y aceptar", estado de re-confirmación del cliente, reenviar por WhatsApp, **confirmación al cancelar/rechazar**, número de unión.
+- **Selector de mesas** (`TableAssignmentPicker` + `ManualTablePicker`): recomendadas con puntaje y razones + "Elegir yo la mesa (ver todas)" con estado libre/ocupada/bloqueada por mesa; multi-selección = unión.
+- **Restaurantes** (`features/restaurants`, solo admin de plataforma para lo global): tarjetas con mesas/reservas hoy/estado POS, editar nombre/slug/estado, **"+ Nuevo cliente"** (crea cuenta del dueño con clave temporal, clona plantilla del demo: zonas, mesas, horarios, reglas; mensaje listo para WhatsApp), dar acceso, restablecer clave, **quitar acceso**, cargar plantilla, **eliminar restaurante** (confirmando el slug), cambiar de restaurante.
+- **Página de reservas** (`features/booking`): enlace, QR, vista previa; pestañas **Logo y foto** (con aviso de baja resolución y reducción automática de fotos gigantes), **Horario de atención** (por día, varios tramos, pasa medianoche) y **Horario de reservas**.
+- **Configuración**: general (nombre/dirección/teléfono), horarios de reserva, reglas (máx. 10 personas online por defecto), zonas, equipo/invitaciones.
+- **Integraciones / POS universal**: API key por restaurante (solo se guarda el hash), endpoint `/api/pos` (JSON/form/GET), guía para proveedores/Make/Zapier/curl, "Probar conexión", mapeo de nombres de mesa, log en vivo. Una cuenta pedida/pagada marca la mesa "Pagando" con el monto.
+- **Mi cuenta**: cambiar clave. Login sin registro público.
+
+## Página pública de reservas (`apps/booking`)
+- Estilo "papel de carta" claro; encabezado centrado con **logo grande** (si hay) y estado **Abierto ahora · hasta las HH:MM · Reabrimos a las HH:MM** (según horario de atención, zona horaria del restaurante, soporta cierre pasada la medianoche). Foto de portada: a la izquierda en escritorio (difuminada), franja arriba en celular.
+- Flujo: correo → fecha/personas (1–10; más: "contacta al restaurante" con su teléfono) + **ubicación** (Me da lo mismo / zonas reales) → hora (franjas cada 15 min; almuerzo 13:00–15:00, cena 19:00–21:00, el "cierra" es la última hora reservable) → resumen (incluye correo) → **"Enviar solicitud de reserva"**. **Toda reserva entra pendiente y la aprueba el restaurante.**
+- Idiomas ES/EN/PT. Horas en 24 h.
+- **Enlace de confirmación `/c/<token>`**: el cliente re-confirma ("Sí, voy") o avisa "No podré ir" → la reserva se cancela y la mesa queda libre.
+- Antiabuso: rate limit en reservas, lista de espera y respuestas.
+
+## Base de datos (migraciones 0001–0032)
+0001–0013 base (tenencia, operación, clientes, reservas, disponibilidad con colchón, precios, lista de espera, RLS operativo, reserva pública, aprobación, motor de mesas, equipo, bloqueo de clientes) · 0014–0017 POS/consumo/feedback/lista de espera · 0018 portal (logo, `lookup_public_customer`, `get_month_availability`) · 0019/0021/0022 correos · 0020 rate limiting · 0023–0025 API universal de POS (`pos_ingest`, `pos_ping`, claves) · 0026/0027 aprovisionamiento por el admin de plataforma (`admin_create_client`, `admin_add_owner`, `admin_set_user_password`, `_clone_template`, registro público bloqueado) · 0028 portada, 10 personas, franjas 15 min · 0029 horario de atención, `admin_delete_restaurant`, `admin_remove_access` · 0030 zona preferida, token de confirmación, `respond_to_reservation`, `list_public_zones` · 0031 **uniones de mesas** (`reservation_tables`, `union_number`, `assign_reservation_tables`, `check_table_availability` bloquea todas las mesas de la unión, POS acepta "Unión 3") · 0032 la visita abierta (y la cuenta/consumo) sigue a la reserva cuando cambia de mesa.
+
+## Motor de recomendación de mesas (`packages/core/src/logic/tableAssignment`)
+Puntaje por capacidad exacta, zona preferida (+15), conflicto con reservas posteriores, penalización por combinación. Mesa sola → pares → **uniones mínimas de 3–4 mesas de la misma zona solo si nada más alcanza** (ej. 2+4+4 para 9). Las mesas deben estar marcadas "unibles".
+
+## Verificado en vivo (con rollback o datos de prueba ya limpiados)
+Alta de cliente y aislamiento por rol, cierre de registro, eliminar restaurante en cascada, quitar acceso, confirmación/declinación del cliente y liberación de mesa, unión de mesas y bloqueo de todas, visita que sigue a la reserva, regex del POS para "Unión N", API de POS de punta a punta, página pública completa en navegador.
+**No verificado con clics** (no se puede iniciar sesión en el panel): arrastrar y soltar en la línea de tiempo, ventana "Avisar al cliente", "Elegir yo la mesa", pestañas de Página de reservas. Pedir al usuario que las pruebe y reporte.
