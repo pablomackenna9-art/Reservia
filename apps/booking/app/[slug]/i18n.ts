@@ -74,7 +74,6 @@ interface Dictionary {
   phoneLabel: string;
   notesLabel: string;
   notesPlaceholder: string;
-  availableMsg: string;
   confirmCta: string;
   sending: string;
   confirmedTitle: string;
@@ -127,8 +126,8 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     closedThatDay: "El restaurante está cerrado ese día — probá otra fecha.",
     noTimesThatDay: "No queda disponibilidad ese día para tu grupo.",
     joinWaitlistCta: "Anotarme en la lista de espera",
-    stepConfirmTitle: "Confirma tu reserva",
-    stepConfirmSubtitle: "Revisá y ajustá lo que necesites.",
+    stepConfirmTitle: "Revisa tu solicitud",
+    stepConfirmSubtitle: "El restaurante la revisa y te confirma.",
     yourReservation: "TU RESERVA",
     partySizeLabel: "Personas",
     dateLabel: "Fecha",
@@ -142,8 +141,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     phoneLabel: "Teléfono",
     notesLabel: "¿Algo que debamos saber? (opcional)",
     notesPlaceholder: "Cumpleaños, alergias, silla de bebé…",
-    availableMsg: "Hay mesas disponibles: al confirmar te llega el correo con tu reserva.",
-    confirmCta: "Sí, confirmar mi reserva",
+    confirmCta: "Enviar solicitud de reserva",
     sending: "Enviando…",
     confirmedTitle: "Solicitud enviada",
     confirmedNote: "El restaurante todavía tiene que confirmarla — te avisamos por correo si hay algún cambio.",
@@ -193,8 +191,8 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     closedThatDay: "The restaurant is closed that day — try another date.",
     noTimesThatDay: "No availability that day for your group.",
     joinWaitlistCta: "Join the waitlist",
-    stepConfirmTitle: "Confirm your reservation",
-    stepConfirmSubtitle: "Review and adjust anything you need.",
+    stepConfirmTitle: "Review your request",
+    stepConfirmSubtitle: "The restaurant reviews it and confirms with you.",
     yourReservation: "YOUR RESERVATION",
     partySizeLabel: "People",
     dateLabel: "Date",
@@ -208,8 +206,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     phoneLabel: "Phone",
     notesLabel: "Anything we should know? (optional)",
     notesPlaceholder: "Birthday, allergies, high chair…",
-    availableMsg: "Tables are available: you'll get a confirmation email once you submit.",
-    confirmCta: "Yes, confirm my reservation",
+    confirmCta: "Send reservation request",
     sending: "Sending…",
     confirmedTitle: "Request sent",
     confirmedNote: "The restaurant still needs to confirm it — we'll email you if anything changes.",
@@ -259,8 +256,8 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     closedThatDay: "O restaurante está fechado nesse dia — tente outra data.",
     noTimesThatDay: "Sem disponibilidade nesse dia para o seu grupo.",
     joinWaitlistCta: "Entrar na lista de espera",
-    stepConfirmTitle: "Confirme sua reserva",
-    stepConfirmSubtitle: "Revise e ajuste o que precisar.",
+    stepConfirmTitle: "Revise sua solicitação",
+    stepConfirmSubtitle: "O restaurante analisa e confirma com você.",
     yourReservation: "SUA RESERVA",
     partySizeLabel: "Pessoas",
     dateLabel: "Data",
@@ -274,8 +271,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     phoneLabel: "Telefone",
     notesLabel: "Algo que devemos saber? (opcional)",
     notesPlaceholder: "Aniversário, alergias, cadeirinha…",
-    availableMsg: "Há mesas disponíveis: ao confirmar, você recebe o e-mail com sua reserva.",
-    confirmCta: "Sim, confirmar minha reserva",
+    confirmCta: "Enviar solicitação de reserva",
     sending: "Enviando…",
     confirmedTitle: "Solicitação enviada",
     confirmedNote: "O restaurante ainda precisa confirmá-la — avisamos por e-mail se algo mudar.",

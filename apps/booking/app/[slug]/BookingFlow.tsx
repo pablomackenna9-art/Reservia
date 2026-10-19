@@ -497,10 +497,6 @@ export function BookingFlow({
             className="w-full rounded-xl bg-surface-2 border border-line-strong px-3.5 py-3 text-[15px] placeholder:text-ink-faint outline-none focus:border-accent resize-none mb-3"
           />
 
-          <div className="rounded-xl bg-status-available/10 border border-status-available/40 px-4 py-3 text-[13px] font-semibold text-status-available mb-4">
-            {t.availableMsg}
-          </div>
-
           {error && <p className="text-sm text-status-occupied mb-3">{error}</p>}
 
           <button
