@@ -70,6 +70,16 @@ function dateToISO(d: Date): string {
 
 const NEARBY_SCHEDULE_HOURS = 3;
 
+/** Agrupa las mesas recomendadas por ubicación (salón, terraza...), con la que pidió el cliente primero. */
+function groupCandidatesByZone(candidates: TableCandidate[], zones: Zone[], preferredZoneId: string | null | undefined) {
+  const order = new Map(zones.map((z, i) => [z.id, i]));
+  const groups = new Map<string, TableCandidate[]>();
+  for (const c of candidates) groups.set(c.zoneId, [...(groups.get(c.zoneId) ?? []), c]);
+  return [...groups.entries()]
+    .sort(([a], [b]) => (a === preferredZoneId ? -1 : b === preferredZoneId ? 1 : (order.get(a) ?? 99) - (order.get(b) ?? 99)))
+    .map(([zoneId, list]) => ({ zoneId, zoneName: zones.find((z) => z.id === zoneId)?.name ?? "Otra ubicación", candidates: list }));
+}
+
 interface RequestInsight {
   topCandidate: TableCandidate | null;
   /** Todo lo que devolvió el motor de recomendación, no solo la primera -- para mostrar "las mesas libres para este grupo". */
@@ -200,8 +210,6 @@ export function NotificacionesPage() {
       relevant.map(async (r) => [r.id, await buildInsight(restaurantId, r, zonesList, tablesCountByDate, reservationsByDate)] as const),
     );
     setInsights(new Map(entries));
-    // Con pocas solicitudes el detalle (mesas libres + línea de tiempo) ya viene abierto.
-    if (relevant.length <= 3) setExpandedRequestIds((prev) => (prev.size === 0 ? new Set(relevant.map((r) => r.id)) : prev));
   }
 
   useEffect(() => {
@@ -412,30 +420,36 @@ export function NotificacionesPage() {
                             {insight.candidates.length === 0 ? (
                               <p className="text-[13px] text-ink-faint">Ninguna mesa libre para ese grupo a esa hora.</p>
                             ) : (
-                              <ul className="flex flex-wrap gap-1">
-                                {insight.candidates.map((c) => {
-                                  const chosen = selectedCandidateByRequest.get(r.id) ?? insight.topCandidate;
-                                  const isChosen = chosen?.tableIds.join("+") === c.tableIds.join("+");
-                                  return (
-                                    <li key={c.tableIds.join("+")}>
-                                      <button
-                                        onClick={() =>
-                                          setSelectedCandidateByRequest((prev) => new Map(prev).set(r.id, c))
-                                        }
-                                        title={c.reasons.join(" · ")}
-                                        className={`rounded-md border px-1.5 py-0.5 text-[13px] ${
-                                          isChosen
-                                            ? "bg-accent/15 border-accent text-accent"
-                                            : "bg-ground border-line hover:border-accent"
-                                        }`}
-                                      >
-                                        Mesa {c.tableNames.join("+")} · {c.capacityMax}p
-                                        {c.isCombination && (c.tableIds.length > 2 ? ` 🔗 unión de ${c.tableIds.length}` : " 🔗 combinada")}
-                                      </button>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
+                              <div className="space-y-2">
+                                {groupCandidatesByZone(insight.candidates, zones, r.preferredZoneId).map((group) => (
+                                  <div key={group.zoneId}>
+                                    <p className="text-[13px] font-semibold text-ink-muted mb-1">
+                                      {group.zoneName}
+                                      {group.zoneId === r.preferredZoneId && <span className="font-normal text-accent"> · la que pidió el cliente</span>}
+                                    </p>
+                                    <ul className="flex flex-wrap gap-1">
+                                      {group.candidates.map((c) => {
+                                        const chosen = selectedCandidateByRequest.get(r.id) ?? insight.topCandidate;
+                                        const isChosen = chosen?.tableIds.join("+") === c.tableIds.join("+");
+                                        return (
+                                          <li key={c.tableIds.join("+")}>
+                                            <button
+                                              onClick={() => setSelectedCandidateByRequest((prev) => new Map(prev).set(r.id, c))}
+                                              title={c.reasons.join(" · ")}
+                                              className={`rounded-md border px-1.5 py-0.5 text-[13px] ${
+                                                isChosen ? "bg-accent/15 border-accent text-accent" : "bg-ground border-line hover:border-accent"
+                                              }`}
+                                            >
+                                              Mesa {c.tableNames.join("+")} · {c.capacityMax}p
+                                              {c.isCombination && (c.tableIds.length > 2 ? ` 🔗 unión de ${c.tableIds.length}` : " 🔗 combinada")}
+                                            </button>
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
                             )}
                           </div>
                         </div>

@@ -127,6 +127,10 @@ export function TableAssignmentPicker({
   }
 
   const [recommended, ...alternatives] = candidates;
+  const zoneOrder = new Map(zones.map((z, i) => [z.id, i]));
+  const alternativeGroups = [...new Set(alternatives.map((c) => c.zoneId))]
+    .sort((a, b) => (a === preferredZoneId ? -1 : b === preferredZoneId ? 1 : (zoneOrder.get(a) ?? 99) - (zoneOrder.get(b) ?? 99)))
+    .map((zoneId) => ({ zoneId, candidates: alternatives.filter((c) => c.zoneId === zoneId) }));
   const recommendedIds = new Set(recommended!.tableIds);
   const alternativeIds = new Set(alternatives.flatMap((c) => c.tableIds));
 
@@ -262,9 +266,15 @@ export function TableAssignmentPicker({
 
           {alternatives.length > 0 && (
             <div>
-              <p className="text-[13px] text-ink-faint mb-1">Otras alternativas</p>
+              <p className="text-[13px] text-ink-faint mb-1">Otras alternativas, por ubicación</p>
+              {alternativeGroups.map((group) => (
+              <div key={group.zoneId} className="mb-2">
+              <p className="text-[13px] font-semibold text-ink-muted mb-1">
+                {zoneNameById.get(group.zoneId) ?? "…"}
+                {group.zoneId === preferredZoneId && <span className="font-normal text-accent"> · la que pidió el cliente</span>}
+              </p>
               <div className={reservationsForSchedule ? "grid grid-cols-1 sm:grid-cols-2 gap-1.5" : "flex flex-wrap gap-1.5"}>
-                {alternatives.map((c) => (
+                {group.candidates.map((c) => (
                   <div
                     key={c.tableIds.join("+")}
                     className="rounded-[10px] bg-ground border border-line px-2.5 py-1.5 text-[13px] hover:border-accent min-w-0"
@@ -273,12 +283,13 @@ export function TableAssignmentPicker({
                       <span>
                         {c.tableIds.length > 1 ? "🔗 " : ""}{c.tableNames.join("+")} · hasta {c.capacityMax} personas
                       </span>
-                      <span className="block text-ink-faint text-[13px]">{zoneNameById.get(c.zoneId) ?? "…"}</span>
                     </button>
                     <ScheduleBlock candidate={c} />
                   </div>
                 ))}
               </div>
+              </div>
+              ))}
             </div>
           )}
         </div>
