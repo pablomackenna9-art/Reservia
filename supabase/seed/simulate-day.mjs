@@ -10,7 +10,7 @@
 //   node supabase/seed/simulate-day.mjs                  # arma el día
 //   node supabase/seed/simulate-day.mjs --drip 6 --every 75
 //        # además, sigue llegando una solicitud nueva cada 75 s (6 en total), como en un día real
-//   node supabase/seed/simulate-day.mjs --slug otro-restaurante
+//   node supabase/seed/simulate-day.mjs --slug cnit --days 0,1      # modo seguro: crea clientes ficticios y borra solo lo '[sim]'
 //   node supabase/seed/simulate-day.mjs --union-demo
 //        # NO borra nada: agrega para mañana a las 20:00 una solicitud de 9 personas con todas las mesas
 //        # grandes ya ocupadas, para probar la UNIÓN de mesas (2 + 4 + 4, etc.)
@@ -50,6 +50,16 @@ const argValue = (name, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 const SLUG = argValue("--slug", "restaurante-demo");
+// Modo seguro: en cualquier restaurante que NO sea el demo (o con --keep) todo lo simulado se marca '[sim]'
+// y la limpieza borra SOLO lo marcado -- nunca reservas ni lista de espera reales. Si faltan clientes de
+// prueba, crea clientes ficticios (@example.com) en ese restaurante.
+// --days 0,1 simula hoy y mañana (útil cuando el servicio de hoy ya terminó).
+const DAYS = argValue("--days", "0").split(",").map((d) => Number(d.trim()));
+const SAFE_MODE = SLUG !== "restaurante-demo" || args.includes("--keep");
+const MARK = SAFE_MODE ? "[sim]" : null;
+
+const FIRST = ["María", "Roberto", "Ana", "Diego", "Isabel", "Javier", "Carla", "Francisca", "Matías", "Camila", "Tomás", "Valentina", "Sebastián", "Antonia", "Cristóbal", "Josefa", "Nicolás", "Fernanda", "Ignacio", "Constanza", "Benjamín", "Trinidad", "Vicente", "Florencia", "Agustín", "Emilia"];
+const LAST = ["González", "Núñez", "Pérez", "Ramírez", "Silva", "Morales", "Fuentes", "Soto", "Rojas", "Vidal", "Bravo", "Castro", "Muñoz", "Reyes", "Vega", "Contreras", "Espinoza", "Torres", "Salazar", "Molina", "Araya", "Cortés", "Herrera", "Guzmán"];
 const DRIP = Number(argValue("--drip", "0"));
 const EVERY = Number(argValue("--every", "75"));
 
@@ -149,12 +159,39 @@ async function main() {
     rest(`customers?restaurant_id=eq.${rid}&email=like.*@example.com&blacklisted=eq.false&select=id,first_name&limit=1000`),
   ]);
   if (tables.length === 0) throw new Error("Este restaurante no tiene mesas.");
-  if (customersAll.length < 40) throw new Error("Hacen falta al menos 40 clientes con correo @example.com.");
+  if (customersAll.length < 40) {
+    if (!SAFE_MODE) throw new Error("Hacen falta al menos 40 clientes con correo @example.com.");
+    const missing = 60 - customersAll.length;
+    const fresh = Array.from({ length: missing }, (_, i) => {
+      const first = pick(FIRST);
+      const last = pick(LAST);
+      const slug = `${first}.${last}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return {
+        restaurant_id: rid,
+        first_name: first,
+        last_name: last,
+        phone: "+569" + String(10000000 + rnd(89999999) + i).slice(0, 8),
+        email: `${slug}${100 + rnd(900)}${i}@example.com`,
+      };
+    });
+    await rest("customers", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(fresh) });
+    customersAll.push(
+      ...(await rest(`customers?restaurant_id=eq.${rid}&email=like.*@example.com&blacklisted=eq.false&select=id,first_name&limit=1000`)).filter(
+        (c) => !customersAll.some((x) => x.id === c.id),
+      ),
+    );
+    console.log(`Creé ${missing} clientes ficticios (@example.com) en este restaurante.`);
+  }
 
   // limpieza de la simulación anterior (nunca clientes)
-  await rest(`reservations?restaurant_id=eq.${rid}&status=neq.completed`, { method: "DELETE" });
-  await rest(`reservations?restaurant_id=eq.${rid}&internal_notes=eq.%5Bsim%5D`, { method: "DELETE" });
-  await rest(`waitlist_entries?restaurant_id=eq.${rid}`, { method: "DELETE" });
+  if (SAFE_MODE) {
+    await rest(`reservations?restaurant_id=eq.${rid}&internal_notes=eq.%5Bsim%5D`, { method: "DELETE" });
+    await rest(`waitlist_entries?restaurant_id=eq.${rid}&notes=eq.%5Bsim%5D`, { method: "DELETE" });
+  } else {
+    await rest(`reservations?restaurant_id=eq.${rid}&status=neq.completed`, { method: "DELETE" });
+    await rest(`reservations?restaurant_id=eq.${rid}&internal_notes=eq.%5Bsim%5D`, { method: "DELETE" });
+    await rest(`waitlist_entries?restaurant_id=eq.${rid}`, { method: "DELETE" });
+  }
 
   const customerQueue = shuffle(customersAll);
   const nextCustomer = () => {
@@ -176,7 +213,7 @@ async function main() {
     restaurant_id: rid,
     table_id: null,
     notes: null,
-    internal_notes: null,
+    internal_notes: MARK,
     total_amount: null,
     created_by: ownerId,
     preferred_zone_id: null,
@@ -190,13 +227,13 @@ async function main() {
     { slots: slotsOf(LUNCH), fraction: 0.6, weights: (h, m) => (h === 13 ? 3 : h === 14 ? 2 : 1) },
     { slots: slotsOf(DINNER), fraction: 0.82, weights: (h, m) => (h === 20 ? 4 : h === 19 && m >= 30 ? 3 : 2) },
   ];
-  for (const service of services) {
+  for (const dayOffset of DAYS) for (const service of services) {
     const target = Math.round(tables.length * service.fraction);
     let made = 0;
     let guard = 0;
     while (made < target && guard++ < target * 8) {
       const [h, m] = weighted(service.slots.map((s) => [s, service.weights(s[0], s[1])]));
-      const startsAt = at(0, h, m);
+      const startsAt = at(dayOffset, h, m);
       const endsAt = new Date(startsAt.getTime() + DURATION_MIN * 60_000);
       const party = partySizeRoll();
       const fits = shuffle(tables).find(
@@ -303,7 +340,7 @@ async function main() {
     await rest("waitlist_entries", {
       method: "POST",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ restaurant_id: rid, customer_id: nextCustomer(), party_size: 2 + rnd(5), status: "waiting", priority: i === 0 ? 1 : 0 }),
+      body: JSON.stringify({ restaurant_id: rid, customer_id: nextCustomer(), party_size: 2 + rnd(5), status: "waiting", priority: i === 0 ? 1 : 0, notes: MARK }),
     });
   }
 
@@ -349,7 +386,7 @@ async function unionDemo(rid, ownerId) {
   ]);
   const startsAt = at(1, 20, 0);
   const endsAt = new Date(startsAt.getTime() + DURATION_MIN * 60_000);
-  const common = { restaurant_id: rid, notes: null, internal_notes: null, total_amount: null, created_by: ownerId, preferred_zone_id: null, customer_response: null, customer_responded_at: null };
+  const common = { restaurant_id: rid, notes: null, internal_notes: MARK, total_amount: null, created_by: ownerId, preferred_zone_id: null, customer_response: null, customer_responded_at: null };
   const big = tables.filter((t) => t.capacity_max >= 5); // nada de 5+ personas libre: ni una mesa ni un par (4 + 4) alcanza para 9
   const rows = big.map((t, i) => ({
     ...common,
