@@ -1,7 +1,8 @@
 import { Circle, Group, Rect, Text } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Table, Zone } from "@reservia/core";
-import type { KonvaLook } from "../../lib/stateStyle";
+import type { KonvaLook, VisualState } from "../../lib/stateStyle";
+import { chairReach, chairSlots, type ChairSlot } from "./chairs";
 
 /** Used only by the Smart Table Engine's floor-plan picker — undefined everywhere else, so the normal plano is untouched. */
 export type TableHighlightState = "recommended" | "alternative" | "dimmed";
@@ -21,12 +22,24 @@ export interface TablePalette {
   free: string;
   arr: string;
   onS: string;
+  /** Asiento de una silla y su borde/respaldo (sillas, sofás, barra). */
+  seat: string;
+  seatLine: string;
+  /** Decoración: hojas claras y oscuras, maceta, madera, piedra. */
+  leaf: string;
+  leafDark: string;
+  pot: string;
+  wood: string;
+  stone: string;
+  shadow: string;
 }
 
 interface TableTokenProps {
   table: Table;
   zone: Zone;
   look: KonvaLook;
+  /** Estado visual de la mesa: define cómo se ven sus sillas. */
+  state: VisualState;
   palette: TablePalette;
   selected: boolean;
   onSelect: () => void;
@@ -52,6 +65,7 @@ export function TableToken({
   table,
   zone,
   look,
+  state,
   palette,
   selected,
   onSelect,
@@ -83,14 +97,20 @@ export function TableToken({
       ? { fill: look.fill }
       : {};
 
+  const solid = Boolean(look.fill || look.pattern);
+
   const shapeProps = {
     ...fillProps,
     stroke: ringColor,
     strokeWidth,
     dash: look.dash,
+    // Un poco de sombra le da cuerpo a la mesa; en las libres (solo contorno punteado) se omite.
+    ...(solid ? { shadowColor: palette.shadow, shadowBlur: 9, shadowOffsetY: 3, shadowOpacity: 0.55, shadowForStrokeEnabled: false } : {}),
   };
 
   const haloColor = dropReady ? palette.free : look.halo;
+  const chairs = chairSlots(table);
+  const reach = chairReach(table);
 
   return (
     <Group
@@ -106,6 +126,10 @@ export function TableToken({
       onDragEnd={handleDragEnd}
       listening
     >
+      {chairs.map((slot, i) => (
+        <Chair key={i} slot={slot} state={state} stroke={look.stroke} palette={palette} />
+      ))}
+
       {haloColor &&
         (isRound ? (
           <Circle radius={radius + 6} fill={haloColor} opacity={dropReady ? 0.3 : 1} />
@@ -133,6 +157,23 @@ export function TableToken({
           {...shapeProps}
         />
       )}
+
+      {solid &&
+        (isRound ? (
+          <Circle radius={radius - 6} stroke={palette.seatLine} strokeWidth={1} opacity={0.5} listening={false} />
+        ) : (
+          <Rect
+            x={-table.width / 2 + 6}
+            y={-table.height / 2 + 6}
+            width={table.width - 12}
+            height={table.height - 12}
+            cornerRadius={7}
+            stroke={palette.seatLine}
+            strokeWidth={1}
+            opacity={0.5}
+            listening={false}
+          />
+        ))}
 
       {highlightState === "recommended" && (
         <Text
@@ -221,11 +262,44 @@ export function TableToken({
           width={Math.max(table.width + 40, 90)}
           align="center"
           offsetX={Math.max(table.width + 40, 90) / 2}
-          y={Math.max(table.width, table.height) / 2 + 10}
+          y={Math.max(table.width, table.height) / 2 + reach + 8}
           rotation={-table.rotation}
           listening={false}
         />
       )}
+    </Group>
+  );
+}
+
+/** Silla vista desde arriba: respaldo (borde exterior) + asiento. Su color sigue el estado de la mesa. */
+function Chair({ slot, state, stroke, palette }: { slot: ChairSlot; state: VisualState; stroke: string; palette: TablePalette }) {
+  const { width: cw, depth: cd } = slot;
+  const back = Math.max(2.5, cd * 0.34);
+  const strong = state === "occupied" || state === "paying";
+  const opacity = state === "blocked" || state === "noshow" ? 0.35 : state === "free" ? 0.8 : 1;
+
+  return (
+    <Group x={slot.x} y={slot.y} rotation={slot.rotation} opacity={opacity} listening={false}>
+      <Rect
+        x={-cw / 2}
+        y={-cd / 2}
+        width={cw}
+        height={back}
+        cornerRadius={[back * 0.7, back * 0.7, 1, 1]}
+        fill={strong ? stroke : palette.seatLine}
+        opacity={strong ? 1 : 0.9}
+      />
+      <Rect
+        x={-cw / 2 + 0.75}
+        y={-cd / 2 + back}
+        width={cw - 1.5}
+        height={cd - back}
+        cornerRadius={[2, 2, cd * 0.32, cd * 0.32]}
+        fill={strong ? stroke : palette.seat}
+        opacity={strong ? 0.78 : 1}
+        stroke={strong ? undefined : stroke}
+        strokeWidth={strong ? 0 : 1}
+      />
     </Group>
   );
 }

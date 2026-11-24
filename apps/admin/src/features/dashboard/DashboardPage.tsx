@@ -42,6 +42,7 @@ export function DashboardPage() {
   const {
     zones,
     tables,
+    decor,
     reservationsToday,
     reservationsByTable,
     payingTotals,
@@ -596,6 +597,7 @@ export function DashboardPage() {
                 getTurnoverWarning={getTurnoverWarning}
                 getTableInfo={getTableInfo}
                 onDropWaitlistEntry={handleDropWaitlistEntry}
+                decor={decor}
               />
             )}
           </div>

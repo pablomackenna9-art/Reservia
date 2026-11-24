@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { compareTableNames } from "@reservia/core";
+import { compareTableNames, DECOR_KINDS, DECOR_META } from "@reservia/core";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas } from "./ZoneCanvas";
 import { TableDetailPanel } from "./TableDetailPanel";
@@ -14,6 +14,10 @@ export function PlanoDeMesasPage() {
   const {
     zones,
     tables,
+    decor,
+    addDecor,
+    updateDecorProps,
+    removeDecor,
     reservationsToday,
     reservationsByTable,
     tableGroups,
@@ -40,6 +44,7 @@ export function PlanoDeMesasPage() {
 
   const [activeZoneId, setActiveZoneId] = useState<string | "all">("all");
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [selectedDecorId, setSelectedDecorId] = useState<string | null>(null);
   const [joinSourceId, setJoinSourceId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [showNewTable, setShowNewTable] = useState(false);
@@ -52,7 +57,27 @@ export function PlanoDeMesasPage() {
   const selectedTable = tables.find((t) => t.id === selectedTableId) ?? null;
   const selectedTableZone = selectedTable ? zones.find((z) => z.id === selectedTable.zoneId) ?? null : null;
 
+  const selectedDecor = decor.find((d) => d.id === selectedDecorId) ?? null;
+  const decorZone = (activeZoneId === "all" ? [...zones].sort((a, b) => a.sortOrder - b.sortOrder)[0] : zones.find((z) => z.id === activeZoneId)) ?? null;
+
+  async function handleAddDecor(kind: (typeof DECOR_KINDS)[number]) {
+    if (!decorZone) return;
+    const id = await addDecor(decorZone.id, kind);
+    if (id) {
+      setSelectedDecorId(id);
+      setSelectedTableId(null);
+    }
+  }
+
+  async function handleDeleteDecor() {
+    if (!selectedDecor) return;
+    if (!confirm(`¿Quitar ${DECOR_META[selectedDecor.kind].label.toLowerCase()} del plano?`)) return;
+    await removeDecor(selectedDecor.id);
+    setSelectedDecorId(null);
+  }
+
   async function handleSelectTable(id: string | null) {
+    if (id) setSelectedDecorId(null);
     if (joinSourceId && id && id !== joinSourceId) {
       const groupId = await joinTablesTogether(joinSourceId, id);
       if (!groupId) alert("Solo se pueden unir mesas de la misma zona.");
@@ -116,9 +141,61 @@ export function PlanoDeMesasPage() {
       </header>
 
       <p className="text-[13px] text-ink-faint mb-3">
-        Arrastrá una mesa para moverla — se guarda sola.
-        {editMode && " En modo edición podés agregar, duplicar y eliminar mesas."}
+        Arrastra una mesa para moverla — se guarda sola.
+        {editMode && " En modo edición puedes agregar, duplicar y eliminar mesas, y decorar el plano con plantas, columnas, barra y más."}
       </p>
+
+      {editMode && (
+        <div className="mb-3 rounded-xl bg-surface p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[13px] font-semibold text-ink-muted shrink-0">Decorar {decorZone ? `· ${decorZone.name}` : ""}:</span>
+            <div className="flex gap-1.5 overflow-x-auto max-w-full">
+              {DECOR_KINDS.map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => handleAddDecor(kind)}
+                  className="h-10 px-3 shrink-0 rounded-[10px] bg-surface-2 border border-line text-sm hover:border-accent active:scale-[0.97]"
+                >
+                  + {DECOR_META[kind].label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {selectedDecor ? (
+            <div className="mt-3 pt-3 border-t border-line flex flex-wrap items-center gap-2">
+              <span className="text-[15px] font-semibold mr-1">{DECOR_META[selectedDecor.kind].label} seleccionada</span>
+              <DecorButton onClick={() => updateDecorProps(selectedDecor.id, { rotation: (selectedDecor.rotation + 345) % 360 })} label="↺ Girar" />
+              <DecorButton onClick={() => updateDecorProps(selectedDecor.id, { rotation: (selectedDecor.rotation + 15) % 360 })} label="↻ Girar" />
+              <DecorButton
+                onClick={() =>
+                  updateDecorProps(selectedDecor.id, {
+                    width: Math.max(12, Math.round(selectedDecor.width * 0.87)),
+                    height: Math.max(12, Math.round(selectedDecor.height * 0.87)),
+                  })
+                }
+                label="Más chico"
+              />
+              <DecorButton
+                onClick={() =>
+                  updateDecorProps(selectedDecor.id, {
+                    width: Math.min(500, Math.round(selectedDecor.width * 1.15)),
+                    height: Math.min(500, Math.round(selectedDecor.height * 1.15)),
+                  })
+                }
+                label="Más grande"
+              />
+              <button type="button" onClick={handleDeleteDecor} className="h-10 px-3 rounded-[10px] text-sm font-semibold text-status-occupied">
+                Quitar
+              </button>
+              <span className="text-[13px] text-ink-faint">Arrástralo en el plano para moverlo.</span>
+            </div>
+          ) : (
+            <p className="mt-2 text-[13px] text-ink-faint">Toca una opción para agregarla y luego arrástrala hasta su lugar. Toca un objeto del plano para girarlo, cambiarle el tamaño o quitarlo.</p>
+          )}
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 flex gap-4">
         <div className="flex-1 min-w-0 h-[68dvh] xl:h-auto rounded-2xl overflow-hidden bg-surface-2">
@@ -130,6 +207,14 @@ export function PlanoDeMesasPage() {
             onMoveTable={moveTable}
             getTableStatus={getTableStatus}
             getTurnoverWarning={getTurnoverWarning}
+            decor={decor}
+            decorEditable={editMode}
+            selectedDecorId={selectedDecorId}
+            onSelectDecor={(id) => {
+              setSelectedDecorId(id);
+              if (id) setSelectedTableId(null);
+            }}
+            onMoveDecor={(id, positionX, positionY) => updateDecorProps(id, { positionX, positionY })}
           />
         </div>
 
@@ -193,6 +278,14 @@ export function PlanoDeMesasPage() {
         />
       )}
     </div>
+  );
+}
+
+function DecorButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button type="button" onClick={onClick} className="h-10 px-3 rounded-[10px] bg-surface-2 border border-line text-sm hover:border-accent active:scale-[0.97]">
+      {label}
+    </button>
   );
 }
 

@@ -59,3 +59,33 @@ export const tableLiveStatusSchema = z.object({
   updatedAt: z.string(),
 });
 export type TableLiveStatus = z.infer<typeof tableLiveStatusSchema>;
+
+/** Decoración del plano: solo dibujo (no se reserva ni cuenta como mesa). */
+export const DECOR_KINDS = ["plant", "tree", "planter", "column", "wall", "door", "bar", "sofa"] as const;
+export type DecorKind = (typeof DECOR_KINDS)[number];
+
+/** Nombre en el panel y tamaño inicial (mismas unidades que el ancho/alto de una mesa). */
+export const DECOR_META: Record<DecorKind, { label: string; width: number; height: number }> = {
+  plant: { label: "Planta", width: 46, height: 46 },
+  tree: { label: "Árbol", width: 86, height: 86 },
+  planter: { label: "Jardinera", width: 120, height: 36 },
+  column: { label: "Columna", width: 30, height: 30 },
+  wall: { label: "Muro", width: 130, height: 14 },
+  door: { label: "Puerta", width: 62, height: 62 },
+  bar: { label: "Barra", width: 190, height: 52 },
+  sofa: { label: "Sofá", width: 116, height: 42 },
+};
+
+export const zoneDecorSchema = z.object({
+  id: z.string().uuid(),
+  restaurantId: z.string().uuid(),
+  zoneId: z.string().uuid(),
+  kind: z.enum(DECOR_KINDS),
+  /** 0–100, porcentaje del lienzo de la zona (igual que las mesas). */
+  positionX: z.number().min(0).max(100),
+  positionY: z.number().min(0).max(100),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  rotation: z.number().min(0).max(359).default(0),
+});
+export type ZoneDecor = z.infer<typeof zoneDecorSchema>;

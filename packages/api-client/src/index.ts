@@ -3,6 +3,7 @@ export * from "./auth";
 export * from "./restaurants";
 export * from "./zones";
 export * from "./tables";
+export * from "./decor";
 export * from "./customers";
 export * from "./reservations";
 export * from "./reservationRules";

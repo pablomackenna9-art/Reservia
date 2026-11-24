@@ -9,6 +9,8 @@
 6. Subir **logo (PNG transparente)** y **foto (≥1920 px de ancho)** de Vinoteca; decidir qué hacer con **CNIT** (vacío; usar "Cargar plantilla") y si quitar a `demo@reservia.app` de CNIT.
 7. Desactivar (o dejar) la tarea programada de Windows `supabase/seed/run-refresh.cmd`: se interrumpió el 15 y 16 de oct. y vacía el demo; el simulador nuevo la reemplaza.
 
+8. **Aplicar la migración 0033 (decoración del plano)** si aún no está aplicada: `supabase/migrations/0033_zone_decor.sql` (CLI `db push` tras `npx supabase login`, o pegarla en el editor SQL de Supabase) y luego `node supabase/seed/seed-decor.mjs` para la decoración de ejemplo.
+
 ## B. Desarrollo sugerido (no empezado)
 - **WhatsApp automático** (Meta WhatsApp Business Cloud API o Twilio/360dialog): número verificado, plantilla aprobada ("reserva aceptada + enlace"), envío al aceptar y webhook de respuestas; recordatorio automático antes de la reserva y liberación si no responde. El enlace `/c/<token>` y la liberación de mesa ya existen; falta solo el canal de envío (guardar credenciales en Vault, nunca en el código).
 - Que aceptar/rechazar dispare correo de rechazo explícito y aviso a la lista de espera al liberarse una mesa por "No podré ir" (hoy lo ve el equipo en Notificaciones).

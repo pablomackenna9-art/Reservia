@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Stage, Layer, Rect, Text, Group } from "react-konva";
 import Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import type { Table, TableLiveStatusValue, Zone } from "@reservia/core";
+import type { Table, TableLiveStatusValue, Zone, ZoneDecor } from "@reservia/core";
 import { useContainerSize } from "../../hooks/useContainerSize";
 import { dotGridTile, konvaLook, tableVisualState, type KonvaLook, type VisualState } from "../../lib/stateStyle";
-import { themeColor, useTheme } from "../../lib/theme";
+import { themeColor, themeMix, useTheme } from "../../lib/theme";
+import { DecorShape } from "./DecorShape";
 import { TableToken, type TableHighlightState, type TableInfoLine, type TablePalette } from "./TableToken";
 
 const MIN_SCALE = 0.3;
@@ -48,6 +49,13 @@ interface ZoneCanvasProps {
   activeZoneId?: string | null;
   /** Línea viva bajo cada mesa (tiempo sentados, hora de la reserva, "libre"). */
   getTableInfo?: (tableId: string) => TableInfoLine | undefined;
+  /** Decoración del plano (plantas, columnas, barra...): dibujo bajo las mesas. */
+  decor?: ZoneDecor[];
+  /** En "Editar plano" los objetos se pueden seleccionar y arrastrar. */
+  decorEditable?: boolean;
+  selectedDecorId?: string | null;
+  onSelectDecor?: (id: string | null) => void;
+  onMoveDecor?: (id: string, positionX: number, positionY: number) => void;
 }
 
 export function ZoneCanvas({
@@ -62,6 +70,11 @@ export function ZoneCanvas({
   onDropWaitlistEntry,
   activeZoneId,
   getTableInfo,
+  decor,
+  decorEditable = false,
+  selectedDecorId = null,
+  onSelectDecor,
+  onMoveDecor,
 }: ZoneCanvasProps) {
   const theme = useTheme();
   const [dragActive, setDragActive] = useState(false);
@@ -107,6 +120,14 @@ export function ZoneCanvas({
       free: themeColor("s-free"),
       arr: themeColor("s-arr"),
       onS: themeColor("on-s"),
+      seat: themeColor("sf3"),
+      seatLine: themeColor("ink3", 0.75),
+      leaf: themeMix("s-free", 72, "bg"),
+      leafDark: themeMix("s-free", 46, "bg"),
+      pot: themeMix("acc", 58, "bg"),
+      wood: themeMix("acc", 38, "sf3"),
+      stone: themeColor("sf2"),
+      shadow: theme === "oscuro" ? "rgba(0, 0, 0, 0.7)" : "rgba(40, 28, 12, 0.35)",
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [theme],
@@ -381,7 +402,10 @@ export function ZoneCanvas({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onClick={(e) => {
-          if (e.target === e.target.getStage()) onSelectTable(null);
+          if (e.target === e.target.getStage()) {
+            onSelectTable(null);
+            onSelectDecor?.(null);
+          }
         }}
       >
         <Layer listening={false}>
@@ -404,6 +428,30 @@ export function ZoneCanvas({
             </Group>
           ))}
         </Layer>
+        {decor && decor.length > 0 && (
+          <Layer listening={decorEditable}>
+            {layout.map(({ zone, offsetX, scale }) => (
+              <Group key={zone.id} x={offsetX} scaleX={scale} scaleY={scale} opacity={activeZoneId && activeZoneId !== zone.id ? 0.35 : 1}>
+                {decor
+                  .filter((d) => d.zoneId === zone.id)
+                  .map((d) => (
+                    <DecorShape
+                      key={d.id}
+                      decor={d}
+                      zone={zone}
+                      palette={palette}
+                      selected={d.id === selectedDecorId}
+                      editable={decorEditable}
+                      onSelect={() => onSelectDecor?.(d.id)}
+                      onDragEnd={(x, y) =>
+                        onMoveDecor?.(d.id, clamp((x / zone.width) * 100, 0, 100), clamp((y / zone.height) * 100, 0, 100))
+                      }
+                    />
+                  ))}
+              </Group>
+            ))}
+          </Layer>
+        )}
         <Layer>
           {layout.map(({ zone, offsetX, scale }) => (
             <Group key={zone.id} x={offsetX} scaleX={scale} scaleY={scale}>
@@ -413,6 +461,7 @@ export function ZoneCanvas({
                   table={table}
                   zone={zone}
                   look={looks.get(tableVisualState(getTableStatus?.(table.id) ?? "available"))!}
+                  state={tableVisualState(getTableStatus?.(table.id) ?? "available")}
                   palette={palette}
                   info={fontsReady ? getTableInfo?.(table.id) : undefined}
                   dimmed={Boolean(activeZoneId) && activeZoneId !== zone.id}

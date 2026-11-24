@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./features/auth/AuthProvider";
 import { LoginPage } from "./features/auth/LoginPage";
@@ -21,6 +21,8 @@ import { MarketingPage } from "./features/marketing/MarketingPage";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { RequireRestaurant } from "./routes/RequireRestaurant";
+// Solo desarrollo (ruta /__plano): carga perezosa para que no viaje en producción.
+const PlanoPreview = lazy(() => import("./dev/PlanoPreview").then((m) => ({ default: m.PlanoPreview })));
 
 function Protected({ children }: { children: ReactNode }) {
   return (
@@ -48,6 +50,16 @@ export function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            {import.meta.env.DEV && (
+              <Route
+                path="/__plano"
+                element={
+                  <Suspense fallback={null}>
+                    <PlanoPreview />
+                  </Suspense>
+                }
+              />
+            )}
             <Route path="/signup" element={<SignupPage />} />
             <Route
               path="/onboarding"

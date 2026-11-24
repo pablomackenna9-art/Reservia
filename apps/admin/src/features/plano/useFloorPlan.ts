@@ -3,11 +3,14 @@ import {
   acceptReservation,
   completeReservationWithConsumption,
   createCustomer,
+  createDecor,
   createReservation,
   createTable,
   deactivateTable,
+  deleteDecor,
   getReservationRules,
   joinTables as apiJoinTables,
+  listDecor,
   listPayingTables,
   listReservationsForDate,
   listTableGroups,
@@ -18,6 +21,7 @@ import {
   ungroupTables,
   updateReservationNotes,
   updateReservationStatus,
+  updateDecor,
   updateReservationTable,
   updateTable,
   updateTablePosition,
@@ -26,14 +30,17 @@ import {
   type TableGroupInfo,
 } from "@reservia/api-client";
 import {
+  DECOR_META,
   deriveTableStatus,
   findTurnoverConflict,
   type ReservationStatus,
   type ReservationRules,
   type Table,
   type TableAssignmentSource,
+  type DecorKind,
   type TableLiveStatusValue,
   type Zone,
+  type ZoneDecor,
 } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
@@ -49,6 +56,7 @@ export function useFloorPlan(restaurantId: string | undefined) {
 
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
+  const [decor, setDecor] = useState<ZoneDecor[]>([]);
   const [reservationsToday, setReservationsToday] = useState<ReservationWithDetails[]>([]);
   const [rules, setRules] = useState<ReservationRules | null>(null);
   // Mesas con la cuenta pedida/pagada según el POS (tableId -> monto): se ven como "Pagando".
@@ -59,14 +67,17 @@ export function useFloorPlan(restaurantId: string | undefined) {
 
   async function reload() {
     if (!restaurantId) return;
-    const [z, t, r, rr, tg, paying] = await Promise.all([
+    const [z, t, r, rr, tg, paying, dec] = await Promise.all([
       listZones(supabase, restaurantId),
       listTables(supabase, restaurantId),
       listReservationsForDate(supabase, restaurantId, todayISO()),
       getReservationRules(supabase, restaurantId),
       listTableGroups(supabase, restaurantId),
       listPayingTables(supabase, restaurantId),
+      // La decoración es opcional: si algo falla (o aún no existe la tabla) el plano sigue funcionando sin ella.
+      listDecor(supabase, restaurantId).catch(() => [] as ZoneDecor[]),
     ]);
+    setDecor(dec);
     setZones(z);
     setTables(t);
     setReservationsToday(r);
@@ -237,6 +248,40 @@ export function useFloorPlan(restaurantId: string | undefined) {
     await reload();
   }
 
+  // --- Decoración del plano (plantas, columnas, barra...) ---
+  async function addDecor(zoneId: string, kind: DecorKind): Promise<string | null> {
+    if (!restaurantId) return null;
+    const meta = DECOR_META[kind];
+    // Cada objeto nuevo aparece un poco desplazado para que no se encimen al agregar varios.
+    const nudge = (decor.filter((d) => d.zoneId === zoneId).length % 6) * 3;
+    try {
+      const created = await createDecor(supabase, {
+        restaurantId,
+        zoneId,
+        kind,
+        positionX: 50 + nudge,
+        positionY: 50 + nudge,
+        width: meta.width,
+        height: meta.height,
+      });
+      setDecor((prev) => [...prev, created]);
+      return created.id;
+    } catch (err) {
+      alert(err && typeof err === "object" && "message" in err ? String(err.message) : "No se pudo agregar el objeto.");
+      return null;
+    }
+  }
+
+  async function updateDecorProps(id: string, patch: Partial<Pick<ZoneDecor, "positionX" | "positionY" | "width" | "height" | "rotation">>) {
+    setDecor((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+    await updateDecor(supabase, id, patch);
+  }
+
+  async function removeDecor(id: string) {
+    setDecor((prev) => prev.filter((d) => d.id !== id));
+    await deleteDecor(supabase, id);
+  }
+
   async function moveReservationToTable(reservationId: string, tableId: string, source?: TableAssignmentSource) {
     await updateReservationTable(supabase, reservationId, tableId, source);
     await reload();
@@ -293,6 +338,10 @@ export function useFloorPlan(restaurantId: string | undefined) {
   return {
     zones,
     tables,
+    decor,
+    addDecor,
+    updateDecorProps,
+    removeDecor,
     reservationsToday,
     reservationsByTable,
     payingTotals,
