@@ -168,6 +168,12 @@ export function PlanoDeMesasPage() {
               <span className="text-[15px] font-semibold mr-1">{DECOR_META[selectedDecor.kind].label} seleccionada</span>
               <DecorButton onClick={() => updateDecorProps(selectedDecor.id, { rotation: (selectedDecor.rotation + 345) % 360 })} label="↺ Girar" />
               <DecorButton onClick={() => updateDecorProps(selectedDecor.id, { rotation: (selectedDecor.rotation + 15) % 360 })} label="↻ Girar" />
+              {STRETCHABLE.includes(selectedDecor.kind) && (
+                <>
+                  <DecorButton onClick={() => updateDecorProps(selectedDecor.id, { width: Math.max(30, Math.round(selectedDecor.width * 0.85)) })} label="↔ Acortar" />
+                  <DecorButton onClick={() => updateDecorProps(selectedDecor.id, { width: Math.min(1200, Math.round(selectedDecor.width * 1.18)) })} label="↔ Alargar" />
+                </>
+              )}
               <DecorButton
                 onClick={() =>
                   updateDecorProps(selectedDecor.id, {
@@ -180,7 +186,7 @@ export function PlanoDeMesasPage() {
               <DecorButton
                 onClick={() =>
                   updateDecorProps(selectedDecor.id, {
-                    width: Math.min(500, Math.round(selectedDecor.width * 1.15)),
+                    width: Math.min(1200, Math.round(selectedDecor.width * 1.15)),
                     height: Math.min(500, Math.round(selectedDecor.height * 1.15)),
                   })
                 }
@@ -192,7 +198,7 @@ export function PlanoDeMesasPage() {
               <span className="text-[13px] text-ink-faint">Arrástralo en el plano para moverlo.</span>
             </div>
           ) : (
-            <p className="mt-2 text-[13px] text-ink-faint">Toca una opción para agregarla y luego arrástrala hasta su lugar. Toca un objeto del plano para girarlo, cambiarle el tamaño o quitarlo.</p>
+            <p className="mt-2 text-[13px] text-ink-faint">Toca una opción para agregarla y luego arrástrala hasta su lugar. Toca un objeto del plano para girarlo, cambiarle el tamaño o quitarlo. Los sofás y banquetas se pueden alargar: las mesas pegadas a un sofá usan el sofá como asiento y dejan de mostrar sillas de ese lado.</p>
           )}
         </div>
       )}
@@ -280,6 +286,9 @@ export function PlanoDeMesasPage() {
     </div>
   );
 }
+
+/** Objetos largos: además de agrandarse parejos, se pueden alargar o acortar (un sofá pegado a la pared, un muro). */
+const STRETCHABLE: readonly string[] = ["sofa", "wall", "planter", "bar"];
 
 function DecorButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (

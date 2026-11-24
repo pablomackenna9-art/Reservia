@@ -40,6 +40,8 @@ interface TableTokenProps {
   look: KonvaLook;
   /** Estado visual de la mesa: define cómo se ven sus sillas. */
   state: VisualState;
+  /** Lados pegados a un sofá (ahí no van sillas). */
+  coveredSides?: ReadonlySet<number>;
   palette: TablePalette;
   selected: boolean;
   onSelect: () => void;
@@ -66,6 +68,7 @@ export function TableToken({
   zone,
   look,
   state,
+  coveredSides,
   palette,
   selected,
   onSelect,
@@ -109,7 +112,7 @@ export function TableToken({
   };
 
   const haloColor = dropReady ? palette.free : look.halo;
-  const chairs = chairSlots(table);
+  const chairs = chairSlots(table, coveredSides);
   const reach = chairReach(table);
 
   return (

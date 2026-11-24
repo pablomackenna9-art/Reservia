@@ -73,7 +73,7 @@ export const DECOR_META: Record<DecorKind, { label: string; width: number; heigh
   wall: { label: "Muro", width: 130, height: 14 },
   door: { label: "Puerta", width: 62, height: 62 },
   bar: { label: "Barra", width: 190, height: 52 },
-  sofa: { label: "Sofá", width: 116, height: 42 },
+  sofa: { label: "Sofá / banqueta", width: 200, height: 44 },
 };
 
 export const zoneDecorSchema = z.object({

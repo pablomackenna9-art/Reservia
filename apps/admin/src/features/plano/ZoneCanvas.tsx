@@ -6,6 +6,7 @@ import type { Table, TableLiveStatusValue, Zone, ZoneDecor } from "@reservia/cor
 import { useContainerSize } from "../../hooks/useContainerSize";
 import { dotGridTile, konvaLook, tableVisualState, type KonvaLook, type VisualState } from "../../lib/stateStyle";
 import { themeColor, themeMix, useTheme } from "../../lib/theme";
+import { coveredSides } from "./chairs";
 import { DecorShape } from "./DecorShape";
 import { TableToken, type TableHighlightState, type TableInfoLine, type TablePalette } from "./TableToken";
 
@@ -160,6 +161,20 @@ export function ZoneCanvas({
     ? layout[layout.length - 1]!.offsetX + layout[layout.length - 1]!.zone.width * layout[layout.length - 1]!.scale
     : 0;
   const floorHeight = COMMON_HEIGHT;
+
+  // Mesas pegadas a un sofá/banqueta: ese lado no lleva sillas (se sientan en el sofá).
+  const coveredByTable = useMemo(() => {
+    const map = new Map<string, Set<number>>();
+    const sofasByZone = new Map<string, ZoneDecor[]>();
+    for (const d of decor ?? []) if (d.kind === "sofa") sofasByZone.set(d.zoneId, [...(sofasByZone.get(d.zoneId) ?? []), d]);
+    if (sofasByZone.size === 0) return map;
+    for (const table of tables) {
+      const zone = zones.find((z) => z.id === table.zoneId);
+      const sofas = sofasByZone.get(table.zoneId);
+      if (zone && sofas) map.set(table.id, coveredSides(table, zone, sofas));
+    }
+    return map;
+  }, [tables, zones, decor]);
 
   const tablesByZone = useMemo(() => {
     const map = new Map<string, Table[]>();
@@ -462,6 +477,7 @@ export function ZoneCanvas({
                   zone={zone}
                   look={looks.get(tableVisualState(getTableStatus?.(table.id) ?? "available"))!}
                   state={tableVisualState(getTableStatus?.(table.id) ?? "available")}
+                  coveredSides={coveredByTable.get(table.id)}
                   palette={palette}
                   info={fontsReady ? getTableInfo?.(table.id) : undefined}
                   dimmed={Boolean(activeZoneId) && activeZoneId !== zone.id}

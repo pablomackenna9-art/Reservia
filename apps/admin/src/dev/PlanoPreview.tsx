@@ -49,6 +49,7 @@ const initialDecor: ZoneDecor[] = [
   d(7, "door", 95, 96, 0),
   d(8, "bar", 80, 8, 0, 1),
   d(9, "sofa", 8, 94),
+  { ...d(12, "sofa", 27, 14), width: 340, height: 46 },
   d(10, "plant", 94, 52),
   d(11, "plant", 6, 50),
 ];

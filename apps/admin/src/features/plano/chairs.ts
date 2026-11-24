@@ -1,4 +1,4 @@
-import type { Table } from "@reservia/core";
+import type { Table, Zone, ZoneDecor } from "@reservia/core";
 
 /** Una silla vista desde arriba, en coordenadas locales de la mesa (origen en su centro). */
 export interface ChairSlot {
@@ -53,7 +53,71 @@ function side(count: number, length: number, offset: number, rotation: number, h
  * redonda = en círculo; cuadrada = repartidas en los 4 lados; rectangular = a lo largo de los lados
  * largos (y una en cada punta cuando es una mesa larga con varios asientos).
  */
-export function chairSlots(table: Pick<Table, "shape" | "width" | "height" | "capacityMax">): ChairSlot[] {
+export function chairSlots(
+  table: Pick<Table, "shape" | "width" | "height" | "capacityMax">,
+  /** Lados donde NO van sillas porque ahí hay un sofá/banqueta (0 arriba, 1 derecha, 2 abajo, 3 izquierda, en el marco de la mesa). */
+  skipSides?: ReadonlySet<number>,
+): ChairSlot[] {
+  const all = allChairSlots(table);
+  if (!skipSides || skipSides.size === 0) return all;
+  return all.filter((slot) => !skipSides.has(sideOfRotation(slot.rotation)));
+}
+
+/** A qué lado de la mesa pertenece una silla según hacia dónde mira (0 arriba, 1 derecha, 2 abajo, 3 izquierda). */
+function sideOfRotation(rotation: number): number {
+  return (((Math.round(rotation / 90) % 4) + 4) % 4) as number;
+}
+
+/**
+ * Lados de la mesa que están pegados a un sofá (banqueta larga): ahí la gente se sienta en el sofá,
+ * así que no se dibujan sillas. Un lado cuenta como pegado si el punto justo afuera de su centro cae
+ * sobre el sofá (con un pequeño margen), sin importar cómo estén girados la mesa o el sofá.
+ */
+export function coveredSides(
+  table: Pick<Table, "positionX" | "positionY" | "width" | "height" | "rotation">,
+  zone: Pick<Zone, "width" | "height">,
+  sofas: ReadonlyArray<Pick<ZoneDecor, "positionX" | "positionY" | "width" | "height" | "rotation">>,
+): Set<number> {
+  const covered = new Set<number>();
+  if (sofas.length === 0) return covered;
+
+  const cx = (table.positionX / 100) * zone.width;
+  const cy = (table.positionY / 100) * zone.height;
+  const reach = chairReach(table);
+  const tr = (table.rotation * Math.PI) / 180;
+  const half = [table.height / 2, table.width / 2, table.height / 2, table.width / 2];
+  const normals: [number, number][] = [
+    [0, -1],
+    [1, 0],
+    [0, 1],
+    [-1, 0],
+  ];
+
+  for (let side = 0; side < 4; side++) {
+    const dist = half[side]! + reach + 4;
+    const lx = normals[side]![0] * dist;
+    const ly = normals[side]![1] * dist;
+    const px = cx + lx * Math.cos(tr) - ly * Math.sin(tr);
+    const py = cy + lx * Math.sin(tr) + ly * Math.cos(tr);
+
+    for (const sofa of sofas) {
+      const sx = (sofa.positionX / 100) * zone.width;
+      const sy = (sofa.positionY / 100) * zone.height;
+      const sr = (-sofa.rotation * Math.PI) / 180;
+      const dx = px - sx;
+      const dy = py - sy;
+      const ux = dx * Math.cos(sr) - dy * Math.sin(sr);
+      const uy = dx * Math.sin(sr) + dy * Math.cos(sr);
+      if (Math.abs(ux) <= sofa.width / 2 + 6 && Math.abs(uy) <= sofa.height / 2 + 6) {
+        covered.add(side);
+        break;
+      }
+    }
+  }
+  return covered;
+}
+
+function allChairSlots(table: Pick<Table, "shape" | "width" | "height" | "capacityMax">): ChairSlot[] {
   const n = clamp(Math.round(table.capacityMax), 1, MAX_CHAIRS);
   const m = chairMetrics(table);
   const w = table.width;
