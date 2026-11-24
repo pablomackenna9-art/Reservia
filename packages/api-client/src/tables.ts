@@ -84,6 +84,32 @@ export async function updateTable(
   if (error) throw error;
 }
 
+/**
+ * Divide una mesa en módulos DENTRO de su misma huella (no cambia su posición ni su tamaño total).
+ * `capacities` = asientos de cada módulo en orden, ej. [4, 4, 2]. Devuelve los ids de los módulos.
+ */
+export async function splitTableIntoModules(supabase: SupabaseClient, tableId: string, capacities: number[]): Promise<string[]> {
+  const { data, error } = await supabase.rpc("split_table_into_modules", { p_table: tableId, p_capacities: capacities });
+  if (error) throw error;
+  return ((data as { table_ids?: string[] } | null)?.table_ids ?? []) as string[];
+}
+
+/** Deshace la división: la mesa vuelve a ser UNA, exactamente como era. */
+export async function mergeTableModules(supabase: SupabaseClient, layoutId: string): Promise<void> {
+  const { error } = await supabase.rpc("merge_table_modules", { p_layout: layoutId });
+  if (error) throw error;
+}
+
+/** Devuelve un módulo apartado a su lugar de origen en la mesa larga. */
+export async function returnModuleHome(supabase: SupabaseClient, table: Pick<Table, "id" | "homeX" | "homeY" | "homeRotation">): Promise<void> {
+  if (table.homeX == null || table.homeY == null) return;
+  const { error } = await supabase
+    .from("tables")
+    .update({ pos_x: table.homeX, pos_y: table.homeY, rotation: table.homeRotation ?? 0 })
+    .eq("id", table.id);
+  if (error) throw error;
+}
+
 export async function setTableBlocked(
   supabase: SupabaseClient,
   id: string,
@@ -122,5 +148,11 @@ export function mapTable(row: Record<string, unknown>): Table {
     joinable: Boolean(row.joinable),
     blocked: Boolean(row.blocked),
     blockedReason: (row.blocked_reason as string) ?? null,
+    layoutId: (row.layout_id as string) ?? null,
+    homeX: row.home_x != null ? Number(row.home_x) : null,
+    homeY: row.home_y != null ? Number(row.home_y) : null,
+    homeRotation: row.home_rotation != null ? Number(row.home_rotation) : null,
+    homeWidth: row.home_width != null ? Number(row.home_width) : null,
+    homeHeight: row.home_height != null ? Number(row.home_height) : null,
   };
 }

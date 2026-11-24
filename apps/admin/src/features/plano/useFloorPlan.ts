@@ -14,6 +14,9 @@ import {
   listPayingTables,
   listReservationsForDate,
   listTableGroups,
+  mergeTableModules,
+  returnModuleHome,
+  splitTableIntoModules,
   listTables,
   listZones,
   seatWaitlistEntry,
@@ -248,6 +251,24 @@ export function useFloorPlan(restaurantId: string | undefined) {
     await reload();
   }
 
+  // --- Mesas grandes hechas de módulos ---
+  async function splitTable(tableId: string, capacities: number[]) {
+    await splitTableIntoModules(supabase, tableId, capacities);
+    await reload();
+  }
+
+  async function mergeModules(layoutId: string) {
+    await mergeTableModules(supabase, layoutId);
+    await reload();
+  }
+
+  async function returnModuleToHome(tableId: string) {
+    const table = tables.find((t) => t.id === tableId);
+    if (!table || table.homeX == null || table.homeY == null) return;
+    setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, positionX: table.homeX!, positionY: table.homeY!, rotation: table.homeRotation ?? t.rotation } : t)));
+    await returnModuleHome(supabase, table);
+  }
+
   // --- Decoración del plano (plantas, columnas, barra...) ---
   async function addDecor(zoneId: string, kind: DecorKind): Promise<string | null> {
     if (!restaurantId) return null;
@@ -339,6 +360,9 @@ export function useFloorPlan(restaurantId: string | undefined) {
     zones,
     tables,
     decor,
+    splitTable,
+    mergeModules,
+    returnModuleToHome,
     addDecor,
     updateDecorProps,
     removeDecor,

@@ -6,4 +6,6 @@ export const TABLE_ASSIGNMENT_WEIGHTS = {
   zonePreferredBonus: 15,
   futureConflictPenalty: 35,
   combinationPenalty: 18,
+  /** Combinación hecha con módulos juntos de la misma mesa larga: se prefiere sobre mesas sueltas. */
+  sameLayoutBonus: 12,
 } as const;

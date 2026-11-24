@@ -2,13 +2,13 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Stage, Layer, Rect, Text, Group } from "react-konva";
 import Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import type { Table, TableLiveStatusValue, Zone, ZoneDecor } from "@reservia/core";
+import { isModuleDetached, type Table, type TableLiveStatusValue, type Zone, type ZoneDecor } from "@reservia/core";
 import { useContainerSize } from "../../hooks/useContainerSize";
 import { dotGridTile, konvaLook, tableVisualState, type KonvaLook, type VisualState } from "../../lib/stateStyle";
 import { themeColor, themeMix, useTheme } from "../../lib/theme";
 import { coveredSides } from "./chairs";
 import { DecorShape } from "./DecorShape";
-import { TableToken, type TableHighlightState, type TableInfoLine, type TablePalette } from "./TableToken";
+import { HomeSlot, TableToken, type TableHighlightState, type TableInfoLine, type TablePalette } from "./TableToken";
 
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 4;
@@ -175,6 +175,23 @@ export function ZoneCanvas({
     }
     return map;
   }, [tables, zones, decor]);
+
+  // Módulos de una misma mesa larga que están en su lugar: los lados que se tocan no llevan sillas.
+  const joinedByTable = useMemo(() => {
+    const map = new Map<string, Set<number>>();
+    const byLayout = new Map<string, Table[]>();
+    for (const t of tables) {
+      if (t.layoutId && !isModuleDetached(t)) byLayout.set(t.layoutId, [...(byLayout.get(t.layoutId) ?? []), t]);
+    }
+    for (const group of byLayout.values()) {
+      if (group.length < 2) continue;
+      for (const table of group) {
+        const zone = zones.find((z) => z.id === table.zoneId);
+        if (zone) map.set(table.id, coveredSides(table, zone, group.filter((o) => o.id !== table.id)));
+      }
+    }
+    return map;
+  }, [tables, zones]);
 
   const tablesByZone = useMemo(() => {
     const map = new Map<string, Table[]>();
@@ -470,6 +487,11 @@ export function ZoneCanvas({
         <Layer>
           {layout.map(({ zone, offsetX, scale }) => (
             <Group key={zone.id} x={offsetX} scaleX={scale} scaleY={scale}>
+              {(tablesByZone.get(zone.id) ?? [])
+                .filter((table) => isModuleDetached(table))
+                .map((table) => (
+                  <HomeSlot key={`home-${table.id}`} table={table} zone={zone} palette={palette} />
+                ))}
               {(tablesByZone.get(zone.id) ?? []).map((table) => (
                 <TableToken
                   key={table.id}
@@ -478,6 +500,7 @@ export function ZoneCanvas({
                   look={looks.get(tableVisualState(getTableStatus?.(table.id) ?? "available"))!}
                   state={tableVisualState(getTableStatus?.(table.id) ?? "available")}
                   coveredSides={coveredByTable.get(table.id)}
+                  joinedSides={joinedByTable.get(table.id)}
                   palette={palette}
                   info={fontsReady ? getTableInfo?.(table.id) : undefined}
                   dimmed={Boolean(activeZoneId) && activeZoneId !== zone.id}
@@ -490,8 +513,16 @@ export function ZoneCanvas({
                   onDragEnd={
                     onMoveTable
                       ? (x, y) => {
-                          const positionX = clamp((x / zone.width) * 100, 2, 98);
-                          const positionY = clamp((y / zone.height) * 100, 2, 98);
+                          let positionX = clamp((x / zone.width) * 100, 2, 98);
+                          let positionY = clamp((y / zone.height) * 100, 2, 98);
+                          // Imán: un módulo que se suelta cerca de su lugar de origen vuelve exactamente a él.
+                          if (table.homeX != null && table.homeY != null) {
+                            const near = Math.hypot(((positionX - table.homeX) / 100) * zone.width, ((positionY - table.homeY) / 100) * zone.height);
+                            if (near < 22) {
+                              positionX = table.homeX;
+                              positionY = table.homeY;
+                            }
+                          }
                           onMoveTable(table.id, positionX, positionY);
                         }
                       : undefined

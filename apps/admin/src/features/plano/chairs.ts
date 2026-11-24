@@ -32,7 +32,9 @@ export function chairReach(table: Pick<Table, "width" | "height">): number {
   return m.depth + m.gap;
 }
 
-function side(count: number, length: number, offset: number, rotation: number, horizontal: boolean, m: ReturnType<typeof chairMetrics>): ChairSlot[] {
+type Metrics = ReturnType<typeof chairMetrics>;
+
+function side(count: number, length: number, offset: number, rotation: number, horizontal: boolean, m: Metrics): ChairSlot[] {
   if (count <= 0) return [];
   const step = length / count;
   const width = Math.min(m.width, step - 2);
@@ -48,38 +50,112 @@ function side(count: number, length: number, offset: number, rotation: number, h
   });
 }
 
+/** A qué lado de la mesa pertenece una silla según hacia dónde mira (0 arriba, 1 derecha, 2 abajo, 3 izquierda). */
+function sideOfRotation(rotation: number): number {
+  return ((Math.round(rotation / 90) % 4) + 4) % 4;
+}
+
 /**
  * Dónde van las sillas de una mesa. Una por cada asiento de su capacidad máxima:
  * redonda = en círculo; cuadrada = repartidas en los 4 lados; rectangular = a lo largo de los lados
  * largos (y una en cada punta cuando es una mesa larga con varios asientos).
+ *
+ * - `drop`: lados pegados a un sofá/banqueta (0 arriba, 1 derecha, 2 abajo, 3 izquierda, en el marco de la
+ *   mesa). Ahí la gente se sienta en el sofá: esas sillas no se dibujan.
+ * - `closed`: lados pegados a otro módulo de la misma mesa larga. Ahí no caben sillas, así que esos asientos se
+ *   reparten en los lados que quedan libres (la capacidad no cambia).
  */
 export function chairSlots(
   table: Pick<Table, "shape" | "width" | "height" | "capacityMax">,
-  /** Lados donde NO van sillas porque ahí hay un sofá/banqueta (0 arriba, 1 derecha, 2 abajo, 3 izquierda, en el marco de la mesa). */
-  skipSides?: ReadonlySet<number>,
+  drop?: ReadonlySet<number>,
+  closed?: ReadonlySet<number>,
 ): ChairSlot[] {
-  const all = allChairSlots(table);
-  if (!skipSides || skipSides.size === 0) return all;
-  return all.filter((slot) => !skipSides.has(sideOfRotation(slot.rotation)));
-}
+  const n = clamp(Math.round(table.capacityMax), 1, MAX_CHAIRS);
+  const m = chairMetrics(table);
+  const w = table.width;
+  const h = table.height;
+  const hasDrop = !!drop && drop.size > 0;
+  const hasClosed = !!closed && closed.size > 0;
 
-/** A qué lado de la mesa pertenece una silla según hacia dónde mira (0 arriba, 1 derecha, 2 abajo, 3 izquierda). */
-function sideOfRotation(rotation: number): number {
-  return (((Math.round(rotation / 90) % 4) + 4) % 4) as number;
+  if (table.shape === "round") {
+    const r = Math.min(w, h) / 2;
+    const ring = r + m.gap + m.depth / 2;
+    const width = Math.min(m.width, ((2 * Math.PI * ring) / n) * 0.82);
+    const all = Array.from({ length: n }, (_, i): ChairSlot => {
+      const phi = (i * 360) / n;
+      const rad = (phi * Math.PI) / 180;
+      return { x: Math.sin(rad) * ring, y: -Math.cos(rad) * ring, rotation: phi, width, depth: m.depth };
+    });
+    if (!hasDrop && !hasClosed) return all;
+    return all.filter((s) => {
+      const sd = sideOfRotation(s.rotation);
+      return !drop?.has(sd) && !closed?.has(sd);
+    });
+  }
+
+  const outY = h / 2 + m.gap + m.depth / 2;
+  const outX = w / 2 + m.gap + m.depth / 2;
+  const ratio = Math.max(w, h) / Math.min(w, h);
+  const longHorizontal = w >= h;
+
+  // Cuántas sillas van en cada lado: [arriba, derecha, abajo, izquierda].
+  const counts = [0, 0, 0, 0];
+  if (ratio >= 1.35 && n >= 6) {
+    // Mesa larga con varios asientos: una silla en cada punta y el resto en los lados largos.
+    const rest = n - 2;
+    const first = Math.ceil(rest / 2);
+    const second = Math.floor(rest / 2);
+    if (longHorizontal) {
+      counts[0] = first;
+      counts[2] = second;
+      counts[1] = 1;
+      counts[3] = 1;
+    } else {
+      counts[3] = first;
+      counts[1] = second;
+      counts[0] = 1;
+      counts[2] = 1;
+    }
+  } else {
+    // Cuadrada (o rectangular con pocos asientos): se reparte entre los lados, empezando por los dos largos.
+    const order = longHorizontal ? [0, 2, 3, 1] : [3, 1, 0, 2];
+    for (let i = 0; i < n; i++) counts[order[i % 4]!]! += 1;
+  }
+
+  // Lados con sofá: esas sillas no existen (se sientan en el sofá).
+  if (hasDrop) for (const sd of drop!) counts[sd] = 0;
+
+  // Lados pegados a otro módulo: sus asientos pasan a los lados libres (los largos primero).
+  if (hasClosed) {
+    const free = (longHorizontal ? [0, 2, 1, 3] : [3, 1, 0, 2]).filter((sd) => !closed!.has(sd) && !drop?.has(sd));
+    let moving = 0;
+    for (const sd of closed!) {
+      moving += counts[sd]!;
+      counts[sd] = 0;
+    }
+    for (let i = 0; i < moving && free.length > 0; i++) counts[free[i % free.length]!]! += 1;
+  }
+
+  return [
+    ...side(counts[0]!, w, -outY, 0, true, m),
+    ...side(counts[2]!, w, outY, 180, true, m),
+    ...side(counts[3]!, h, -outX, 270, false, m),
+    ...side(counts[1]!, h, outX, 90, false, m),
+  ];
 }
 
 /**
- * Lados de la mesa que están pegados a un sofá (banqueta larga): ahí la gente se sienta en el sofá,
- * así que no se dibujan sillas. Un lado cuenta como pegado si el punto justo afuera de su centro cae
- * sobre el sofá (con un pequeño margen), sin importar cómo estén girados la mesa o el sofá.
+ * Lados de la mesa que tocan alguno de los objetos dados (un sofá, o el módulo vecino de la misma mesa larga).
+ * Un lado cuenta como pegado si el punto justo afuera de su centro cae sobre el objeto (con un pequeño margen),
+ * sin importar cómo estén girados la mesa o el objeto.
  */
 export function coveredSides(
   table: Pick<Table, "positionX" | "positionY" | "width" | "height" | "rotation">,
   zone: Pick<Zone, "width" | "height">,
-  sofas: ReadonlyArray<Pick<ZoneDecor, "positionX" | "positionY" | "width" | "height" | "rotation">>,
+  neighbors: ReadonlyArray<Pick<ZoneDecor, "positionX" | "positionY" | "width" | "height" | "rotation">>,
 ): Set<number> {
   const covered = new Set<number>();
-  if (sofas.length === 0) return covered;
+  if (neighbors.length === 0) return covered;
 
   const cx = (table.positionX / 100) * zone.width;
   const cy = (table.positionY / 100) * zone.height;
@@ -93,81 +169,26 @@ export function coveredSides(
     [-1, 0],
   ];
 
-  for (let side = 0; side < 4; side++) {
-    const dist = half[side]! + reach + 4;
-    const lx = normals[side]![0] * dist;
-    const ly = normals[side]![1] * dist;
+  for (let sd = 0; sd < 4; sd++) {
+    const dist = half[sd]! + reach + 4;
+    const lx = normals[sd]![0] * dist;
+    const ly = normals[sd]![1] * dist;
     const px = cx + lx * Math.cos(tr) - ly * Math.sin(tr);
     const py = cy + lx * Math.sin(tr) + ly * Math.cos(tr);
 
-    for (const sofa of sofas) {
-      const sx = (sofa.positionX / 100) * zone.width;
-      const sy = (sofa.positionY / 100) * zone.height;
-      const sr = (-sofa.rotation * Math.PI) / 180;
-      const dx = px - sx;
-      const dy = py - sy;
-      const ux = dx * Math.cos(sr) - dy * Math.sin(sr);
-      const uy = dx * Math.sin(sr) + dy * Math.cos(sr);
-      if (Math.abs(ux) <= sofa.width / 2 + 6 && Math.abs(uy) <= sofa.height / 2 + 6) {
-        covered.add(side);
+    for (const o of neighbors) {
+      const ox = (o.positionX / 100) * zone.width;
+      const oy = (o.positionY / 100) * zone.height;
+      const or = (-o.rotation * Math.PI) / 180;
+      const dx = px - ox;
+      const dy = py - oy;
+      const ux = dx * Math.cos(or) - dy * Math.sin(or);
+      const uy = dx * Math.sin(or) + dy * Math.cos(or);
+      if (Math.abs(ux) <= o.width / 2 + 6 && Math.abs(uy) <= o.height / 2 + 6) {
+        covered.add(sd);
         break;
       }
     }
   }
   return covered;
-}
-
-function allChairSlots(table: Pick<Table, "shape" | "width" | "height" | "capacityMax">): ChairSlot[] {
-  const n = clamp(Math.round(table.capacityMax), 1, MAX_CHAIRS);
-  const m = chairMetrics(table);
-  const w = table.width;
-  const h = table.height;
-
-  if (table.shape === "round") {
-    const r = Math.min(w, h) / 2;
-    const ring = r + m.gap + m.depth / 2;
-    const width = Math.min(m.width, ((2 * Math.PI * ring) / n) * 0.82);
-    return Array.from({ length: n }, (_, i) => {
-      const phi = (i * 360) / n;
-      const rad = (phi * Math.PI) / 180;
-      return { x: Math.sin(rad) * ring, y: -Math.cos(rad) * ring, rotation: phi, width, depth: m.depth };
-    });
-  }
-
-  const outY = h / 2 + m.gap + m.depth / 2;
-  const outX = w / 2 + m.gap + m.depth / 2;
-  const ratio = Math.max(w, h) / Math.min(w, h);
-  const longHorizontal = w >= h;
-
-  // Mesa larga con varios asientos: una silla en cada punta y el resto en los lados largos.
-  if (ratio >= 1.35 && n >= 6) {
-    const rest = n - 2;
-    const first = Math.ceil(rest / 2);
-    const second = Math.floor(rest / 2);
-    return longHorizontal
-      ? [
-          ...side(first, w, -outY, 0, true, m),
-          ...side(second, w, outY, 180, true, m),
-          ...side(1, h, -outX, 270, false, m),
-          ...side(1, h, outX, 90, false, m),
-        ]
-      : [
-          ...side(first, h, -outX, 270, false, m),
-          ...side(second, h, outX, 90, false, m),
-          ...side(1, w, -outY, 0, true, m),
-          ...side(1, w, outY, 180, true, m),
-        ];
-  }
-
-  // Cuadrada (o rectangular con pocos asientos): se reparte entre los lados, empezando por los dos largos.
-  const order = longHorizontal ? ["top", "bottom", "left", "right"] : ["left", "right", "top", "bottom"];
-  const counts: Record<string, number> = { top: 0, bottom: 0, left: 0, right: 0 };
-  for (let i = 0; i < n; i++) counts[order[i % 4]!]! += 1;
-
-  return [
-    ...side(counts.top!, w, -outY, 0, true, m),
-    ...side(counts.bottom!, w, outY, 180, true, m),
-    ...side(counts.left!, h, -outX, 270, false, m),
-    ...side(counts.right!, h, outX, 90, false, m),
-  ];
 }

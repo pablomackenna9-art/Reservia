@@ -42,6 +42,8 @@ interface TableTokenProps {
   state: VisualState;
   /** Lados pegados a un sofá (ahí no van sillas). */
   coveredSides?: ReadonlySet<number>;
+  /** Lados pegados a otro módulo de la misma mesa larga (esas sillas se reparten en los lados libres). */
+  joinedSides?: ReadonlySet<number>;
   palette: TablePalette;
   selected: boolean;
   onSelect: () => void;
@@ -69,6 +71,7 @@ export function TableToken({
   look,
   state,
   coveredSides,
+  joinedSides,
   palette,
   selected,
   onSelect,
@@ -112,7 +115,7 @@ export function TableToken({
   };
 
   const haloColor = dropReady ? palette.free : look.halo;
-  const chairs = chairSlots(table, coveredSides);
+  const chairs = chairSlots(table, coveredSides, joinedSides);
   const reach = chairReach(table);
 
   return (
@@ -302,6 +305,30 @@ function Chair({ slot, state, stroke, palette }: { slot: ChairSlot; state: Visua
         opacity={strong ? 0.78 : 1}
         stroke={strong ? undefined : stroke}
         strokeWidth={strong ? 0 : 1}
+      />
+    </Group>
+  );
+}
+
+/** El lugar de origen de un módulo que se apartó: un hueco punteado donde vuelve con "Devolver a su lugar". */
+export function HomeSlot({ table, zone, palette }: { table: Table; zone: Zone; palette: TablePalette }) {
+  if (table.homeX == null || table.homeY == null) return null;
+  const w = table.homeWidth ?? table.width;
+  const h = table.homeHeight ?? table.height;
+  return (
+    <Group x={(table.homeX / 100) * zone.width} y={(table.homeY / 100) * zone.height} rotation={table.homeRotation ?? 0} listening={false}>
+      <Rect x={-w / 2} y={-h / 2} width={w} height={h} cornerRadius={8} stroke={palette.seatLine} strokeWidth={1.5} dash={[5, 4]} opacity={0.8} />
+      <Text
+        text={`↩ ${table.name}`}
+        fontSize={12}
+        fontFamily={SANS}
+        fontStyle="600"
+        fill={palette.seatLine}
+        width={Math.max(w, 60)}
+        align="center"
+        offsetX={Math.max(w, 60) / 2}
+        y={-6}
+        rotation={-(table.homeRotation ?? 0)}
       />
     </Group>
   );

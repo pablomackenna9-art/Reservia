@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  isModuleDetached,
   currentOrNextReservation,
   findTurnoverConflict,
   minutesSince,
@@ -27,6 +28,7 @@ import { StatePill } from "../../components/ui";
 import { tableVisualState } from "../../lib/stateStyle";
 import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL, confirmStatusChange } from "../reservations/statusStyles";
 import { TableAssignmentPicker } from "../reservations/TableAssignmentPicker";
+import { SplitTableModal } from "./SplitTableModal";
 import { ReservationDetailModal } from "../reservations/ReservationDetailModal";
 
 function formatElapsed(totalMinutes: number): string {
@@ -68,6 +70,9 @@ export function TableDetailPanel({
   onUpdateTable,
   onToggleBlocked,
   onSaveNotes,
+  onSplit,
+  onMergeModules,
+  onReturnHome,
 }: {
   table: Table;
   restaurantId: string;
@@ -93,9 +98,16 @@ export function TableDetailPanel({
   onUpdateTable?: (patch: TableEditPatch) => void;
   onToggleBlocked?: (blocked: boolean, reason?: string | null) => void;
   onSaveNotes?: (reservationId: string, notes: string) => void;
+  /** Dividir esta mesa grande en módulos (solo en "Editar plano"). */
+  onSplit?: (capacities: number[]) => Promise<void>;
+  /** Deshacer la división: la mesa vuelve a ser una sola. */
+  onMergeModules?: () => Promise<void>;
+  /** Devolver un módulo apartado a su lugar de origen. */
+  onReturnHome?: () => Promise<void>;
 }) {
   const reservation = currentOrNextReservation(reservationsToday);
   const [showWalkIn, setShowWalkIn] = useState(false);
+  const [showSplit, setShowSplit] = useState(false);
   const [walkInName, setWalkInName] = useState("Walk-in");
   const [walkInPhone, setWalkInPhone] = useState("");
   const [walkInEmail, setWalkInEmail] = useState("");
@@ -485,7 +497,7 @@ export function TableDetailPanel({
       {joinedTableNames.length === 0 &&
         (joinPending ? (
           <div className="rounded-lg border border-accent/50 bg-accent/10 px-3 py-2 text-[13px] text-accent flex items-center justify-between">
-            Tocá otra mesa de la misma zona para unir
+            Toca otra mesa de la misma zona para unir
             <button onClick={onCancelJoin} className="text-ink-faint hover:text-ink">
               Cancelar
             </button>
@@ -498,6 +510,56 @@ export function TableDetailPanel({
             Unir con otra mesa
           </button>
         ))}
+
+      {table.layoutId && (
+        <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3 space-y-2">
+          <p className="text-[13px] font-semibold">
+            Parte de la mesa {table.name.replace(/-[A-H]$/, "")}
+            <span className="font-normal text-ink-muted"> · {allTables.filter((t) => t.layoutId === table.layoutId).length} módulos</span>
+          </p>
+          {isModuleDetached(table) ? (
+            <>
+              <p className="text-[13px] text-ink-muted">Está apartada de su lugar. El hueco punteado en el plano es donde estaba.</p>
+              {onReturnHome && (
+                <button
+                  onClick={() => onReturnHome()}
+                  className="w-full h-11 rounded-[10px] bg-accent text-accent-ink text-[15px] font-semibold"
+                >
+                  ↩ Devolver a su lugar
+                </button>
+              )}
+            </>
+          ) : (
+            <p className="text-[13px] text-ink-faint">Está en su lugar. Si la arrastras para apartarla, aquí podrás devolverla exactamente donde estaba.</p>
+          )}
+          {editable && onMergeModules && (
+            <button
+              onClick={async () => {
+                if (!confirm(`¿Deshacer la división? La mesa ${table.name.replace(/-[A-H]$/, "")} vuelve a ser una sola, como estaba antes.`)) return;
+                try {
+                  await onMergeModules();
+                } catch (err) {
+                  alert(err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "No se pudo deshacer la división.");
+                }
+              }}
+              className="text-[13px] font-semibold text-status-occupied"
+            >
+              Deshacer la división (volver a una sola mesa)
+            </button>
+          )}
+        </div>
+      )}
+
+      {editable && !table.layoutId && onSplit && table.capacityMax >= 4 && (
+        <button
+          onClick={() => setShowSplit(true)}
+          className="mt-3 w-full h-11 rounded-[10px] bg-surface-3 text-[15px] font-semibold hover:bg-line"
+        >
+          Dividir en módulos…
+        </button>
+      )}
+
+      {showSplit && onSplit && <SplitTableModal table={table} onClose={() => setShowSplit(false)} onConfirm={onSplit} />}
 
       {editable && (
         <div className="mt-4 pt-4 border-t border-line flex items-center justify-between gap-2">

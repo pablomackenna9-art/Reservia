@@ -43,6 +43,7 @@ export function DashboardPage() {
     zones,
     tables,
     decor,
+    returnModuleToHome,
     reservationsToday,
     reservationsByTable,
     payingTotals,
@@ -623,6 +624,7 @@ export function DashboardPage() {
             onChangeReservationStatus={changeReservationStatus}
             onSeatWalkIn={(partySize, name, phone, email) => seatWalkIn(selectedTable.id, partySize, name, phone, email)}
             onMoveReservation={moveReservationToTable}
+            onReturnHome={() => returnModuleToHome(selectedTable.id)}
             onSaveNotes={saveReservationNotes}
             onStartJoin={() => setJoinSourceId(selectedTable.id)}
             onCancelJoin={() => setJoinSourceId(null)}

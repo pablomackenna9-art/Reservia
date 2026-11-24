@@ -53,7 +53,12 @@ export function scoreTableForReservation(
 
   if (candidate.isCombination) {
     score -= w.combinationPenalty;
-    reasons.push("Combinación de mesas");
+    if (candidate.layoutId) {
+      score += w.sameLayoutBonus;
+      reasons.push("Módulos juntos de la misma mesa");
+    } else {
+      reasons.push("Combinación de mesas");
+    }
   } else {
     reasons.push("Una sola mesa");
   }

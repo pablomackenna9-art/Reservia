@@ -15,6 +15,9 @@ export function PlanoDeMesasPage() {
     zones,
     tables,
     decor,
+    splitTable,
+    mergeModules,
+    returnModuleToHome,
     addDecor,
     updateDecorProps,
     removeDecor,
@@ -256,6 +259,9 @@ export function PlanoDeMesasPage() {
             onCancelJoin={() => setJoinSourceId(null)}
             onUnjoin={() => unjoinTable(selectedTable.id)}
             onUpdateTable={(patch) => updateTableProps(selectedTable.id, patch)}
+            onSplit={(capacities) => splitTable(selectedTable.id, capacities)}
+            onMergeModules={selectedTable.layoutId ? async () => { await mergeModules(selectedTable.layoutId!); setSelectedTableId(null); } : undefined}
+            onReturnHome={() => returnModuleToHome(selectedTable.id)}
             onToggleBlocked={(blocked, reason) => toggleTableBlocked(selectedTable.id, blocked, reason)}
           />
         )}

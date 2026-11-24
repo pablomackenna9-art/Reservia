@@ -22,6 +22,8 @@ export interface ScorableTable {
   capacityMin: number;
   capacityMax: number;
   isCombination: boolean;
+  /** Id de la mesa larga si TODAS las mesas de la combinación son módulos suyos y están en su lugar. */
+  layoutId?: string | null;
 }
 
 export interface TableCandidate extends ScorableTable {

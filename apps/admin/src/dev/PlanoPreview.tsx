@@ -18,11 +18,40 @@ const tables: Table[] = [
   table(4, "4", "rectangle", 6, 68, 26, 120, 76),
   table(5, "5", "rectangle", 10, 56, 62, 190, 84),
   table(6, "6", "round", 6, 22, 62, 100, 100),
-  table(7, "7", "rectangle", 4, 82, 62, 80, 60, 90),
   table(8, "8", "square", 8, 40, 86, 110, 110),
-  table(9, "9", "round", 2, 80, 88, 50, 50),
 ];
+/** Mesa larga dividida en módulos dentro de su misma huella (igual que split_table_into_modules). */
+function modules(prefix: string, idBase: number, caps: number[], cx: number, cy: number, totalW: number, h: number, detachIndex = -1): Table[] {
+  const total = caps.reduce((a, b) => a + b, 0);
+  let acc = 0;
+  return caps.map((cap, i) => {
+    const w = (totalW * cap) / total;
+    const off = -totalW / 2 + (totalW * acc) / total + w / 2;
+    acc += cap;
+    const homeX = cx + off / 10;
+    const t: Table = {
+      ...table(idBase + i, `${prefix}-${"ABC"[i]}`, "rectangle", cap, homeX, cy, w, h),
+      layoutId: ID(900 + idBase),
+      joinable: true,
+      homeX,
+      homeY: cy,
+      homeRotation: 0,
+      homeWidth: w,
+      homeHeight: h,
+    };
+    return i === detachIndex ? { ...t, positionX: homeX + 9, positionY: cy + 15 } : t;
+  });
+}
+
+const longTables: Table[] = [...modules("12", 20, [4, 4, 2], 78, 46, 240, 56), ...modules("13", 30, [4, 4, 2], 78, 74, 240, 56, 2)];
+tables.push(...longTables);
+
 const status: Record<string, TableLiveStatusValue> = {
+  [ID(120)]: "occupied",
+  [ID(121)]: "available",
+  [ID(122)]: "reserved",
+  [ID(130)]: "available",
+  [ID(131)]: "reserved",
   [ID(101)]: "available",
   [ID(102)]: "occupied",
   [ID(103)]: "reserved",

@@ -36,8 +36,24 @@ export const tableSchema = z.object({
   /** Temporarily out of service (broken, reserved for a private event) — distinct from `active`, which is a soft delete. */
   blocked: z.boolean().default(false),
   blockedReason: z.string().nullable().default(null),
+  /** Mesa larga a la que pertenece como módulo (ej. 10-A, 10-B, 10-C); null/ausente = mesa normal. */
+  layoutId: z.string().uuid().nullable().optional(),
+  /** Lugar de origen del módulo dentro de su mesa larga: a dónde vuelve con "Devolver a su lugar". */
+  homeX: z.number().nullable().optional(),
+  homeY: z.number().nullable().optional(),
+  homeRotation: z.number().nullable().optional(),
+  homeWidth: z.number().nullable().optional(),
+  homeHeight: z.number().nullable().optional(),
 });
 export type Table = z.infer<typeof tableSchema>;
+
+/** ¿Es un módulo que se apartó de su lugar en la mesa larga? (false si no es módulo o está en su sitio.) */
+export function isModuleDetached(t: Pick<Table, "positionX" | "positionY" | "rotation" | "homeX" | "homeY" | "homeRotation">): boolean {
+  if (t.homeX == null || t.homeY == null) return false;
+  const moved = Math.hypot(t.positionX - t.homeX, t.positionY - t.homeY) > 0.6;
+  const turned = t.homeRotation != null && Math.abs(((((t.rotation - t.homeRotation + 540) % 360) + 360) % 360) - 180) > 1.5;
+  return moved || turned;
+}
 
 export const TABLE_LIVE_STATUSES = [
   "available",
