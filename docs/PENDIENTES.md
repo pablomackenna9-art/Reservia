@@ -13,6 +13,7 @@
 9. ~~Migración 0034 (módulos) y división de CNIT~~ — hecho (26-nov): aplicada; las mesas de 8 y 10 de CNIT son módulos (las de 6 quedaron enteras). Falta: que el POS acepte el nombre de la mesa larga ("Mesa 10") y lo resuelva a sus módulos.
 10. **Aplicar la migración 0035 (`supabase/migrations/0035_reservation_seated_at.sql`)**: guarda la hora real en que se sentó cada grupo; sin ella el cronómetro de la mesa cuenta desde la hora de la reserva (nunca negativo).
 11. **Aplicar la migración 0036 (`supabase/migrations/0036_table_joined_to.sql`)**: guarda a qué mesa se pegó otra en el plano (toma su número). Sin ella mover mesas funciona igual, pero una mesa normal pegada a otra no recuerda a cuál.
+12. **Aplicar la migración 0037 (`supabase/migrations/0037_menu_and_table_requests.sql`)**: carta, código QR por mesa física y solicitudes de los clientes. Después: `node supabase/seed/seed-menu.mjs` (carta de ejemplo en el demo), imprimir los QR en "QR de mesas" y probar escaneando uno. Falta (etapa 2): comandas a cocina/barra por estación, y que la página web de Sobremesa lea esta carta.
 
 ## B. Desarrollo sugerido (no empezado)
 - **WhatsApp automático** (Meta WhatsApp Business Cloud API o Twilio/360dialog): número verificado, plantilla aprobada ("reserva aceptada + enlace"), envío al aceptar y webhook de respuestas; recordatorio automático antes de la reserva y liberación si no responde. El enlace `/c/<token>` y la liberación de mesa ya existen; falta solo el canal de envío (guardar credenciales en Vault, nunca en el código).

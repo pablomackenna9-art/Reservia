@@ -60,6 +60,8 @@ interface TableTokenProps {
   hideLabel?: boolean;
   /** Personas sentadas ahora en esta mesa (se dibujan sobre las sillas). */
   guests?: number;
+  /** Avisos de los clientes sin atender (llamar al mozo, cuenta, pedidos): se marcan en la esquina. */
+  requestCount?: number;
   draggable?: boolean;
   /** Fired with the new position in zone-local units (not %) so the caller converts once. */
   onDragEnd?: (x: number, y: number) => void;
@@ -93,6 +95,7 @@ export function TableToken({
   hideChairs = false,
   hideLabel = false,
   guests = 0,
+  requestCount = 0,
   draggable = false,
   onDragEnd,
   highlightState,
@@ -218,6 +221,25 @@ export function TableToken({
           y={-table.height / 2 - 24}
           rotation={-table.rotation}
         />
+      )}
+
+      {requestCount > 0 && (
+        <Group x={-table.width / 2} y={-table.height / 2} rotation={-table.rotation} listening={false}>
+          <Circle radius={11} fill={palette.acc} stroke={palette.shadow} strokeWidth={1} />
+          <Text
+            text={String(requestCount)}
+            fontSize={13}
+            fontFamily={SANS}
+            fontStyle="700"
+            fill={palette.ground}
+            width={22}
+            height={22}
+            align="center"
+            verticalAlign="middle"
+            offsetX={11}
+            offsetY={11}
+          />
+        </Group>
       )}
 
       {turnoverWarning && (

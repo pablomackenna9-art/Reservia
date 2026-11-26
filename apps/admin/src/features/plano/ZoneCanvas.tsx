@@ -50,6 +50,8 @@ interface ZoneCanvasProps {
   activeZoneId?: string | null;
   /** Línea viva bajo cada mesa (tiempo sentados, hora de la reserva, "libre"). */
   getTableInfo?: (tableId: string) => TableInfoLine | undefined;
+  /** Avisos de clientes sin atender en cada mesa (se marcan con un número en la esquina). */
+  getTableRequestCount?: (tableId: string) => number;
   /** Personas sentadas ahora en cada mesa: se dibujan sobre las sillas. */
   getTableGuests?: (tableId: string) => number;
   /** Decoración del plano (plantas, columnas, barra...): dibujo bajo las mesas. */
@@ -74,6 +76,7 @@ export function ZoneCanvas({
   activeZoneId,
   getTableInfo,
   getTableGuests,
+  getTableRequestCount,
   decor,
   decorEditable = false,
   selectedDecorId = null,
@@ -550,6 +553,7 @@ export function ZoneCanvas({
                   hideChairs={Boolean(groupByTable.get(table.id)?.merged)}
                   hideLabel={Boolean(groupByTable.get(table.id)?.merged)}
                   guests={getTableGuests?.(table.id) ?? 0}
+                  requestCount={getTableRequestCount?.(table.id) ?? 0}
                   palette={palette}
                   info={fontsReady ? getTableInfo?.(table.id) : undefined}
                   dimmed={Boolean(activeZoneId) && activeZoneId !== zone.id}

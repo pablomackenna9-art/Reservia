@@ -5,6 +5,10 @@ import {
   findTurnoverConflict,
   minutesSince,
   seatedMinutes,
+  TABLE_REQUEST_LABEL,
+  requestTotal,
+  type TableRequest,
+  type TableRequestStatus,
   tableStatusLabel,
   type PosCheck,
   type PosCheckItem,
@@ -66,6 +70,8 @@ export function TableDetailPanel({
   onSeatWalkIn,
   groupLabel,
   groupCapacity,
+  requests = [],
+  onRequestStatus,
   onMoveReservation,
   onReleaseTable,
   onStartJoin,
@@ -98,6 +104,9 @@ export function TableDetailPanel({
   /** Número y asientos con que se ve esta mesa en el plano (si está pegada a otras, el del conjunto). */
   groupLabel?: string;
   groupCapacity?: number;
+  /** Avisos de los clientes de esta mesa (QR) que faltan por atender. */
+  requests?: TableRequest[];
+  onRequestStatus?: (requestId: string, status: TableRequestStatus) => Promise<void>;
   onMoveReservation: (reservationId: string, tableId: string, source?: TableAssignmentSource, tableIds?: string[]) => void;
   /** Llegaron menos personas: la reserva suelta una de sus mesas unidas. */
   onReleaseTable?: (reservationId: string, tableId: string) => Promise<void>;
@@ -200,6 +209,8 @@ export function TableDetailPanel({
           <StatePill state={tableVisualState(status)} label={tableStatusLabel(status)} />
         </div>
       </div>
+
+      {requests.length > 0 && onRequestStatus && <TableRequests requests={requests} onStatus={onRequestStatus} />}
 
       {joinedTableNames.length > 0 && (
         <div className="flex items-center justify-between rounded-[10px] bg-ground border border-line px-3 py-2 text-[13px] mb-3">
@@ -743,6 +754,47 @@ function CurrentCheckSection({ reservation, restaurantId }: { reservation: Reser
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/** Lo que pidió esta mesa desde el QR: pedidos con sus notas, llamados al mozo, la cuenta... */
+function TableRequests({ requests, onStatus }: { requests: TableRequest[]; onStatus: (id: string, status: TableRequestStatus) => Promise<void> }) {
+  return (
+    <div className="mb-4 rounded-xl border-2 border-accent/60 bg-accent/10 p-3 space-y-3">
+      <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-accent">Avisos de la mesa</p>
+      {requests.map((r) => (
+        <div key={r.id} className="rounded-lg bg-surface p-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-[16px] font-semibold">{TABLE_REQUEST_LABEL[r.kind]}</p>
+            <p className="text-[13px] text-ink-faint tabular-nums">hace {Math.max(0, minutesSince(r.createdAt))} min</p>
+          </div>
+          {r.items.length > 0 && (
+            <ul className="mt-2 space-y-1.5">
+              {r.items.map((i, idx) => (
+                <li key={idx} className="text-[15px]">
+                  <span className="font-semibold tabular-nums">{i.qty}×</span> {i.name}
+                  {i.variant && <span className="text-ink-muted"> ({i.variant})</span>}
+                  {i.note && <span className="block text-[14px] font-semibold text-status-arriving">“{i.note}”</span>}
+                </li>
+              ))}
+              <li className="text-[13px] text-ink-faint tabular-nums">Total {formatCLP(requestTotal(r.items))}</li>
+            </ul>
+          )}
+          {r.note && <p className="mt-2 text-[14px] font-semibold text-status-arriving">“{r.note}”</p>}
+          <div className="mt-3 flex gap-2">
+            {r.status === "pending" && (
+              <button onClick={() => onStatus(r.id, "seen")} className="h-10 px-4 rounded-[10px] bg-surface-3 text-[14px] font-semibold">
+                Visto
+              </button>
+            )}
+            <button onClick={() => onStatus(r.id, "done")} className="h-10 px-4 rounded-[10px] bg-accent text-accent-ink text-[14px] font-semibold">
+              Listo
+            </button>
+            {r.status === "seen" && <span className="self-center text-[13px] text-ink-faint">Visto</span>}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

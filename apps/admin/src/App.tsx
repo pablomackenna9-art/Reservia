@@ -18,6 +18,8 @@ import { ListaDeEsperaPage } from "./features/waitlist/ListaDeEsperaPage";
 import { ReportesPage } from "./features/reports/ReportesPage";
 import { IntegracionesPage } from "./features/integrations/IntegracionesPage";
 import { MarketingPage } from "./features/marketing/MarketingPage";
+import { CartaPage } from "./features/menu/CartaPage";
+import { QrMesasPage } from "./features/menu/QrMesasPage";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { RequireRestaurant } from "./routes/RequireRestaurant";
@@ -170,6 +172,22 @@ export function App() {
               element={
                 <Protected>
                   <MarketingPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/carta"
+              element={
+                <Protected>
+                  <CartaPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/qr-de-mesas"
+              element={
+                <Protected>
+                  <QrMesasPage />
                 </Protected>
               }
             />

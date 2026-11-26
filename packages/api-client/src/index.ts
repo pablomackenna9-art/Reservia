@@ -16,3 +16,4 @@ export * from "./visits";
 export * from "./pos";
 export * from "./consumption";
 export * from "./integrations";
+export * from "./menu";

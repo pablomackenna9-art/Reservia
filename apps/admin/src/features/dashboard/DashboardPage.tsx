@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { listWaitlist, setAverageTicketPerPerson, type ReservationWithDetails, type WaitlistEntryWithCustomer } from "@reservia/api-client";
-import { buildTableGroups, compareTableNames, computeCapacityPacing, findLateArrivals, minutesSince, seatedMinutes, reservationsActiveInWindow } from "@reservia/core";
+import { buildTableGroups, compareTableNames, TABLE_REQUEST_LABEL, computeCapacityPacing, findLateArrivals, minutesSince, seatedMinutes, reservationsActiveInWindow } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas, WAITLIST_DRAG_MIME, type WaitlistDragPayload } from "../plano/ZoneCanvas";
@@ -44,6 +44,9 @@ export function DashboardPage() {
     tables,
     decor,
     returnModuleToHome,
+    requests,
+    requestsByTable,
+    setRequestStatus,
     releaseReservationTable,
     reservationsToday,
     reservationsByTable,
@@ -572,6 +575,25 @@ export function DashboardPage() {
               : "rounded-2xl h-[460px] sm:h-[560px] xl:h-auto"
           } xl:rounded-2xl`}
         >
+          {requests.length > 0 && (
+            <div className="flex flex-wrap gap-2" role="status" aria-label="Avisos de las mesas">
+              {requests.map((r) => {
+                const group = buildTableGroups(tables, zones).byTable.get(r.tableId);
+                const label = group?.label ?? tables.find((t) => t.id === r.tableId)?.name ?? "?";
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => handleSelectTable(r.tableId)}
+                    className="inline-flex items-center gap-2 rounded-full bg-accent px-3.5 h-10 text-[14px] font-semibold text-accent-ink"
+                  >
+                    <span aria-hidden>●</span>
+                    Mesa {label} · {TABLE_REQUEST_LABEL[r.kind]}
+                    {r.kind === "order" && ` (${r.items.reduce((s, i) => s + i.qty, 0)})`}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {LEGEND_STATES.map((st) => (
@@ -617,6 +639,7 @@ export function DashboardPage() {
                 getTurnoverWarning={getTurnoverWarning}
                 getTableInfo={getTableInfo}
                 getTableGuests={getTableGuests}
+                getTableRequestCount={(id) => requestsByTable.get(id)?.length ?? 0}
                 onDropWaitlistEntry={handleDropWaitlistEntry}
                 decor={decor}
               />
@@ -629,6 +652,8 @@ export function DashboardPage() {
             table={selectedTable}
             groupLabel={buildTableGroups(tables, zones).byTable.get(selectedTable.id)?.label}
             groupCapacity={buildTableGroups(tables, zones).byTable.get(selectedTable.id)?.capacity}
+            requests={requestsByTable.get(selectedTable.id) ?? []}
+            onRequestStatus={setRequestStatus}
             restaurantId={restaurantId}
             zoneName={selectedTableZone.name}
             status={getTableStatus(selectedTable.id)}

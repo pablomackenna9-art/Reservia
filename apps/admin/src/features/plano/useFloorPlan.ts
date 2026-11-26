@@ -11,6 +11,8 @@ import {
   getReservationRules,
   joinTables as apiJoinTables,
   listDecor,
+  listOpenTableRequests,
+  updateTableRequestStatus,
   listPayingTables,
   listReservationsForDate,
   listTableGroups,
@@ -40,6 +42,8 @@ import {
   deriveTableStatus,
   findTurnoverConflict,
   type ReservationStatus,
+  type TableRequest,
+  type TableRequestStatus,
   type ReservationRules,
   type Table,
   type TableAssignmentSource,
@@ -62,6 +66,7 @@ export function useFloorPlan(restaurantId: string | undefined) {
 
   const [zones, setZones] = useState<Zone[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
+  const [requests, setRequests] = useState<TableRequest[]>([]);
   const [decor, setDecor] = useState<ZoneDecor[]>([]);
   const [reservationsToday, setReservationsToday] = useState<ReservationWithDetails[]>([]);
   const [rules, setRules] = useState<ReservationRules | null>(null);
@@ -71,8 +76,21 @@ export function useFloorPlan(restaurantId: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [pendingCompletion, setPendingCompletion] = useState<ReservationWithDetails | null>(null);
 
+  // Avisos de los clientes (QR): se consultan más seguido que el resto porque "llamar al mozo" no puede esperar.
+  async function reloadRequests() {
+    if (!restaurantId) return;
+    // Es opcional: si la migración 0037 aún no está aplicada, el plano sigue funcionando sin avisos.
+    setRequests(await listOpenTableRequests(supabase, restaurantId).catch(() => [] as TableRequest[]));
+  }
+
+  async function setRequestStatus(requestId: string, status: TableRequestStatus) {
+    await updateTableRequestStatus(supabase, requestId, status, user?.id);
+    await reloadRequests();
+  }
+
   async function reload() {
     if (!restaurantId) return;
+    reloadRequests();
     const [z, t, r, rr, tg, paying, dec] = await Promise.all([
       listZones(supabase, restaurantId),
       listTables(supabase, restaurantId),
@@ -108,6 +126,21 @@ export function useFloorPlan(restaurantId: string | undefined) {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId]);
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") reloadRequests();
+    }, 8_000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurantId]);
+
+  const requestsByTable = useMemo(() => {
+    const map = new Map<string, TableRequest[]>();
+    for (const r of requests) map.set(r.tableId, [...(map.get(r.tableId) ?? []), r]);
+    return map;
+  }, [requests]);
 
   const reservationsByTable = useMemo(() => {
     const map = new Map<string, ReservationWithDetails[]>();
@@ -383,6 +416,9 @@ export function useFloorPlan(restaurantId: string | undefined) {
     removeDecor,
     reservationsToday,
     reservationsByTable,
+    requests,
+    requestsByTable,
+    setRequestStatus,
     payingTotals,
     rules,
     tableGroups,
