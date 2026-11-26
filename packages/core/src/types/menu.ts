@@ -41,7 +41,11 @@ export const MENU_ALLERGEN_SUGGESTIONS = ["Gluten", "Lácteos", "Huevo", "Frutos
 
 export const TABLE_REQUEST_KINDS = ["waiter", "bill", "water", "order", "other"] as const;
 export type TableRequestKind = (typeof TABLE_REQUEST_KINDS)[number];
-export type TableRequestStatus = "pending" | "seen" | "done" | "cancelled";
+/**
+ * Avisos (mozo, cuenta, agua, otra): pending → seen → done.
+ * Pedidos (por estación): pending (nuevo) → preparing → ready (listo para servir) → done (entregado).
+ */
+export type TableRequestStatus = "pending" | "seen" | "preparing" | "ready" | "done" | "cancelled";
 
 export const TABLE_REQUEST_LABEL: Record<TableRequestKind, string> = {
   waiter: "Llamar al mozo",
@@ -65,11 +69,26 @@ export interface TableRequest {
   restaurantId: string;
   tableId: string;
   kind: TableRequestKind;
+  /** Para pedidos: a qué pantalla va (cocina o barra), según la categoría de los platos. */
+  station: MenuStation | null;
   items: TableRequestItem[];
   note: string | null;
   status: TableRequestStatus;
   createdAt: string;
   handledAt: string | null;
+}
+
+/** ¿Es un pedido de platos (va a cocina o barra) y no un aviso al garzón? */
+export function isOrderRequest(r: Pick<TableRequest, "kind">): boolean {
+  return r.kind === "order";
+}
+
+/** Lo que el cliente lee sobre el estado de lo que pidió. */
+export function requestStatusText(r: Pick<TableRequest, "kind" | "status">): string {
+  if (r.kind === "order") {
+    return { pending: "Enviado a cocina", seen: "Enviado a cocina", preparing: "Lo están preparando", ready: "Listo, ya te lo llevan", done: "Entregado", cancelled: "Cancelado" }[r.status];
+  }
+  return { pending: "Avisado", seen: "Ya viene", preparing: "Ya viene", ready: "Ya viene", done: "Atendido", cancelled: "Cancelado" }[r.status];
 }
 
 /** Pesos chilenos sin decimales: $8.900. */

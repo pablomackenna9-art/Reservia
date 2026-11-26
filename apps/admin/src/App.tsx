@@ -20,6 +20,8 @@ import { IntegracionesPage } from "./features/integrations/IntegracionesPage";
 import { MarketingPage } from "./features/marketing/MarketingPage";
 import { CartaPage } from "./features/menu/CartaPage";
 import { QrMesasPage } from "./features/menu/QrMesasPage";
+import { CocinaBarraPage } from "./features/menu/CocinaBarraPage";
+import { GarzonesPage } from "./features/menu/GarzonesPage";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { RequireRestaurant } from "./routes/RequireRestaurant";
@@ -180,6 +182,22 @@ export function App() {
               element={
                 <Protected>
                   <CartaPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/cocina"
+              element={
+                <Protected>
+                  <CocinaBarraPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/garzones"
+              element={
+                <Protected>
+                  <GarzonesPage />
                 </Protected>
               }
             />

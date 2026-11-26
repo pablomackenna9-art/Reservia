@@ -54,6 +54,7 @@ function mapRequest(row: Record<string, unknown>): TableRequest {
     restaurantId: (row.restaurant_id as string) ?? "",
     tableId: (row.table_id as string) ?? "",
     kind: row.kind as TableRequestKind,
+    station: (row.station as MenuStation) ?? null,
     items: items.map(
       (i): TableRequestItem => ({
         dishId: String(i.dish_id ?? ""),
@@ -179,7 +180,7 @@ export async function listOpenTableRequests(supabase: SupabaseClient, restaurant
     .from("table_requests")
     .select("*")
     .eq("restaurant_id", restaurantId)
-    .in("status", ["pending", "seen"])
+    .in("status", ["pending", "seen", "preparing", "ready"])
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []).map(mapRequest);

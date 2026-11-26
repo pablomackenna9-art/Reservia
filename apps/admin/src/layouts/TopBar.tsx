@@ -22,6 +22,8 @@ const MAIN_NAV: NavItem[] = [
 ];
 
 const MORE_NAV: NavItem[] = [
+  { to: "/garzones", label: "Garzones" },
+  { to: "/cocina", label: "Cocina y barra" },
   { to: "/carta", label: "Carta" },
   { to: "/qr-de-mesas", label: "QR de mesas" },
   { to: "/pagina-de-reservas", label: "Página de reservas" },

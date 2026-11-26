@@ -79,8 +79,10 @@ export function useFloorPlan(restaurantId: string | undefined) {
   // Avisos de los clientes (QR): se consultan más seguido que el resto porque "llamar al mozo" no puede esperar.
   async function reloadRequests() {
     if (!restaurantId) return;
-    // Es opcional: si la migración 0037 aún no está aplicada, el plano sigue funcionando sin avisos.
-    setRequests(await listOpenTableRequests(supabase, restaurantId).catch(() => [] as TableRequest[]));
+    // El plano de control solo muestra cuando llaman al garzón (mozo, cuenta, agua, otra cosa). Los pedidos de platos
+    // van a la pantalla de cocina/barra y de garzones. Es opcional: sin la migración 0037 el plano sigue igual.
+    const open = await listOpenTableRequests(supabase, restaurantId).catch(() => [] as TableRequest[]);
+    setRequests(open.filter((r) => r.kind !== "order"));
   }
 
   async function setRequestStatus(requestId: string, status: TableRequestStatus) {

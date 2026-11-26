@@ -32,6 +32,7 @@ export function DishModal({
   const [featured, setFeatured] = useState(dish?.featured ?? false);
   const [imageUrl, setImageUrl] = useState<string | null>(dish?.imageUrl ?? null);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -55,6 +56,53 @@ export function DishModal({
     } finally {
       setUploading(false);
     }
+  }
+
+  /** Pegar un enlace de imagen (clic derecho → "Copiar dirección de la imagen"): se descarga y se guarda en tu cuenta; si el sitio no lo permite, se usa el enlace tal cual. */
+  async function pickUrl(raw: string) {
+    const url = raw.trim();
+    if (!/^https?:\/\/\S+$/i.test(url)) return false;
+    setUploading(true);
+    setError(null);
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      if (!blob.type.startsWith("image/")) throw new Error("no es una imagen");
+      const ext = blob.type.split("/")[1]?.split("+")[0] || "jpg";
+      await pickImage(new File([blob], `foto.${ext}`, { type: blob.type }));
+    } catch {
+      setImageUrl(url);
+    } finally {
+      setUploading(false);
+    }
+    return true;
+  }
+
+  // Ctrl+V en cualquier parte del editor: si lo copiado es una imagen (o un enlace de imagen) se usa como foto del plato.
+  function handlePaste(e: React.ClipboardEvent) {
+    const file = [...e.clipboardData.files].find((f) => f.type.startsWith("image/"));
+    if (file) {
+      e.preventDefault();
+      pickImage(file);
+      return;
+    }
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-photo-zone]")) {
+      const text = e.clipboardData.getData("text");
+      if (text && /^https?:\/\//i.test(text.trim())) {
+        e.preventDefault();
+        pickUrl(text);
+      }
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("image/"));
+    if (file) return void pickImage(file);
+    const url = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text");
+    if (url) void pickUrl(url);
   }
 
   async function submit() {
@@ -87,7 +135,7 @@ export function DishModal({
 
   return (
     <Modal title={dish ? "Editar plato" : "Nuevo plato"} onClose={onClose}>
-      <div className="space-y-4">
+      <div className="space-y-4" onPaste={handlePaste}>
         <Field label="Nombre">
           <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="Ej: Ceviche clásico" autoFocus />
         </Field>
@@ -159,17 +207,33 @@ export function DishModal({
 
         <div>
           <p className="text-[13px] text-ink-faint mb-1">Foto (opcional)</p>
-          <div className="flex items-center gap-3">
-            {imageUrl ? <img src={imageUrl} alt="" className="h-20 w-20 rounded-xl object-cover" /> : <div className="h-20 w-20 rounded-xl bg-ground border border-dashed border-line" />}
-            <div className="flex flex-col gap-1.5">
-              <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="h-11 px-4 rounded-[10px] bg-surface-2 text-[15px] font-semibold disabled:opacity-60">
-                {uploading ? "Subiendo…" : imageUrl ? "Cambiar foto" : "Subir foto"}
-              </button>
-              {imageUrl && (
-                <button type="button" onClick={() => setImageUrl(null)} className="text-[13px] font-semibold text-status-occupied text-left">
-                  Quitar foto
-                </button>
-              )}
+          <div
+            data-photo-zone
+            tabIndex={0}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            className={`rounded-xl border-2 border-dashed p-3 outline-none transition-colors focus:border-accent ${dragOver ? "border-accent bg-accent/10" : "border-line bg-ground"}`}
+          >
+            <div className="flex items-center gap-3">
+              {imageUrl ? <img src={imageUrl} alt="" className="h-20 w-20 rounded-xl object-cover" /> : <div className="grid h-20 w-20 place-items-center rounded-xl bg-surface text-2xl text-ink-faint">📷</div>}
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-semibold">{uploading ? "Subiendo…" : "Pega una foto aquí (Ctrl+V)"}</p>
+                <p className="text-[13px] text-ink-faint">Copia la foto de donde la tengas (tu página web, WhatsApp, Drive) y pégala. También puedes arrastrarla o pegar su enlace.</p>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="h-10 px-4 rounded-[10px] bg-surface-2 text-[14px] font-semibold disabled:opacity-60">
+                    Elegir archivo
+                  </button>
+                  {imageUrl && (
+                    <button type="button" onClick={() => setImageUrl(null)} className="text-[13px] font-semibold text-status-occupied">
+                      Quitar foto
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => pickImage(e.target.files?.[0])} />
           </div>
