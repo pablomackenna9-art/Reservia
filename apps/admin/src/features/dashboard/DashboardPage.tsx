@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { listWaitlist, setAverageTicketPerPerson, type ReservationWithDetails, type WaitlistEntryWithCustomer } from "@reservia/api-client";
-import { compareTableNames, computeCapacityPacing, findLateArrivals, minutesSince, seatedMinutes, reservationsActiveInWindow } from "@reservia/core";
+import { buildTableGroups, compareTableNames, computeCapacityPacing, findLateArrivals, minutesSince, seatedMinutes, reservationsActiveInWindow } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas, WAITLIST_DRAG_MIME, type WaitlistDragPayload } from "../plano/ZoneCanvas";
@@ -627,6 +627,8 @@ export function DashboardPage() {
         {selectedTable && selectedTableZone && restaurantId ? (
           <TableDetailPanel
             table={selectedTable}
+            groupLabel={buildTableGroups(tables, zones).byTable.get(selectedTable.id)?.label}
+            groupCapacity={buildTableGroups(tables, zones).byTable.get(selectedTable.id)?.capacity}
             restaurantId={restaurantId}
             zoneName={selectedTableZone.name}
             status={getTableStatus(selectedTable.id)}

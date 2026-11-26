@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { compareTableNames, DECOR_KINDS, DECOR_META } from "@reservia/core";
+import { buildTableGroups, compareTableNames, DECOR_KINDS, DECOR_META } from "@reservia/core";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas } from "./ZoneCanvas";
 import { TableDetailPanel } from "./TableDetailPanel";
@@ -232,6 +232,8 @@ export function PlanoDeMesasPage() {
           <TableDetailPanel
             key={selectedTable.id}
             table={selectedTable}
+            groupLabel={buildTableGroups(tables, zones).byTable.get(selectedTable.id)?.label}
+            groupCapacity={buildTableGroups(tables, zones).byTable.get(selectedTable.id)?.capacity}
             restaurantId={restaurantId}
             zoneName={selectedTableZone.name}
             status={getTableStatus(selectedTable.id)}

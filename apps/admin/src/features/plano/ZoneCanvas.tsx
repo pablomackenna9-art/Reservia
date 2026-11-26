@@ -38,7 +38,7 @@ interface ZoneCanvasProps {
   tables: Table[];
   selectedTableId: string | null;
   onSelectTable: (id: string | null) => void;
-  onMoveTable?: (tableId: string, positionX: number, positionY: number) => void;
+  onMoveTable?: (tableId: string, positionX: number, positionY: number, joinedTo?: string | null) => void;
   getTableStatus?: (tableId: string) => TableLiveStatusValue;
   /** Smart Table Engine floor-plan picker only — leave undefined for the normal plano. */
   getHighlightState?: (tableId: string) => TableHighlightState | undefined;
@@ -179,6 +179,12 @@ export function ZoneCanvas({
     }
     return map;
   }, [tables, zones, decor]);
+
+  // Una mesa con gente sentada no se mueve ni se pega a otra.
+  function isBusy(tableId: string): boolean {
+    const status = getTableStatus?.(tableId);
+    return status === "occupied" || status === "paying";
+  }
 
   // Mesas que se ven como una: un módulo pegado a otra mesa pasa a ser parte de ella (número y asientos del conjunto).
   const { groups, byTable: groupByTable } = useMemo(() => buildTableGroups(tables, zones), [tables, zones]);
@@ -552,7 +558,7 @@ export function ZoneCanvas({
                   onSelect={() => onSelectTable(table.id)}
                   highlightState={getHighlightState?.(table.id)}
                   turnoverWarning={getTurnoverWarning?.(table.id)}
-                  draggable={Boolean(onMoveTable)}
+                  draggable={Boolean(onMoveTable) && !isBusy(table.id)}
                   onDragEnd={
                     onMoveTable
                       ? (x, y) => {
@@ -567,16 +573,19 @@ export function ZoneCanvas({
                             }
                           }
                           // Imán: un módulo que se suelta junto a otra mesa queda pegado a ella (pasa a ser parte de esa mesa).
+                          let joinedTo: string | null = null;
                           if (!(table.homeX === positionX && table.homeY === positionY)) {
-                            // Un módulo se pega a cualquier mesa; una mesa normal solo a los módulos.
-                            const targets = (tablesByZone.get(zone.id) ?? []).filter((o) => table.layoutId || o.layoutId);
+                            // En el plano en vivo cualquier mesa se pega a otra que aún no tenga gente; al editar, solo los módulos.
+                            const live = Boolean(getTableStatus);
+                            const targets = (tablesByZone.get(zone.id) ?? []).filter((o) => (live ? !isBusy(o.id) : table.layoutId || o.layoutId));
                             const snapped = snapToNeighbor(table, { x: (positionX / 100) * zone.width, y: (positionY / 100) * zone.height }, targets, zone);
                             if (snapped) {
                               positionX = clamp((snapped.x / zone.width) * 100, 2, 98);
                               positionY = clamp((snapped.y / zone.height) * 100, 2, 98);
+                              joinedTo = snapped.targetId;
                             }
                           }
-                          onMoveTable(table.id, positionX, positionY);
+                          onMoveTable(table.id, positionX, positionY, joinedTo);
                         }
                       : undefined
                   }

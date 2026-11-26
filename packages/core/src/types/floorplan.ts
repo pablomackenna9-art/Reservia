@@ -44,6 +44,8 @@ export const tableSchema = z.object({
   homeRotation: z.number().nullable().optional(),
   homeWidth: z.number().nullable().optional(),
   homeHeight: z.number().nullable().optional(),
+  /** Mesa "madre" a la que se pegó en el plano (toma su número). null/ausente = no está pegada a ninguna. */
+  joinedTo: z.string().uuid().nullable().optional(),
 });
 export type Table = z.infer<typeof tableSchema>;
 

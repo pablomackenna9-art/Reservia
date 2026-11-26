@@ -1,5 +1,5 @@
 import { compareTableNames } from "./tableOrder";
-import { tableBaseName, type Table, type Zone } from "../types/floorplan";
+import { isModuleDetached, tableBaseName, type Table, type Zone } from "../types/floorplan";
 
 /**
  * Mesas que funcionan como UNA sola. Un módulo (5-A, 5-B...) que está pegado a otra mesa pasa a ser parte de ella:
@@ -60,9 +60,12 @@ function compatible(a: Frame, b: Frame): boolean {
   return Math.abs(a.phi - b.phi) < PARALLEL;
 }
 
-/** ¿Están pegadas? (al menos una es módulo, las dos rectangulares y alineadas, tocándose por un lado) */
+/**
+ * ¿Están pegadas? Las dos rectangulares y alineadas, tocándose por un lado, y además: al menos una es módulo, o
+ * una se pegó a la otra a propósito (joinedTo: la arrastraron hasta ahí).
+ */
 function attached(a: Table, b: Table, zone: ZoneSize): boolean {
-  if (!a.layoutId && !b.layoutId) return false;
+  if (!a.layoutId && !b.layoutId && a.joinedTo !== b.id && b.joinedTo !== a.id) return false;
   if (a.shape === "round" || b.shape === "round") return false;
   const fa = frameOf(a);
   const fb = frameOf(b);
@@ -140,19 +143,10 @@ export function buildTableGroups(tables: Table[], zones: ZoneSize[]): { groups: 
 
     for (const members of buckets.values()) {
       const sorted = [...members].sort((a, b) => compareTableNames(a.name, b.name));
-      // La mesa "dueña": una mesa normal si hay (le llegó un módulo); si no, el número de la mesa larga con más módulos.
-      const regular = sorted.find((t) => !t.layoutId);
-      let label: string;
-      if (regular) label = regular.name;
-      else {
-        const counts = new Map<string, number>();
-        for (const t of sorted) counts.set(tableBaseName(t), (counts.get(tableBaseName(t)) ?? 0) + 1);
-        label = [...counts.entries()].sort((a, b) => b[1] - a[1] || compareTableNames(a[0], b[0]))[0]![0];
-      }
       const group: TableGroup = {
         id: sorted[0]!.id,
         zoneId: zone.id,
-        label,
+        label: "",
         capacity: sorted.reduce((s, t) => s + t.capacityMax, 0),
         members: sorted,
         merged: sorted.length >= 2 ? mergedGeometry(sorted, zone) : null,
@@ -161,17 +155,60 @@ export function buildTableGroups(tables: Table[], zones: ZoneSize[]): { groups: 
       for (const t of sorted) byTable.set(t.id, group);
     }
   }
+
+  assignLabels(groups, tables);
   return { groups, byTable };
+}
+
+/**
+ * Número que muestra cada conjunto. Una mesa normal conserva el suyo y le da su número a lo que se le pegue.
+ * Los módulos sin mesa normal conservan el número de su mesa larga; pero un número lo lleva UN solo conjunto:
+ * un módulo que se separó y quedó solo recibe un número nuevo, que no usa ninguna otra mesa.
+ */
+function assignLabels(groups: TableGroup[], allTables: Table[]) {
+  const used = new Set<string>(allTables.filter((t) => !t.layoutId).map((t) => t.name));
+  const moduleGroups: TableGroup[] = [];
+
+  for (const g of groups) {
+    const ids = new Set(g.members.map((m) => m.id));
+    // La mesa madre: una mesa normal a la que no se le pegó nada de este conjunto.
+    const root = g.members.find((t) => !t.layoutId && !(t.joinedTo && ids.has(t.joinedTo)));
+    if (root) {
+      g.label = root.name;
+      used.add(root.name);
+    } else if (g.members.every((t) => !t.layoutId)) {
+      g.label = g.members[0]!.name;
+    } else {
+      moduleGroups.push(g);
+    }
+  }
+
+  const homeCount = (g: TableGroup) => g.members.filter((t) => !isModuleDetached(t)).length;
+  moduleGroups.sort((a, b) => homeCount(b) - homeCount(a) || b.members.length - a.members.length || compareTableNames(a.members[0]!.name, b.members[0]!.name));
+
+  let next = Math.max(0, ...allTables.map((t) => parseInt(tableBaseName(t), 10)).filter((n) => Number.isFinite(n))) + 1;
+  for (const g of moduleGroups) {
+    const counts = new Map<string, number>();
+    for (const t of g.members) counts.set(tableBaseName(t), (counts.get(tableBaseName(t)) ?? 0) + 1);
+    const wanted = [...counts.entries()].sort((a, b) => b[1] - a[1] || compareTableNames(a[0], b[0]))[0]![0];
+    if (!used.has(wanted)) {
+      g.label = wanted;
+    } else {
+      while (used.has(String(next))) next++;
+      g.label = String(next);
+    }
+    used.add(g.label);
+  }
 }
 
 /**
  * Imán entre mesas: al soltar un módulo cerca del borde de otra mesa (alineada con él), queda pegado y alineado.
  * Devuelve la posición en unidades de la zona, o null si no hay nada cerca.
  */
-export function snapToNeighbor(table: Table, pos: { x: number; y: number }, others: Table[], zone: ZoneSize): { x: number; y: number } | null {
+export function snapToNeighbor(table: Table, pos: { x: number; y: number }, others: Table[], zone: ZoneSize): { x: number; y: number; targetId: string } | null {
   if (table.shape === "round") return null;
   const ft = frameOf(table);
-  let best: { gap: number; x: number; y: number } | null = null;
+  let best: { gap: number; x: number; y: number; targetId: string } | null = null;
   for (const o of others) {
     if (o.id === table.id || o.shape === "round") continue;
     const fo = frameOf(o);
@@ -204,11 +241,11 @@ export function snapToNeighbor(table: Table, pos: { x: number; y: number }, othe
     for (const c of candidates) {
       if (!best || c.gap < best.gap) {
         const w = rot(c.x, c.y, fo.phi);
-        best = { gap: c.gap, x: oc.x + w.x, y: oc.y + w.y };
+        best = { gap: c.gap, x: oc.x + w.x, y: oc.y + w.y, targetId: o.id };
       }
     }
   }
-  return best ? { x: best.x, y: best.y } : null;
+  return best ? { x: best.x, y: best.y, targetId: best.targetId } : null;
 }
 
 /**

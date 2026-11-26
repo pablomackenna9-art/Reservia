@@ -12,6 +12,7 @@
 8. **Aplicar la migración 0033 (decoración del plano)** si aún no está aplicada: `supabase/migrations/0033_zone_decor.sql` (CLI `db push` tras `npx supabase login`, o pegarla en el editor SQL de Supabase) y luego `node supabase/seed/seed-decor.mjs` para la decoración de ejemplo.
 9. ~~Migración 0034 (módulos) y división de CNIT~~ — hecho (26-nov): aplicada; las mesas de 8 y 10 de CNIT son módulos (las de 6 quedaron enteras). Falta: que el POS acepte el nombre de la mesa larga ("Mesa 10") y lo resuelva a sus módulos.
 10. **Aplicar la migración 0035 (`supabase/migrations/0035_reservation_seated_at.sql`)**: guarda la hora real en que se sentó cada grupo; sin ella el cronómetro de la mesa cuenta desde la hora de la reserva (nunca negativo).
+11. **Aplicar la migración 0036 (`supabase/migrations/0036_table_joined_to.sql`)**: guarda a qué mesa se pegó otra en el plano (toma su número). Sin ella mover mesas funciona igual, pero una mesa normal pegada a otra no recuerda a cuál.
 
 ## B. Desarrollo sugerido (no empezado)
 - **WhatsApp automático** (Meta WhatsApp Business Cloud API o Twilio/360dialog): número verificado, plantilla aprobada ("reserva aceptada + enlace"), envío al aceptar y webhook de respuestas; recordatorio automático antes de la reserva y liberación si no responde. El enlace `/c/<token>` y la liberación de mesa ya existen; falta solo el canal de envío (guardar credenciales en Vault, nunca en el código).

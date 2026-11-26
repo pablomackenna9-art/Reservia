@@ -128,9 +128,9 @@ export function useFloorPlan(restaurantId: string | undefined) {
     return findTurnoverConflict(reservationsByTable.get(tableId) ?? []) !== null;
   }
 
-  async function moveTable(tableId: string, positionX: number, positionY: number) {
-    setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, positionX, positionY } : t)));
-    await updateTablePosition(supabase, tableId, positionX, positionY);
+  async function moveTable(tableId: string, positionX: number, positionY: number, joinedTo?: string | null) {
+    setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, positionX, positionY, ...(joinedTo !== undefined ? { joinedTo } : {}) } : t)));
+    await updateTablePosition(supabase, tableId, positionX, positionY, joinedTo);
   }
 
   async function updateTableProps(

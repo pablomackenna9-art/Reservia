@@ -64,6 +64,8 @@ export function TableDetailPanel({
   onDuplicate,
   onChangeReservationStatus,
   onSeatWalkIn,
+  groupLabel,
+  groupCapacity,
   onMoveReservation,
   onReleaseTable,
   onStartJoin,
@@ -93,6 +95,9 @@ export function TableDetailPanel({
   onDuplicate?: () => void;
   onChangeReservationStatus: (reservationId: string, status: ReservationStatus) => void;
   onSeatWalkIn: (partySize: number, name: string, phone: string, email: string) => void;
+  /** Número y asientos con que se ve esta mesa en el plano (si está pegada a otras, el del conjunto). */
+  groupLabel?: string;
+  groupCapacity?: number;
   onMoveReservation: (reservationId: string, tableId: string, source?: TableAssignmentSource, tableIds?: string[]) => void;
   /** Llegaron menos personas: la reserva suelta una de sus mesas unidas. */
   onReleaseTable?: (reservationId: string, tableId: string) => Promise<void>;
@@ -178,9 +183,9 @@ export function TableDetailPanel({
       <div className="flex items-start justify-between mb-4">
         <div>
           <p className="text-[13px] font-semibold text-ink-faint uppercase tracking-[0.08em]">{zoneName}</p>
-          <h2 className="font-serif text-[56px] leading-[0.95] mt-1">{table.layoutId ? table.name.replace(/-[A-H]$/, "") : table.name}</h2>
+          <h2 className="font-serif text-[56px] leading-[0.95] mt-1">{groupLabel ?? (table.layoutId ? table.name.replace(/-[A-H]$/, "") : table.name)}</h2>
           <p className="text-[13px] text-ink-muted mt-1.5">
-            hasta {table.capacityMax} personas · {SHAPE_LABEL[table.shape].toLowerCase()}
+            hasta {groupCapacity ?? table.capacityMax} personas · {SHAPE_LABEL[table.shape].toLowerCase()}
           </p>
         </div>
         <div className="flex flex-col items-end gap-3">

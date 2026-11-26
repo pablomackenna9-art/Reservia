@@ -29,8 +29,8 @@ function table(id: string, name: string, x: number, y: number, over: Partial<Tab
 }
 
 // Mesa larga vertical (rotación 90) hecha de dos módulos de 4: 5-A arriba y 5-B abajo, pegados.
-const A = table("a", "5-A", 20, 50, { layoutId: "L5", rotation: 90 });
-const B = table("b", "5-B", 20, 50 + (56 / 700) * 100, { layoutId: "L5", rotation: 90 });
+const A = table("a", "5-A", 20, 50, { layoutId: "L5", rotation: 90, homeX: 20, homeY: 50, homeRotation: 90 });
+const B = table("b", "5-B", 20, 50 + (56 / 700) * 100, { layoutId: "L5", rotation: 90, homeX: 20, homeY: 50 + (56 / 700) * 100, homeRotation: 90 });
 
 describe("buildTableGroups", () => {
   it("junta los módulos pegados como una sola mesa con el número de la mesa y la suma de asientos", () => {
@@ -100,5 +100,40 @@ describe("mesas pegadas en el motor", () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.tableIds).toEqual(["a", "b"]);
     expect(result[0]!.tableNames).toEqual(["5"]);
+  });
+});
+
+describe("numeración de las mesas", () => {
+  const other = table("t9", "9", 10, 10, { shape: "square", layoutId: undefined, joinable: false });
+  const other53 = table("t53", "53", 90, 90, { shape: "square", joinable: false });
+
+  it("un módulo que se separa y queda solo recibe un número nuevo (no el de otra mesa)", () => {
+    const far = { ...B, positionX: 60, positionY: 20 };
+    const { byTable } = buildTableGroups([A, far, other, other53], [zone]);
+    expect(byTable.get("a")!.label).toBe("5"); // el que sigue en su lugar conserva el número
+    expect(byTable.get("b")!.label).toBe("54"); // el apartado toma uno que nadie usa
+  });
+
+  it("si se aparta el primero, el que quedó en su lugar conserva el número", () => {
+    const far = { ...A, positionX: 60, positionY: 20 };
+    const { byTable } = buildTableGroups([far, B, other53], [zone]);
+    expect(byTable.get("b")!.label).toBe("5");
+    expect(byTable.get("a")!.label).toBe("54");
+  });
+
+  it("una mesa normal arrastrada junto a otra (joinedTo) toma el número de la otra; al separarla vuelve al suyo", () => {
+    const base = table("t4", "4", 50, 50, { shape: "square", width: 52, height: 52, joinable: false });
+    const moved = table("t3", "3", 50 + (52 / 1000) * 100, 50, { shape: "square", width: 52, height: 52, joinable: false, joinedTo: "t4" });
+    const joined = buildTableGroups([base, moved], [zone]);
+    expect(joined.byTable.get("t3")!.label).toBe("4");
+    expect(joined.byTable.get("t3")!.capacity).toBe(8);
+    const apart = buildTableGroups([base, { ...moved, positionX: 80, joinedTo: null }], [zone]);
+    expect(apart.byTable.get("t3")!.label).toBe("3");
+  });
+
+  it("dos mesas normales que solo están cerca (sin joinedTo) no se juntan", () => {
+    const base = table("t4", "4", 50, 50, { shape: "square", width: 52, height: 52, joinable: false });
+    const near = table("t3", "3", 50 + (52 / 1000) * 100, 50, { shape: "square", width: 52, height: 52, joinable: false });
+    expect(buildTableGroups([base, near], [zone]).groups).toHaveLength(2);
   });
 });

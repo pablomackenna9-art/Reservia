@@ -53,7 +53,15 @@ export async function updateTablePosition(
   id: string,
   positionX: number,
   positionY: number,
+  /** Mesa a la que quedó pegada (null = ninguna). undefined = no tocar ese dato. */
+  joinedTo?: string | null,
 ): Promise<void> {
+  if (joinedTo !== undefined) {
+    const { error } = await supabase.from("tables").update({ pos_x: positionX, pos_y: positionY, joined_to: joinedTo }).eq("id", id);
+    if (!error) return;
+    // La migración 0036 puede no estar aplicada todavía: mover la mesa igual tiene que funcionar.
+    if (!/joined_to/i.test(error.message ?? "")) throw error;
+  }
   const { error } = await supabase.from("tables").update({ pos_x: positionX, pos_y: positionY }).eq("id", id);
   if (error) throw error;
 }
@@ -154,5 +162,6 @@ export function mapTable(row: Record<string, unknown>): Table {
     homeRotation: row.home_rotation != null ? Number(row.home_rotation) : null,
     homeWidth: row.home_width != null ? Number(row.home_width) : null,
     homeHeight: row.home_height != null ? Number(row.home_height) : null,
+    joinedTo: (row.joined_to as string) ?? null,
   };
 }
