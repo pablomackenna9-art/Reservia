@@ -180,7 +180,7 @@ export function ZoneCanvas({
     return map;
   }, [tables, zones, decor]);
 
-  // Una mesa con gente sentada no se mueve ni se pega a otra.
+  // Una mesa con gente sentada se puede mover, pero no se pega a otra (ni otra a ella).
   function isBusy(tableId: string): boolean {
     const status = getTableStatus?.(tableId);
     return status === "occupied" || status === "paying";
@@ -558,7 +558,7 @@ export function ZoneCanvas({
                   onSelect={() => onSelectTable(table.id)}
                   highlightState={getHighlightState?.(table.id)}
                   turnoverWarning={getTurnoverWarning?.(table.id)}
-                  draggable={Boolean(onMoveTable) && !isBusy(table.id)}
+                  draggable={Boolean(onMoveTable)}
                   onDragEnd={
                     onMoveTable
                       ? (x, y) => {
@@ -574,7 +574,7 @@ export function ZoneCanvas({
                           }
                           // Imán: un módulo que se suelta junto a otra mesa queda pegado a ella (pasa a ser parte de esa mesa).
                           let joinedTo: string | null = null;
-                          if (!(table.homeX === positionX && table.homeY === positionY)) {
+                          if (!isBusy(table.id) && !(table.homeX === positionX && table.homeY === positionY)) {
                             // En el plano en vivo cualquier mesa se pega a otra que aún no tenga gente; al editar, solo los módulos.
                             const live = Boolean(getTableStatus);
                             const targets = (tablesByZone.get(zone.id) ?? []).filter((o) => (live ? !isBusy(o.id) : table.layoutId || o.layoutId));
