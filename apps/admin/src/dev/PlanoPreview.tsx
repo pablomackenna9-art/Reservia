@@ -48,7 +48,7 @@ tables.push(...longTables);
 
 const status: Record<string, TableLiveStatusValue> = {
   [ID(120)]: "occupied",
-  [ID(121)]: "available",
+  [ID(121)]: "occupied",
   [ID(122)]: "reserved",
   [ID(130)]: "available",
   [ID(131)]: "reserved",
@@ -96,6 +96,7 @@ export function PlanoPreview() {
         onSelectTable={() => undefined}
         getTableStatus={(id) => status[id] ?? "available"}
         getTableInfo={(id) => (id === ID(102) ? { text: "45 min" } : id === ID(103) ? { text: "20:30 · Pérez" } : undefined)}
+        getTableGuests={(id) => ({ [ID(120)]: 4, [ID(121)]: 3, [ID(102)]: 2, [ID(105)]: 4, [ID(106)]: 5 })[id] ?? 0}
         decor={decor}
         decorEditable={edit}
         selectedDecorId={selectedDecor}

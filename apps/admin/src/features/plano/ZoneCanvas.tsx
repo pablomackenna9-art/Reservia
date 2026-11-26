@@ -8,7 +8,8 @@ import { dotGridTile, konvaLook, tableVisualState, type KonvaLook, type VisualSt
 import { themeColor, themeMix, useTheme } from "../../lib/theme";
 import { coveredSides } from "./chairs";
 import { DecorShape } from "./DecorShape";
-import { HomeSlot, TableToken, type TableHighlightState, type TableInfoLine, type TablePalette } from "./TableToken";
+import { buildTableGroups, snapToNeighbor } from "./groups";
+import { ClusterChairs, ClusterLabel, HomeSlot, TableToken, type TableHighlightState, type TableInfoLine, type TablePalette } from "./TableToken";
 
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 4;
@@ -50,6 +51,8 @@ interface ZoneCanvasProps {
   activeZoneId?: string | null;
   /** Línea viva bajo cada mesa (tiempo sentados, hora de la reserva, "libre"). */
   getTableInfo?: (tableId: string) => TableInfoLine | undefined;
+  /** Personas sentadas ahora en cada mesa: se dibujan sobre las sillas. */
+  getTableGuests?: (tableId: string) => number;
   /** Decoración del plano (plantas, columnas, barra...): dibujo bajo las mesas. */
   decor?: ZoneDecor[];
   /** En "Editar plano" los objetos se pueden seleccionar y arrastrar. */
@@ -71,6 +74,7 @@ export function ZoneCanvas({
   onDropWaitlistEntry,
   activeZoneId,
   getTableInfo,
+  getTableGuests,
   decor,
   decorEditable = false,
   selectedDecorId = null,
@@ -176,22 +180,41 @@ export function ZoneCanvas({
     return map;
   }, [tables, zones, decor]);
 
-  // Módulos de una misma mesa larga que están en su lugar: los lados que se tocan no llevan sillas.
+  // Mesas que se ven como una: un módulo pegado a otra mesa pasa a ser parte de ella (número y asientos del conjunto).
+  const { groups, byTable: groupByTable } = useMemo(() => buildTableGroups(tables, zones), [tables, zones]);
+
+  // Conjuntos que no forman una hilera recta: cada mesa conserva sus sillas pero no en los lados que se tocan.
   const joinedByTable = useMemo(() => {
     const map = new Map<string, Set<number>>();
-    const byLayout = new Map<string, Table[]>();
-    for (const t of tables) {
-      if (t.layoutId && !isModuleDetached(t)) byLayout.set(t.layoutId, [...(byLayout.get(t.layoutId) ?? []), t]);
-    }
-    for (const group of byLayout.values()) {
-      if (group.length < 2) continue;
-      for (const table of group) {
-        const zone = zones.find((z) => z.id === table.zoneId);
-        if (zone) map.set(table.id, coveredSides(table, zone, group.filter((o) => o.id !== table.id)));
-      }
+    for (const group of groups) {
+      if (group.members.length < 2 || group.merged) continue;
+      const zone = zones.find((z) => z.id === group.zoneId);
+      if (!zone) continue;
+      for (const table of group.members) map.set(table.id, coveredSides(table, zone, group.members.filter((o) => o.id !== table.id)));
     }
     return map;
-  }, [tables, zones]);
+  }, [groups, zones]);
+
+  // Lados de una mesa unida pegados a un sofá.
+  const coveredByGroup = useMemo(() => {
+    const map = new Map<string, Set<number>>();
+    for (const group of groups) {
+      if (!group.merged) continue;
+      const zone = zones.find((z) => z.id === group.zoneId);
+      const sofas = (decor ?? []).filter((d) => d.kind === "sofa" && d.zoneId === group.zoneId);
+      if (!zone || sofas.length === 0) continue;
+      const g = group.merged;
+      map.set(
+        group.id,
+        coveredSides(
+          { positionX: (g.x / zone.width) * 100, positionY: (g.y / zone.height) * 100, width: g.width, height: g.height, rotation: g.rotation },
+          zone,
+          sofas,
+        ),
+      );
+    }
+    return map;
+  }, [groups, zones, decor]);
 
   const tablesByZone = useMemo(() => {
     const map = new Map<string, Table[]>();
@@ -492,6 +515,22 @@ export function ZoneCanvas({
                 .map((table) => (
                   <HomeSlot key={`home-${table.id}`} table={table} zone={zone} palette={palette} />
                 ))}
+              {groups
+                .filter((g) => g.zoneId === zone.id && g.merged)
+                .map((g) => (
+                  <ClusterChairs
+                    key={`chairs-${g.id}`}
+                    geometry={g.merged!}
+                    members={g.members.map((m) => {
+                      const state = tableVisualState(getTableStatus?.(m.id) ?? "available");
+                      return { table: m, state, stroke: looks.get(state)!.stroke, guests: getTableGuests?.(m.id) ?? 0 };
+                    })}
+                    dropSides={coveredByGroup.get(g.id)}
+                    palette={palette}
+                    dimmed={Boolean(activeZoneId) && activeZoneId !== zone.id}
+                    zone={zone}
+                  />
+                ))}
               {(tablesByZone.get(zone.id) ?? []).map((table) => (
                 <TableToken
                   key={table.id}
@@ -501,6 +540,10 @@ export function ZoneCanvas({
                   state={tableVisualState(getTableStatus?.(table.id) ?? "available")}
                   coveredSides={coveredByTable.get(table.id)}
                   joinedSides={joinedByTable.get(table.id)}
+                  label={groupByTable.get(table.id)?.label}
+                  hideChairs={Boolean(groupByTable.get(table.id)?.merged)}
+                  hideLabel={Boolean(groupByTable.get(table.id)?.merged)}
+                  guests={getTableGuests?.(table.id) ?? 0}
                   palette={palette}
                   info={fontsReady ? getTableInfo?.(table.id) : undefined}
                   dimmed={Boolean(activeZoneId) && activeZoneId !== zone.id}
@@ -523,12 +566,31 @@ export function ZoneCanvas({
                               positionY = table.homeY;
                             }
                           }
+                          // Imán: un módulo que se suelta junto a otra mesa queda pegado a ella (pasa a ser parte de esa mesa).
+                          if (table.layoutId && !(table.homeX === positionX && table.homeY === positionY)) {
+                            const snapped = snapToNeighbor(table, { x: (positionX / 100) * zone.width, y: (positionY / 100) * zone.height }, tablesByZone.get(zone.id) ?? [], zone);
+                            if (snapped) {
+                              positionX = clamp((snapped.x / zone.width) * 100, 2, 98);
+                              positionY = clamp((snapped.y / zone.height) * 100, 2, 98);
+                            }
+                          }
                           onMoveTable(table.id, positionX, positionY);
                         }
                       : undefined
                   }
                 />
               ))}
+              {groups
+                .filter((g) => g.zoneId === zone.id && g.merged)
+                .map((g) => (
+                  <ClusterLabel
+                    key={`label-${g.id}`}
+                    geometry={g.merged!}
+                    label={g.label}
+                    capacity={g.capacity}
+                    color={looks.get(tableVisualState(getTableStatus?.(g.members[0]!.id) ?? "available"))!.text}
+                  />
+                ))}
             </Group>
           ))}
         </Layer>

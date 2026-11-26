@@ -1,7 +1,10 @@
-import { Circle, Group, Rect, Text } from "react-konva";
+import { useEffect, useRef } from "react";
+import Konva from "konva";
+import { Circle, Ellipse, Group, Rect, Text } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import type { Table, Zone } from "@reservia/core";
+import { tableBaseName, type Table, type Zone } from "@reservia/core";
 import type { KonvaLook, VisualState } from "../../lib/stateStyle";
+import type { MergedGeometry } from "./groups";
 import { chairReach, chairSlots, type ChairSlot } from "./chairs";
 
 /** Used only by the Smart Table Engine's floor-plan picker — undefined everywhere else, so the normal plano is untouched. */
@@ -47,6 +50,15 @@ interface TableTokenProps {
   palette: TablePalette;
   selected: boolean;
   onSelect: () => void;
+  /** Nombre que se muestra (por defecto el de la mesa): un módulo muestra el número de la mesa a la que pertenece. */
+  label?: string;
+  /** Asientos que se muestran en el rótulo (por defecto los de esta mesa). */
+  labelCapacity?: number;
+  /** Las sillas y el rótulo los dibuja el conjunto de módulos (ver ClusterChairs). */
+  hideChairs?: boolean;
+  hideLabel?: boolean;
+  /** Personas sentadas ahora en esta mesa (se dibujan sobre las sillas). */
+  guests?: number;
   draggable?: boolean;
   /** Fired with the new position in zone-local units (not %) so the caller converts once. */
   onDragEnd?: (x: number, y: number) => void;
@@ -75,6 +87,11 @@ export function TableToken({
   palette,
   selected,
   onSelect,
+  label,
+  labelCapacity,
+  hideChairs = false,
+  hideLabel = false,
+  guests = 0,
   draggable = false,
   onDragEnd,
   highlightState,
@@ -132,9 +149,14 @@ export function TableToken({
       onDragEnd={handleDragEnd}
       listening
     >
-      {chairs.map((slot, i) => (
-        <Chair key={i} slot={slot} state={state} stroke={look.stroke} palette={palette} />
-      ))}
+      {!hideChairs && (
+        <>
+          {chairs.map((slot, i) => (
+            <Chair key={i} slot={slot} state={state} stroke={look.stroke} palette={palette} />
+          ))}
+          <Guests slots={chairs} count={guests} palette={palette} seed={table.id} />
+        </>
+      )}
 
       {haloColor &&
         (isRound ? (
@@ -234,29 +256,33 @@ export function TableToken({
         </>
       )}
 
-      <Text
-        text={table.name}
-        fontSize={22}
-        fontFamily={SERIF}
-        fill={look.text}
-        width={table.width}
-        align="center"
-        offsetX={table.width / 2}
-        y={-17}
-        rotation={-table.rotation}
-      />
-      <Text
-        text={`${table.capacityMax}p`}
-        fontSize={12}
-        fontFamily={SANS}
-        fontStyle="600"
-        fill={look.text}
-        width={table.width}
-        align="center"
-        offsetX={table.width / 2}
-        y={6}
-        rotation={-table.rotation}
-      />
+      {!hideLabel && (
+        <>
+          <Text
+            text={label ?? table.name}
+            fontSize={22}
+            fontFamily={SERIF}
+            fill={look.text}
+            width={table.width}
+            align="center"
+            offsetX={table.width / 2}
+            y={-17}
+            rotation={-table.rotation}
+          />
+          <Text
+            text={`${labelCapacity ?? table.capacityMax}p`}
+            fontSize={12}
+            fontFamily={SANS}
+            fontStyle="600"
+            fill={look.text}
+            width={table.width}
+            align="center"
+            offsetX={table.width / 2}
+            y={6}
+            rotation={-table.rotation}
+          />
+        </>
+      )}
 
       {info && (
         <Text
@@ -319,7 +345,7 @@ export function HomeSlot({ table, zone, palette }: { table: Table; zone: Zone; p
     <Group x={(table.homeX / 100) * zone.width} y={(table.homeY / 100) * zone.height} rotation={table.homeRotation ?? 0} listening={false}>
       <Rect x={-w / 2} y={-h / 2} width={w} height={h} cornerRadius={8} stroke={palette.seatLine} strokeWidth={1.5} dash={[5, 4]} opacity={0.8} />
       <Text
-        text={`↩ ${table.name}`}
+        text={`↩ ${tableBaseName(table)}`}
         fontSize={12}
         fontFamily={SANS}
         fontStyle="600"
@@ -330,6 +356,150 @@ export function HomeSlot({ table, zone, palette }: { table: Table; zone: Zone; p
         y={-6}
         rotation={-(table.homeRotation ?? 0)}
       />
+    </Group>
+  );
+}
+
+// ---------------------------------------------------------------- personas sentadas
+
+const SKIN = ["#e8c4a0", "#d9a578", "#b9794f", "#8f5a3b", "#f0d3b5"];
+const SHIRT = ["#c9824b", "#5b8fb9", "#b95b7a", "#6aa36f", "#d1b24a", "#8c6bb1", "#c4585a", "#4f9a9a"];
+
+function hash(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/** Qué sillas ocupar: repartidas alrededor de la mesa (dos personas quedan una frente a la otra, no una al lado de la otra). */
+export function pickGuestSlots(slots: ChairSlot[], count: number): ChairSlot[] {
+  const n = Math.min(count, slots.length);
+  if (n <= 0) return [];
+  const ring = [...slots].sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x));
+  const chosen = new Set<number>();
+  for (let i = 0; i < n; i++) chosen.add(Math.round((i * ring.length) / n) % ring.length);
+  // Por si el redondeo repitió alguna: completa con las que falten.
+  for (let i = 0; chosen.size < n && i < ring.length; i++) chosen.add(i);
+  return [...chosen].map((i) => ring[i]!);
+}
+
+/** Una persona sentada vista desde arriba: hombros y cabeza sobre la silla, mirando a la mesa. Aparece con un saltito. */
+function Person({ slot, seed, index, outline }: { slot: ChairSlot; seed: string; index: number; outline: string }) {
+  const ref = useRef<Konva.Group>(null);
+  const h = hash(`${seed}:${index}`);
+  const skin = SKIN[h % SKIN.length]!;
+  const shirt = SHIRT[(h >> 3) % SHIRT.length]!;
+  const { width: cw, depth: cd } = slot;
+  const headR = Math.max(3, Math.min(cw, cd) * 0.27);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    node.scale({ x: 0.2, y: 0.2 });
+    node.opacity(0);
+    const tween = new Konva.Tween({ node, scaleX: 1, scaleY: 1, opacity: 1, duration: 0.34, easing: Konva.Easings.BackEaseOut });
+    const timer = window.setTimeout(() => tween.play(), 60 + index * 70);
+    return () => {
+      window.clearTimeout(timer);
+      tween.destroy();
+    };
+  }, [index]);
+
+  return (
+    <Group x={slot.x} y={slot.y} rotation={slot.rotation} listening={false}>
+      <Group ref={ref}>
+        <Ellipse x={0} y={-cd * 0.08} radiusX={cw * 0.46} radiusY={cd * 0.3} fill={shirt} stroke={outline} strokeWidth={0.6} />
+        <Circle x={0} y={cd * 0.1} radius={headR} fill={skin} stroke={outline} strokeWidth={0.6} />
+      </Group>
+    </Group>
+  );
+}
+
+function Guests({ slots, count, palette, seed }: { slots: ChairSlot[]; count: number; palette: TablePalette; seed: string }) {
+  if (count <= 0) return null;
+  return (
+    <>
+      {pickGuestSlots(slots, count).map((slot, i) => (
+        <Person key={`${slot.x}:${slot.y}`} slot={slot} seed={seed} index={i} outline={palette.shadow} />
+      ))}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- mesa hecha de módulos
+
+export interface ClusterMember {
+  table: Table;
+  state: VisualState;
+  stroke: string;
+  guests: number;
+}
+
+/**
+ * Las sillas de una mesa hecha de módulos pegados en hilera: se dibujan como UNA mesa larga (una silla en cada
+ * cabecera y el resto repartido en los dos lados largos), no módulo por módulo. Cada silla toma el estado del
+ * módulo al que está más cerca.
+ */
+export function ClusterChairs({
+  geometry,
+  members,
+  dropSides,
+  palette,
+  dimmed,
+  zone,
+}: {
+  geometry: MergedGeometry;
+  members: ClusterMember[];
+  dropSides?: ReadonlySet<number>;
+  palette: TablePalette;
+  dimmed: boolean;
+  zone: Pick<Zone, "width" | "height">;
+}) {
+  const capacity = members.reduce((s, m) => s + m.table.capacityMax, 0);
+  const slots = chairSlots({ shape: "rectangle", width: geometry.width, height: geometry.height, capacityMax: capacity }, dropSides);
+
+  // Centro de cada módulo en el marco de la mesa unida.
+  const offsets = members.map((m) => {
+    const dx = (m.table.positionX / 100) * zone.width - geometry.x;
+    const dy = (m.table.positionY / 100) * zone.height - geometry.y;
+    const r = (-geometry.rotation * Math.PI) / 180;
+    return { x: dx * Math.cos(r) - dy * Math.sin(r), y: dx * Math.sin(r) + dy * Math.cos(r) };
+  });
+  const memberOf = (slot: ChairSlot): number => {
+    let best = 0;
+    let bestD = Infinity;
+    offsets.forEach((o, i) => {
+      const d = (o.x - slot.x) ** 2 + (o.y - slot.y) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    });
+    return best;
+  };
+  const owners = slots.map(memberOf);
+
+  return (
+    <Group x={geometry.x} y={geometry.y} rotation={geometry.rotation} opacity={dimmed ? 0.2 : 1} listening={false}>
+      {slots.map((slot, i) => (
+        <Chair key={i} slot={slot} state={members[owners[i]!]!.state} stroke={members[owners[i]!]!.stroke} palette={palette} />
+      ))}
+      {members.map((m, mi) => {
+        const mine = slots.filter((_, i) => owners[i] === mi);
+        return <Guests key={m.table.id} slots={mine} count={m.guests} palette={palette} seed={m.table.id} />;
+      })}
+    </Group>
+  );
+}
+
+/** Número y asientos de toda la mesa unida, en el centro (sin girar). */
+export function ClusterLabel({ geometry, label, capacity, color }: { geometry: MergedGeometry; label: string; capacity: number; color: string }) {
+  const w = Math.max(geometry.width, geometry.height);
+  return (
+    <Group x={geometry.x} y={geometry.y} listening={false}>
+      <Text text={label} fontSize={22} fontFamily={SERIF} fill={color} width={w} align="center" offsetX={w / 2} y={-17} />
+      <Text text={`${capacity}p`} fontSize={12} fontFamily={SANS} fontStyle="600" fill={color} width={w} align="center" offsetX={w / 2} y={6} />
     </Group>
   );
 }

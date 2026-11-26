@@ -217,7 +217,8 @@ export function DashboardPage() {
   function getTableInfo(tableId: string): TableInfoLine | undefined {
     const status = getTableStatus(tableId);
     if (status === "blocked") return { text: "bloqueada" };
-    if (status === "available") return { text: "libre" };
+    // Una mesa verde ya se entiende como libre: no hace falta decirlo.
+    if (status === "available") return undefined;
     const list = (reservationsByTable.get(tableId) ?? []).filter((r) => !["cancelled", "completed", "no_show"].includes(r.status));
     if (status === "occupied" || status === "paying") {
       const seated = list.find((r) => r.status === "seated");
@@ -241,6 +242,23 @@ export function DashboardPage() {
     if (late > 0) return { text: `${joined}+${late} min`, alert: true };
     const lastName = next.customerName.split(" ").slice(-1)[0];
     return { text: `${joined}${formatTime(next.startsAt)} · ${lastName}` };
+  }
+
+  /** Personas sentadas ahora en una mesa. Si el grupo ocupa varias mesas unidas, se reparten en orden hasta llenar cada una. */
+  function getTableGuests(tableId: string): number {
+    const status = getTableStatus(tableId);
+    if (status !== "occupied" && status !== "paying") return 0;
+    const seated = (reservationsByTable.get(tableId) ?? []).find((r) => r.status === "seated");
+    if (!seated) return 0;
+    const ids = [...new Set<string>([...(seated.tableId ? [seated.tableId, ...(tableGroups.get(seated.tableId)?.tableIds ?? [])] : []), ...(seated.extraTableIds ?? [])])];
+    let remaining = seated.partySize;
+    for (const id of ids) {
+      const capacity = tables.find((t) => t.id === id)?.capacityMax ?? 0;
+      const take = Math.min(remaining, capacity);
+      if (id === tableId) return take;
+      remaining -= take;
+    }
+    return 0;
   }
 
   async function handleSelectTable(id: string | null) {
@@ -597,6 +615,7 @@ export function DashboardPage() {
                 getTableStatus={getTableStatus}
                 getTurnoverWarning={getTurnoverWarning}
                 getTableInfo={getTableInfo}
+                getTableGuests={getTableGuests}
                 onDropWaitlistEntry={handleDropWaitlistEntry}
                 decor={decor}
               />

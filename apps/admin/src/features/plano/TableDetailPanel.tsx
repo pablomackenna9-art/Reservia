@@ -175,7 +175,7 @@ export function TableDetailPanel({
       <div className="flex items-start justify-between mb-4">
         <div>
           <p className="text-[13px] font-semibold text-ink-faint uppercase tracking-[0.08em]">{zoneName}</p>
-          <h2 className="font-serif text-[56px] leading-[0.95] mt-1">{table.name}</h2>
+          <h2 className="font-serif text-[56px] leading-[0.95] mt-1">{table.layoutId ? table.name.replace(/-[A-H]$/, "") : table.name}</h2>
           <p className="text-[13px] text-ink-muted mt-1.5">
             hasta {table.capacityMax} personas · {SHAPE_LABEL[table.shape].toLowerCase()}
           </p>

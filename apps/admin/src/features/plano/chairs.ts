@@ -10,7 +10,7 @@ export interface ChairSlot {
   depth: number;
 }
 
-const MAX_CHAIRS = 12;
+const MAX_CHAIRS = 16;
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(Math.max(v, min), max);

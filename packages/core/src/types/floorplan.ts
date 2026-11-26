@@ -47,6 +47,11 @@ export const tableSchema = z.object({
 });
 export type Table = z.infer<typeof tableSchema>;
 
+/** Nombre que ve la gente: un módulo "5-A" es simplemente parte de la mesa "5". */
+export function tableBaseName(t: Pick<Table, "name" | "layoutId">): string {
+  return t.layoutId ? t.name.replace(/-[A-H]$/, "") : t.name;
+}
+
 /** ¿Es un módulo que se apartó de su lugar en la mesa larga? (false si no es módulo o está en su sitio.) */
 export function isModuleDetached(t: Pick<Table, "positionX" | "positionY" | "rotation" | "homeX" | "homeY" | "homeRotation">): boolean {
   if (t.homeX == null || t.homeY == null) return false;
