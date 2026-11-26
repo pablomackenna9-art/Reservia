@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { checkTableAvailability, listTables, listZones, type ReservationWithDetails } from "@reservia/api-client";
-import { compareTableNames, reservationUsesAnyTable, type Table, type TableCandidate, type Zone } from "@reservia/core";
+import { buildTableGroups, compareTableNames, reservationUsesAnyTable, type Table, type TableCandidate, type Zone } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 
 interface Loaded {
@@ -69,8 +69,11 @@ export function ManualTablePicker({
     );
   }
 
+  /** Tocar una mesa pegada a otras elige todo el conjunto: funciona como una sola mesa. */
   function toggle(id: string) {
-    setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+    const group = loaded ? buildTableGroups(loaded.tables, loaded.zones).byTable.get(id) : undefined;
+    const ids = group && group.members.length > 1 ? group.members.map((m) => m.id) : [id];
+    setSelected((cur) => (cur.includes(id) ? cur.filter((x) => !ids.includes(x)) : [...cur.filter((x) => !ids.includes(x)), ...ids]));
   }
 
   const chosenTables = loaded ? selected.map((id) => loaded.tables.find((t) => t.id === id)!).filter(Boolean) : [];

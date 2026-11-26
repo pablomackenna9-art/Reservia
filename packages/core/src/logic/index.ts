@@ -4,3 +4,4 @@ export * from "./slug";
 export * from "./tableAssignment";
 export * from "./capacityPacing";
 export * from "./tableOrder";
+export * from "./tableGroups";

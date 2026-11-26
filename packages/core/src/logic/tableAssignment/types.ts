@@ -22,8 +22,18 @@ export interface ScorableTable {
   capacityMin: number;
   capacityMax: number;
   isCombination: boolean;
-  /** Id de la mesa larga si TODAS las mesas de la combinación son módulos suyos y están en su lugar. */
-  layoutId?: string | null;
+  /** Id del conjunto de mesas pegadas en el plano (ya forman UNA mesa): no se penaliza como una combinación. */
+  groupId?: string | null;
+}
+
+/** Mesas pegadas en el plano que funcionan como una sola mesa del tamaño total (ej. 7-A + 7-B = mesa 7 de 8). */
+export interface PreJoinedGroup {
+  id: string;
+  tableIds: string[];
+  label: string;
+  zoneId: string;
+  capacityMin: number;
+  capacityMax: number;
 }
 
 export interface TableCandidate extends ScorableTable {

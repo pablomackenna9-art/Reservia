@@ -1,5 +1,5 @@
 import type { ReservationWithDetails } from "@reservia/api-client";
-import { minutesSince } from "@reservia/core";
+import { seatedMinutes } from "@reservia/core";
 import { RESERVATION_STATUS_LABEL } from "./statusStyles";
 import { reservationVisualState, stateClass } from "../../lib/stateStyle";
 
@@ -103,7 +103,7 @@ export function TableDayTimeline({
               >
                 <span className="block truncate text-[13px] font-medium leading-tight">{r.customerName}</span>
                 <span className="block truncate text-[13px] opacity-80 leading-tight">
-                  {r.partySize}p{r.status === "seated" ? ` · hace ${minutesSince(r.startsAt, now)} min` : ""}
+                  {r.partySize}p{r.status === "seated" ? ` · hace ${seatedMinutes(r, now)} min` : ""}
                 </span>
               </div>
             );

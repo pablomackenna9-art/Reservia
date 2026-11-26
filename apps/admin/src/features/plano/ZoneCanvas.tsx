@@ -2,13 +2,12 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Stage, Layer, Rect, Text, Group } from "react-konva";
 import Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import { isModuleDetached, type Table, type TableLiveStatusValue, type Zone, type ZoneDecor } from "@reservia/core";
+import { buildTableGroups, isModuleDetached, snapToNeighbor, type Table, type TableLiveStatusValue, type Zone, type ZoneDecor } from "@reservia/core";
 import { useContainerSize } from "../../hooks/useContainerSize";
 import { dotGridTile, konvaLook, tableVisualState, type KonvaLook, type VisualState } from "../../lib/stateStyle";
 import { themeColor, themeMix, useTheme } from "../../lib/theme";
 import { coveredSides } from "./chairs";
 import { DecorShape } from "./DecorShape";
-import { buildTableGroups, snapToNeighbor } from "./groups";
 import { ClusterChairs, ClusterLabel, HomeSlot, TableToken, type TableHighlightState, type TableInfoLine, type TablePalette } from "./TableToken";
 
 const MIN_SCALE = 0.3;
@@ -132,6 +131,7 @@ export function ZoneCanvas({
       pot: themeMix("acc", 58, "bg"),
       wood: themeMix("acc", 38, "sf3"),
       stone: themeColor("sf2"),
+      ground: themeColor("bg"),
       shadow: theme === "oscuro" ? "rgba(0, 0, 0, 0.7)" : "rgba(40, 28, 12, 0.35)",
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -567,8 +567,10 @@ export function ZoneCanvas({
                             }
                           }
                           // Imán: un módulo que se suelta junto a otra mesa queda pegado a ella (pasa a ser parte de esa mesa).
-                          if (table.layoutId && !(table.homeX === positionX && table.homeY === positionY)) {
-                            const snapped = snapToNeighbor(table, { x: (positionX / 100) * zone.width, y: (positionY / 100) * zone.height }, tablesByZone.get(zone.id) ?? [], zone);
+                          if (!(table.homeX === positionX && table.homeY === positionY)) {
+                            // Un módulo se pega a cualquier mesa; una mesa normal solo a los módulos.
+                            const targets = (tablesByZone.get(zone.id) ?? []).filter((o) => table.layoutId || o.layoutId);
+                            const snapped = snapToNeighbor(table, { x: (positionX / 100) * zone.width, y: (positionY / 100) * zone.height }, targets, zone);
                             if (snapped) {
                               positionX = clamp((snapped.x / zone.width) * 100, 2, 98);
                               positionY = clamp((snapped.y / zone.height) * 100, 2, 98);
@@ -588,7 +590,8 @@ export function ZoneCanvas({
                     geometry={g.merged!}
                     label={g.label}
                     capacity={g.capacity}
-                    color={looks.get(tableVisualState(getTableStatus?.(g.members[0]!.id) ?? "available"))!.text}
+                    color={palette.ink}
+                    plate={palette.ground}
                   />
                 ))}
             </Group>

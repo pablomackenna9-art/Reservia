@@ -50,6 +50,8 @@ export const reservationSchema = z
     extraTableNames: z.array(z.string()).optional(),
     /** Número de la unión (1, 2, 3... por día): identifica la mesa unida y su cuenta. */
     unionNumber: z.number().int().nullable().optional(),
+    /** Hora real en que se sentó el grupo (el cronómetro de la mesa cuenta desde aquí, no desde la hora de la reserva). */
+    seatedAt: z.string().nullable().optional(),
   })
   .refine((r) => new Date(r.endsAt) > new Date(r.startsAt), {
     message: "endsAt debe ser posterior a startsAt",

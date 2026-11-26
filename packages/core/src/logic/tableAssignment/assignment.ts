@@ -1,7 +1,7 @@
 import type { Table } from "../../types/floorplan";
 import { buildTablePairCombinations, buildTableUnionCombinations } from "./combinations";
 import { scoreTableForReservation } from "./scoring";
-import type { DayReservationForLookahead, ReservationForScoring, TableCandidate } from "./types";
+import type { DayReservationForLookahead, PreJoinedGroup, ReservationForScoring, TableCandidate } from "./types";
 
 const MAX_CANDIDATES = 8;
 
@@ -13,6 +13,11 @@ export interface BuildTableCandidatesInput {
   availableJoinableTables: Table[];
   /** Other reservations the same day (excluding the one being scored), for look-ahead scoring. */
   laterReservations: DayReservationForLookahead[];
+  /**
+   * Mesas pegadas en el plano que están libres a esa hora: cada conjunto cuenta como UNA mesa del tamaño total
+   * (sus mesas NO deben venir además en las listas de arriba).
+   */
+  availableGroups?: PreJoinedGroup[];
 }
 
 /**
@@ -23,7 +28,7 @@ export interface BuildTableCandidatesInput {
  * testable and reusable from anywhere (web today, a future mobile app).
  */
 export function buildTableCandidates(input: BuildTableCandidatesInput): TableCandidate[] {
-  const { reservation, availableSingleTables, availableJoinableTables, laterReservations } = input;
+  const { reservation, availableSingleTables, availableJoinableTables, laterReservations, availableGroups = [] } = input;
   const zoneRequired = reservation.zonePreference === "required" && reservation.preferredZoneId;
 
   const candidates: TableCandidate[] = [];
@@ -38,6 +43,22 @@ export function buildTableCandidates(input: BuildTableCandidatesInput): TableCan
       capacityMin: table.capacityMin,
       capacityMax: table.capacityMax,
       isCombination: false as const,
+    };
+    const { score, reasons } = scoreTableForReservation(base, reservation, laterReservations);
+    candidates.push({ ...base, score, reasons });
+  }
+
+  for (const group of availableGroups) {
+    if (zoneRequired && group.zoneId !== reservation.preferredZoneId) continue;
+    if (reservation.partySize > group.capacityMax || reservation.partySize < group.capacityMin) continue;
+    const base = {
+      tableIds: group.tableIds,
+      tableNames: [group.label],
+      zoneId: group.zoneId,
+      capacityMin: group.capacityMin,
+      capacityMax: group.capacityMax,
+      isCombination: true as const,
+      groupId: group.id,
     };
     const { score, reasons } = scoreTableForReservation(base, reservation, laterReservations);
     candidates.push({ ...base, score, reasons });

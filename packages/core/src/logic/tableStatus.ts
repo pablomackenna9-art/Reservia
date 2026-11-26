@@ -20,6 +20,14 @@ export function minutesSince(timestamp: string, now: Date = new Date()): number 
   return Math.floor((now.getTime() - new Date(timestamp).getTime()) / 60_000);
 }
 
+/**
+ * Minutos que lleva sentado un grupo. Cuenta desde que se sentó de verdad; si no se sabe, desde la hora de la
+ * reserva. Nunca es negativo: si llegaron antes de su hora, el cronómetro parte en 0 (no hay cuenta regresiva).
+ */
+export function seatedMinutes(reservation: Pick<Reservation, "startsAt" | "seatedAt">, now: Date = new Date()): number {
+  return Math.max(0, minutesSince(reservation.seatedAt ?? reservation.startsAt, now));
+}
+
 const STATUS_LABELS_ES: Record<TableLiveStatusValue, string> = {
   available: "Disponible",
   reserved: "Reservada",

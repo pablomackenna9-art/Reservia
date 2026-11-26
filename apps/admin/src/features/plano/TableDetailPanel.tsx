@@ -4,6 +4,7 @@ import {
   currentOrNextReservation,
   findTurnoverConflict,
   minutesSince,
+  seatedMinutes,
   tableStatusLabel,
   type PosCheck,
   type PosCheckItem,
@@ -64,6 +65,7 @@ export function TableDetailPanel({
   onChangeReservationStatus,
   onSeatWalkIn,
   onMoveReservation,
+  onReleaseTable,
   onStartJoin,
   onCancelJoin,
   onUnjoin,
@@ -91,7 +93,9 @@ export function TableDetailPanel({
   onDuplicate?: () => void;
   onChangeReservationStatus: (reservationId: string, status: ReservationStatus) => void;
   onSeatWalkIn: (partySize: number, name: string, phone: string, email: string) => void;
-  onMoveReservation: (reservationId: string, tableId: string, source?: TableAssignmentSource) => void;
+  onMoveReservation: (reservationId: string, tableId: string, source?: TableAssignmentSource, tableIds?: string[]) => void;
+  /** Llegaron menos personas: la reserva suelta una de sus mesas unidas. */
+  onReleaseTable?: (reservationId: string, tableId: string) => Promise<void>;
   onStartJoin: () => void;
   onCancelJoin: () => void;
   onUnjoin: () => void;
@@ -162,8 +166,7 @@ export function TableDetailPanel({
   async function handlePickTable(candidate: TableCandidate, wasRecommended: boolean) {
     if (!reservation) return;
     const source: TableAssignmentSource = wasRecommended ? "suggested" : "manual";
-    if (candidate.tableIds.length > 1) await assignCandidateToReservation(supabase, reservation.id, candidate, source);
-    onMoveReservation(reservation.id, candidate.tableIds[0]!, source);
+    onMoveReservation(reservation.id, candidate.tableIds[0]!, source, candidate.tableIds);
     setShowMoveTo(false);
   }
 
@@ -220,17 +223,17 @@ export function TableDetailPanel({
           <p className="text-[17px] font-semibold">{reservation.customerName}</p>
           {reservation.status === "seated" &&
             (() => {
-              const seatedMinutes = minutesSince(reservation.startsAt);
-              const over = seatedMinutes > 90;
+              const elapsed = seatedMinutes(reservation);
+              const over = elapsed > 90;
               return (
                 <div className="mt-2">
                   <p className={`font-serif text-5xl leading-none tabular-nums ${over ? "text-status-occupied" : ""}`}>
-                    {formatElapsed(seatedMinutes)}
+                    {formatElapsed(elapsed)}
                   </p>
                   <div className="h-1.5 rounded-full bg-surface-3 mt-2 overflow-hidden">
                     <div
                       className={`h-full rounded-full ${over ? "bg-status-occupied" : "bg-status-available"}`}
-                      style={{ width: `${Math.min(100, (seatedMinutes / 90) * 100)}%` }}
+                      style={{ width: `${Math.min(100, (elapsed / 90) * 100)}%` }}
                     />
                   </div>
                   <p className="text-[13px] text-ink-faint mt-1">sentados · promedio 1:30</p>
@@ -510,6 +513,41 @@ export function TableDetailPanel({
             Unir con otra mesa
           </button>
         ))}
+
+      {reservation && onReleaseTable && (reservation.extraTableIds?.length ?? 0) > 0 && !["completed", "cancelled", "no_show"].includes(reservation.status) && (
+        <div className="mb-4 rounded-xl border border-line bg-surface-2 p-3 space-y-2">
+          <p className="text-[13px] font-semibold">Esta reserva usa {1 + (reservation.extraTableIds?.length ?? 0)} mesas unidas</p>
+          <p className="text-[13px] text-ink-muted">¿Llegaron menos personas? Libera la mesa que no necesiten: la reserva sigue con las demás.</p>
+          <div className="flex flex-wrap gap-1.5">
+            {[reservation.tableId, ...(reservation.extraTableIds ?? [])]
+              .filter((id): id is string => Boolean(id))
+              .map((id) => {
+                const t = allTables.find((x) => x.id === id);
+                if (!t) return null;
+                return (
+                  <button
+                    key={id}
+                    onClick={async () => {
+                      const all = [reservation.tableId, ...(reservation.extraTableIds ?? [])].filter((x): x is string => Boolean(x));
+                      const left = all.filter((x) => x !== id).reduce((s, x) => s + (allTables.find((y) => y.id === x)?.capacityMax ?? 0), 0);
+                      const warn = left < reservation.partySize ? ` Ojo: quedan ${left} asientos y el grupo es de ${reservation.partySize}.` : "";
+                      if (!confirm(`¿Liberar ${t.name} (${t.capacityMax} asientos)? La reserva sigue con las demás mesas.${warn}`)) return;
+                      try {
+                        await onReleaseTable(reservation.id, id);
+                      } catch (err) {
+                        alert(err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "No se pudo liberar la mesa.");
+                      }
+                    }}
+                    className="h-10 px-3 rounded-[10px] bg-surface-3 border border-line text-[14px] font-semibold hover:border-accent"
+                  >
+                    Liberar {t.name} · {t.capacityMax}p
+                  </button>
+                );
+              })}
+          </div>
+          <p className="text-[13px] text-ink-faint">Después arrastra esa mesa en el plano para usarla aparte (vuelve a su lugar con "Devolver a su lugar").</p>
+        </div>
+      )}
 
       {table.layoutId && (
         <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3 space-y-2">

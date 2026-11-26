@@ -1,8 +1,10 @@
-import { compareTableNames, tableBaseName, type Table, type Zone } from "@reservia/core";
+import { compareTableNames } from "./tableOrder";
+import { tableBaseName, type Table, type Zone } from "../types/floorplan";
 
 /**
- * Mesas que se ven como UNA sola. Un módulo (5-A, 5-B...) que está pegado a otra mesa pasa a ser parte de ella:
- * lleva su número y suma sus asientos. Es un cálculo del dibujo: no cambia las mesas en la base de datos.
+ * Mesas que funcionan como UNA sola. Un módulo (5-A, 5-B...) que está pegado a otra mesa pasa a ser parte de ella:
+ * lleva su número y suma sus asientos. Se calcula con la posición de las mesas en el plano (no se guarda aparte),
+ * así que moverlas en el plano es lo único que hace falta para unirlas o separarlas.
  */
 export interface TableGroup {
   id: string;
@@ -19,15 +21,33 @@ export interface TableGroup {
 export interface MergedGeometry {
   x: number;
   y: number;
+  /** Giro del conjunto (0 = ancho horizontal). `width` y `height` ya vienen en ese marco. */
   rotation: number;
   width: number;
   height: number;
 }
 
+type ZoneSize = Pick<Zone, "id" | "width" | "height">;
+
 const TOUCH_GAP = 6; // hasta cuánto pueden separarse dos mesas para considerarse pegadas
 const PARALLEL = 1.5; // tolerancia de giro (grados)
+const SNAP = 16; // distancia del imán al soltar una mesa junto a otra
 
-function toZone(table: Table, zone: Pick<Zone, "width" | "height">) {
+interface Frame {
+  /** Giro "fino" respecto a los ejes: una mesa a 90° o 270° se trata como derecha con ancho y alto cambiados. */
+  phi: number;
+  w: number;
+  h: number;
+}
+
+function frameOf(t: Pick<Table, "rotation" | "width" | "height">): Frame {
+  const k = Math.round(t.rotation / 90);
+  const phi = t.rotation - 90 * k;
+  const swapped = Math.abs(k) % 2 === 1;
+  return { phi, w: swapped ? t.height : t.width, h: swapped ? t.width : t.height };
+}
+
+function toZone(table: Pick<Table, "positionX" | "positionY">, zone: ZoneSize) {
   return { x: (table.positionX / 100) * zone.width, y: (table.positionY / 100) * zone.height };
 }
 
@@ -36,35 +56,39 @@ function rot(x: number, y: number, deg: number) {
   return { x: x * Math.cos(r) - y * Math.sin(r), y: x * Math.sin(r) + y * Math.cos(r) };
 }
 
-function parallel(a: number, b: number): boolean {
-  const d = (((a - b) % 180) + 180) % 180;
-  return d < PARALLEL || d > 180 - PARALLEL;
+function compatible(a: Frame, b: Frame): boolean {
+  return Math.abs(a.phi - b.phi) < PARALLEL;
 }
 
-/** ¿Están pegadas? (al menos una es módulo, las dos rectangulares y con el mismo giro, tocándose por un lado) */
-function attached(a: Table, b: Table, zone: Pick<Zone, "width" | "height">): boolean {
+/** ¿Están pegadas? (al menos una es módulo, las dos rectangulares y alineadas, tocándose por un lado) */
+function attached(a: Table, b: Table, zone: ZoneSize): boolean {
   if (!a.layoutId && !b.layoutId) return false;
   if (a.shape === "round" || b.shape === "round") return false;
-  if (!parallel(a.rotation, b.rotation)) return false;
+  const fa = frameOf(a);
+  const fb = frameOf(b);
+  if (!compatible(fa, fb)) return false;
   const pa = toZone(a, zone);
   const pb = toZone(b, zone);
-  const d = rot(pb.x - pa.x, pb.y - pa.y, -a.rotation);
-  const gapX = Math.abs(d.x) - (a.width + b.width) / 2;
-  const gapY = Math.abs(d.y) - (a.height + b.height) / 2;
-  const overlapY = Math.min(a.height / 2, d.y + b.height / 2) - Math.max(-a.height / 2, d.y - b.height / 2);
-  const overlapX = Math.min(a.width / 2, d.x + b.width / 2) - Math.max(-a.width / 2, d.x - b.width / 2);
-  if (gapX <= TOUCH_GAP && gapX >= -TOUCH_GAP && overlapY >= 0.5 * Math.min(a.height, b.height)) return true;
-  if (gapY <= TOUCH_GAP && gapY >= -TOUCH_GAP && overlapX >= 0.5 * Math.min(a.width, b.width)) return true;
+  const d = rot(pb.x - pa.x, pb.y - pa.y, -fa.phi);
+  const gapX = Math.abs(d.x) - (fa.w + fb.w) / 2;
+  const gapY = Math.abs(d.y) - (fa.h + fb.h) / 2;
+  const overlapY = Math.min(fa.h / 2, d.y + fb.h / 2) - Math.max(-fa.h / 2, d.y - fb.h / 2);
+  const overlapX = Math.min(fa.w / 2, d.x + fb.w / 2) - Math.max(-fa.w / 2, d.x - fb.w / 2);
+  if (Math.abs(gapX) <= TOUCH_GAP && overlapY >= 0.5 * Math.min(fa.h, fb.h)) return true;
+  if (Math.abs(gapY) <= TOUCH_GAP && overlapX >= 0.5 * Math.min(fa.w, fb.w)) return true;
   return false;
 }
 
-function mergedGeometry(members: Table[], zone: Pick<Zone, "width" | "height">): MergedGeometry | null {
+function mergedGeometry(members: Table[], zone: ZoneSize): MergedGeometry | null {
   const first = members[0]!;
-  if (members.some((m) => m.shape === "round" || !parallel(m.rotation, first.rotation))) return null;
+  if (members.some((m) => m.shape === "round")) return null;
+  const f0 = frameOf(first);
+  const frames = members.map(frameOf);
+  if (frames.some((f) => !compatible(f, f0))) return null;
   const p0 = toZone(first, zone);
-  const local = members.map((m) => {
+  const local = members.map((m, i) => {
     const p = toZone(m, zone);
-    return { ...rot(p.x - p0.x, p.y - p0.y, -first.rotation), w: m.width, h: m.height };
+    return { ...rot(p.x - p0.x, p.y - p0.y, -f0.phi), w: frames[i]!.w, h: frames[i]!.h };
   });
   const row = local.every((l) => Math.abs(l.y - local[0]!.y) <= 6 && Math.abs(l.h - local[0]!.h) <= 8);
   const column = local.every((l) => Math.abs(l.x - local[0]!.x) <= 6 && Math.abs(l.w - local[0]!.w) <= 8);
@@ -89,12 +113,12 @@ function mergedGeometry(members: Table[], zone: Pick<Zone, "width" | "height">):
     height = max - min;
     width = Math.max(...local.map((l) => l.w));
   }
-  const world = rot(cx, cy, first.rotation);
-  return { x: p0.x + world.x, y: p0.y + world.y, rotation: first.rotation, width, height };
+  const world = rot(cx, cy, f0.phi);
+  return { x: p0.x + world.x, y: p0.y + world.y, rotation: f0.phi, width, height };
 }
 
 /** Agrupa las mesas de cada zona: los módulos pegados a otra mesa pasan a ser parte de ella. */
-export function buildTableGroups(tables: Table[], zones: Zone[]): { groups: TableGroup[]; byTable: Map<string, TableGroup> } {
+export function buildTableGroups(tables: Table[], zones: ZoneSize[]): { groups: TableGroup[]; byTable: Map<string, TableGroup> } {
   const groups: TableGroup[] = [];
   const byTable = new Map<string, TableGroup>();
 
@@ -141,45 +165,59 @@ export function buildTableGroups(tables: Table[], zones: Zone[]): { groups: Tabl
 }
 
 /**
- * Imán entre mesas: al soltar un módulo cerca del borde de otra mesa (con el mismo giro), queda pegado y alineado.
+ * Imán entre mesas: al soltar un módulo cerca del borde de otra mesa (alineada con él), queda pegado y alineado.
  * Devuelve la posición en unidades de la zona, o null si no hay nada cerca.
  */
-export function snapToNeighbor(table: Table, pos: { x: number; y: number }, others: Table[], zone: Pick<Zone, "width" | "height">): { x: number; y: number } | null {
+export function snapToNeighbor(table: Table, pos: { x: number; y: number }, others: Table[], zone: ZoneSize): { x: number; y: number } | null {
   if (table.shape === "round") return null;
+  const ft = frameOf(table);
   let best: { gap: number; x: number; y: number } | null = null;
   for (const o of others) {
-    if (o.id === table.id || o.shape === "round" || !parallel(o.rotation, table.rotation)) continue;
+    if (o.id === table.id || o.shape === "round") continue;
+    const fo = frameOf(o);
+    if (!compatible(fo, ft)) continue;
     const oc = toZone(o, zone);
-    const d = rot(pos.x - oc.x, pos.y - oc.y, -o.rotation);
+    const d = rot(pos.x - oc.x, pos.y - oc.y, -fo.phi);
     const alignY = (): number => {
-      const edge = (o.height - table.height) / 2;
+      const edge = (fo.h - ft.h) / 2;
       if (Math.abs(d.y) < 14) return 0;
       if (Math.abs(d.y - edge) < 14) return edge;
       if (Math.abs(d.y + edge) < 14) return -edge;
       return d.y;
     };
     const alignX = (): number => {
-      const edge = (o.width - table.width) / 2;
+      const edge = (fo.w - ft.w) / 2;
       if (Math.abs(d.x) < 14) return 0;
       if (Math.abs(d.x - edge) < 14) return edge;
       if (Math.abs(d.x + edge) < 14) return -edge;
       return d.x;
     };
     const candidates: { gap: number; x: number; y: number }[] = [];
-    const gapX = Math.abs(d.x) - (o.width + table.width) / 2;
-    if (Math.abs(gapX) < 16 && Math.abs(d.y) < (o.height + table.height) / 2) {
-      candidates.push({ gap: Math.abs(gapX), x: Math.sign(d.x || 1) * (o.width + table.width) / 2, y: alignY() });
+    const gapX = Math.abs(d.x) - (fo.w + ft.w) / 2;
+    if (Math.abs(gapX) < SNAP && Math.abs(d.y) < (fo.h + ft.h) / 2) {
+      candidates.push({ gap: Math.abs(gapX), x: (Math.sign(d.x) || 1) * ((fo.w + ft.w) / 2), y: alignY() });
     }
-    const gapY = Math.abs(d.y) - (o.height + table.height) / 2;
-    if (Math.abs(gapY) < 16 && Math.abs(d.x) < (o.width + table.width) / 2) {
-      candidates.push({ gap: Math.abs(gapY), x: alignX(), y: Math.sign(d.y || 1) * (o.height + table.height) / 2 });
+    const gapY = Math.abs(d.y) - (fo.h + ft.h) / 2;
+    if (Math.abs(gapY) < SNAP && Math.abs(d.x) < (fo.w + ft.w) / 2) {
+      candidates.push({ gap: Math.abs(gapY), x: alignX(), y: (Math.sign(d.y) || 1) * ((fo.h + ft.h) / 2) });
     }
     for (const c of candidates) {
       if (!best || c.gap < best.gap) {
-        const w = rot(c.x, c.y, o.rotation);
+        const w = rot(c.x, c.y, fo.phi);
         best = { gap: c.gap, x: oc.x + w.x, y: oc.y + w.y };
       }
     }
   }
   return best ? { x: best.x, y: best.y } : null;
+}
+
+/**
+ * Para elegir mesa para un grupo de personas: un conjunto pegado (2 o más mesas) cuenta como UNA mesa del tamaño
+ * total, así que no se le sienta un grupo chico. Con menos de 5 personas (o menos de la mitad de los asientos),
+ * el conjunto no se ofrece.
+ */
+export function groupAcceptsParty(group: Pick<TableGroup, "capacity" | "members">, partySize: number): boolean {
+  if (group.members.length < 2) return true;
+  const minParty = Math.max(5, Math.floor(group.capacity / 2) + 1);
+  return partySize >= minParty && partySize <= group.capacity;
 }

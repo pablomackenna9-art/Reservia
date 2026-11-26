@@ -1,7 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildTableCandidates,
+  buildTableGroups,
+  groupAcceptsParty,
   type DayReservationForLookahead,
+  type PreJoinedGroup,
   type Reservation,
   type ReservationStatus,
   type Table,
@@ -12,6 +15,7 @@ import {
 } from "@reservia/core";
 import { mapCustomer } from "./customers";
 import { mapTable } from "./tables";
+import { listZones } from "./zones";
 import { joinTables } from "./tableGroups";
 import { ensureOpenCheck, listConsumptionItems } from "./consumption";
 
@@ -232,7 +236,7 @@ export async function getSmartTableCandidates(
   const dayEnd = new Date(params.startsAt);
   dayEnd.setHours(23, 59, 59, 999);
 
-  const [availableSingleTables, allTables, dayReservations] = await Promise.all([
+  const [availableSingleTablesRaw, allTables, zones, dayReservations] = await Promise.all([
     listAvailableTables(supabase, {
       restaurantId: params.restaurantId,
       partySize: params.partySize,
@@ -240,6 +244,7 @@ export async function getSmartTableCandidates(
       endsAt: params.endsAt,
     }),
     listTablesForAssignment(supabase, params.restaurantId),
+    listZones(supabase, params.restaurantId),
     supabase
       .from("reservations")
       .select("id, table_id, party_size, starts_at, status")
@@ -253,8 +258,33 @@ export async function getSmartTableCandidates(
       }),
   ]);
 
+  // Mesas pegadas en el plano = UNA mesa del tamaño total: sus mesas sueltas no se ofrecen por separado.
+  const { groups } = buildTableGroups(allTables, zones);
+  const joined = groups.filter((g) => g.members.length >= 2);
+  const joinedIds = new Set(joined.flatMap((g) => g.members.map((m) => m.id)));
+  const availableSingleTables = availableSingleTablesRaw.filter((t) => !joinedIds.has(t.id));
+
+  const zoneRequired = params.preferredZoneId && params.zonePreference === "required";
   const joinableCandidates = allTables.filter(
-    (t) => t.active && !t.blocked && t.joinable && (!params.preferredZoneId || params.zonePreference !== "required" || t.zoneId === params.preferredZoneId),
+    (t) => t.active && !t.blocked && t.joinable && !joinedIds.has(t.id) && (!zoneRequired || t.zoneId === params.preferredZoneId),
+  );
+
+  const availableGroups: PreJoinedGroup[] = [];
+  await Promise.all(
+    joined
+      .filter((g) => groupAcceptsParty(g, params.partySize) && g.members.every((m) => m.active && !m.blocked))
+      .map(async (g) => {
+        const free = await Promise.all(g.members.map((m) => checkTableAvailability(supabase, m.id, params.startsAt, params.endsAt, params.excludeReservationId)));
+        if (!free.every(Boolean)) return;
+        availableGroups.push({
+          id: g.id,
+          tableIds: g.members.map((m) => m.id),
+          label: g.label,
+          zoneId: g.zoneId,
+          capacityMin: Math.max(1, Math.min(...g.members.map((m) => m.capacityMin))),
+          capacityMax: g.capacity,
+        });
+      }),
   );
   const joinableAvailability = await Promise.all(
     joinableCandidates.map((t) =>
@@ -282,6 +312,7 @@ export async function getSmartTableCandidates(
     availableSingleTables,
     availableJoinableTables,
     laterReservations,
+    availableGroups,
   });
 }
 
@@ -399,6 +430,42 @@ export async function acceptReservationWithTable(
 }
 
 /**
+ * Mesas que funcionan como UNA con la dada (pegadas a ella en el plano), con la dada primero.
+ * Si no está pegada a nada devuelve solo [tableId].
+ */
+export async function tableGroupIds(supabase: SupabaseClient, restaurantId: string, tableId: string): Promise<string[]> {
+  const [tables, zones] = await Promise.all([listTablesForAssignment(supabase, restaurantId), listZones(supabase, restaurantId)]);
+  const group = buildTableGroups(tables, zones).byTable.get(tableId);
+  if (!group || group.members.length < 2) return [tableId];
+  return [tableId, ...group.members.map((m) => m.id).filter((id) => id !== tableId)];
+}
+
+/** Asigna la reserva a una mesa; si esa mesa está pegada a otras en el plano, se usa el conjunto completo (una sola mesa grande). */
+export async function assignReservationToTableOrGroup(
+  supabase: SupabaseClient,
+  restaurantId: string,
+  reservationId: string,
+  tableId: string,
+  source: TableAssignmentSource = "manual",
+): Promise<void> {
+  const ids = await tableGroupIds(supabase, restaurantId, tableId);
+  if (ids.length > 1) await assignCandidateToReservation(supabase, reservationId, { tableIds: ids }, source);
+  else await updateReservationTable(supabase, reservationId, tableId, source);
+}
+
+/** Libera una mesa de una reserva con mesas unidas (llegaron menos personas): la reserva sigue con las demás. */
+export async function releaseTableFromReservation(
+  supabase: SupabaseClient,
+  reservation: Pick<Reservation, "id" | "tableId" | "extraTableIds">,
+  tableId: string,
+): Promise<void> {
+  const all = [reservation.tableId, ...(reservation.extraTableIds ?? [])].filter((id): id is string => Boolean(id));
+  const remaining = all.filter((id) => id !== tableId);
+  if (remaining.length === 0 || remaining.length === all.length) return;
+  await assignCandidateToReservation(supabase, reservation.id, { tableIds: remaining }, "manual");
+}
+
+/**
  * Confirms a pending reservation and, when the restaurant's mode is
  * 'automatic', immediately assigns it the Smart Table Engine's top pick
  * (joining a second table too, if the recommendation was a combination) —
@@ -452,6 +519,7 @@ export function mapReservation(row: Record<string, unknown>): Reservation {
     extraTableIds: extra.map((e) => e.table_id),
     extraTableNames: extra.map((e) => e.tables?.name ?? "?"),
     unionNumber: (row.union_number as number) ?? null,
+    seatedAt: (row.seated_at as string) ?? null,
   };
 }
 

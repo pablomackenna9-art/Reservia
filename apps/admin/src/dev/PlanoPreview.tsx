@@ -45,6 +45,18 @@ function modules(prefix: string, idBase: number, caps: number[], cx: number, cy:
 
 const longTables: Table[] = [...modules("12", 20, [4, 4, 2], 78, 46, 240, 56), ...modules("13", 30, [4, 4, 2], 78, 74, 240, 56, 2)];
 tables.push(...longTables);
+// Mesa larga vertical (rotación 90) de dos módulos de 4, como las mesas 5-8 de CNIT.
+const vertical = [0, 1].map((i) => ({
+  ...table(40 + i, `5-${"AB"[i]}`, "rectangle", 4, 92, 66 + i * 8, 56, 50, 90),
+  layoutId: ID(950),
+  joinable: true,
+  homeX: 92,
+  homeY: 66 + i * 8,
+  homeRotation: 90,
+  homeWidth: 56,
+  homeHeight: 50,
+}));
+tables.push(...vertical);
 
 const status: Record<string, TableLiveStatusValue> = {
   [ID(120)]: "occupied",

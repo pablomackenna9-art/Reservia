@@ -18,6 +18,7 @@ export function PlanoDeMesasPage() {
     splitTable,
     mergeModules,
     returnModuleToHome,
+    releaseReservationTable,
     addDecor,
     updateDecorProps,
     removeDecor,
@@ -254,6 +255,7 @@ export function PlanoDeMesasPage() {
             onChangeReservationStatus={changeReservationStatus}
             onSeatWalkIn={(partySize, name, phone, email) => seatWalkIn(selectedTable.id, partySize, name, phone, email)}
             onMoveReservation={moveReservationToTable}
+            onReleaseTable={releaseReservationTable}
             onSaveNotes={saveReservationNotes}
             onStartJoin={() => setJoinSourceId(selectedTable.id)}
             onCancelJoin={() => setJoinSourceId(null)}

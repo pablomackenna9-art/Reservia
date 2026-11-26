@@ -1,4 +1,4 @@
-import { isModuleDetached, type Table } from "../../types/floorplan";
+import type { Table } from "../../types/floorplan";
 import type { ScorableTable } from "./types";
 
 /**
@@ -11,13 +11,6 @@ import type { ScorableTable } from "./types";
  * adjacency/geometry model (which tables can physically sit next to which)
  * doesn't exist yet, so "joinable in the same zone" is the whole rule.
  */
-/** Id de la mesa larga que comparten estas mesas, si todas son módulos suyos y ninguno está apartado. */
-export function sharedLayoutId(tables: Table[]): string | null {
-  const first = tables[0]?.layoutId;
-  if (!first) return null;
-  return tables.every((t) => t.layoutId === first && !isModuleDetached(t)) ? first : null;
-}
-
 export function buildTablePairCombinations(
   joinableTables: Table[],
   partySize: number,
@@ -39,7 +32,6 @@ export function buildTablePairCombinations(
         zoneId: a.zoneId,
         capacityMin: a.capacityMin + b.capacityMin,
         capacityMax,
-        layoutId: sharedLayoutId([a, b]),
       });
     }
   }
@@ -79,7 +71,6 @@ export function buildTableUnionCombinations(
             zoneId,
             capacityMin: chosen.reduce((s, t) => s + t.capacityMin, 0),
             capacityMax: capacity,
-            layoutId: sharedLayoutId(chosen),
             excess: capacity - partySize,
           });
         }
@@ -94,8 +85,7 @@ export function buildTableUnionCombinations(
   }
 
   return found
-    // Primero los módulos juntos de una misma mesa larga; después las uniones más compactas.
-    .sort((a, b) => Number(!!b.layoutId) - Number(!!a.layoutId) || a.tableIds.length - b.tableIds.length || a.excess - b.excess)
+    .sort((a, b) => a.tableIds.length - b.tableIds.length || a.excess - b.excess)
     .slice(0, 6)
     .map(({ excess: _excess, ...combo }) => combo);
 }

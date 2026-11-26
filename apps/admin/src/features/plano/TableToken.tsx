@@ -2,9 +2,8 @@ import { useEffect, useRef } from "react";
 import Konva from "konva";
 import { Circle, Ellipse, Group, Rect, Text } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import { tableBaseName, type Table, type Zone } from "@reservia/core";
+import { tableBaseName, type MergedGeometry, type Table, type Zone } from "@reservia/core";
 import type { KonvaLook, VisualState } from "../../lib/stateStyle";
-import type { MergedGeometry } from "./groups";
 import { chairReach, chairSlots, type ChairSlot } from "./chairs";
 
 /** Used only by the Smart Table Engine's floor-plan picker — undefined everywhere else, so the normal plano is untouched. */
@@ -34,6 +33,8 @@ export interface TablePalette {
   pot: string;
   wood: string;
   stone: string;
+  /** Fondo del plano: para rotular sobre las líneas de las mesas. */
+  ground: string;
   shadow: string;
 }
 
@@ -494,10 +495,13 @@ export function ClusterChairs({
 }
 
 /** Número y asientos de toda la mesa unida, en el centro (sin girar). */
-export function ClusterLabel({ geometry, label, capacity, color }: { geometry: MergedGeometry; label: string; capacity: number; color: string }) {
+export function ClusterLabel({ geometry, label, capacity, color, plate }: { geometry: MergedGeometry; label: string; capacity: number; color: string; plate: string }) {
   const w = Math.max(geometry.width, geometry.height);
+  // Una placa del color del fondo bajo el texto: la línea que separa los módulos no lo cruza.
+  const plateW = Math.max(36, label.length * 13 + 16);
   return (
     <Group x={geometry.x} y={geometry.y} listening={false}>
+      <Rect x={-plateW / 2} y={-22} width={plateW} height={44} cornerRadius={10} fill={plate} opacity={0.94} />
       <Text text={label} fontSize={22} fontFamily={SERIF} fill={color} width={w} align="center" offsetX={w / 2} y={-17} />
       <Text text={`${capacity}p`} fontSize={12} fontFamily={SANS} fontStyle="600" fill={color} width={w} align="center" offsetX={w / 2} y={6} />
     </Group>

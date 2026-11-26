@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { listWaitlist, setAverageTicketPerPerson, type ReservationWithDetails, type WaitlistEntryWithCustomer } from "@reservia/api-client";
-import { compareTableNames, computeCapacityPacing, findLateArrivals, minutesSince, reservationsActiveInWindow } from "@reservia/core";
+import { compareTableNames, computeCapacityPacing, findLateArrivals, minutesSince, seatedMinutes, reservationsActiveInWindow } from "@reservia/core";
 import { supabase } from "../../lib/supabase";
 import { useRestaurant } from "../restaurants/RestaurantProvider";
 import { ZoneCanvas, WAITLIST_DRAG_MIME, type WaitlistDragPayload } from "../plano/ZoneCanvas";
@@ -44,6 +44,7 @@ export function DashboardPage() {
     tables,
     decor,
     returnModuleToHome,
+    releaseReservationTable,
     reservationsToday,
     reservationsByTable,
     payingTotals,
@@ -229,7 +230,7 @@ export function DashboardPage() {
         const amount = payingTotals.get(tableId);
         return { text: amount ? formatCLP(amount) : "pagando" };
       }
-      const mins = minutesSince(seated.startsAt, now);
+      const mins = seatedMinutes(seated, now);
       return { text: formatElapsed(mins), alert: mins > 90 };
     }
     const next = list
@@ -643,6 +644,7 @@ export function DashboardPage() {
             onChangeReservationStatus={changeReservationStatus}
             onSeatWalkIn={(partySize, name, phone, email) => seatWalkIn(selectedTable.id, partySize, name, phone, email)}
             onMoveReservation={moveReservationToTable}
+            onReleaseTable={releaseReservationTable}
             onReturnHome={() => returnModuleToHome(selectedTable.id)}
             onSaveNotes={saveReservationNotes}
             onStartJoin={() => setJoinSourceId(selectedTable.id)}

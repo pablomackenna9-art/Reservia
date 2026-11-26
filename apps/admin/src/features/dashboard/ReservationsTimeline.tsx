@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ReservationWithDetails, TableGroupInfo } from "@reservia/api-client";
-import { findTurnoverConflict, minutesSince, type ReservationStatus, type Table, type Zone } from "@reservia/core";
+import { findTurnoverConflict, seatedMinutes, type ReservationStatus, type Table, type Zone } from "@reservia/core";
 import { RESERVATION_STATUS_LABEL } from "../reservations/statusStyles";
 import { reservationVisualState, stateClass } from "../../lib/stateStyle";
 
@@ -323,7 +323,7 @@ function TimelineRow({
                 {r.customerName}
               </span>
               <span className="block truncate text-[13px] opacity-80 leading-tight">
-                {r.partySize}p{r.status === "seated" ? ` · hace ${minutesSince(r.startsAt, now)} min` : ""}
+                {r.partySize}p{r.status === "seated" ? ` · hace ${seatedMinutes(r, now)} min` : ""}
               </span>
             </button>
           );

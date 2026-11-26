@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { WaitlistEntry, WaitlistSource, WaitlistStatus } from "@reservia/core";
 import { mapCustomer } from "./customers";
-import { createReservation } from "./reservations";
+import { assignReservationToTableOrGroup, createReservation } from "./reservations";
 
 export interface WaitlistEntryWithCustomer extends WaitlistEntry {
   customerName: string;
@@ -90,7 +90,7 @@ export async function seatWaitlistEntry(
 ): Promise<void> {
   const startsAt = new Date().toISOString();
   const endsAt = new Date(Date.now() + (input.durationMinutes ?? 90) * 60_000).toISOString();
-  await createReservation(supabase, {
+  const reservation = await createReservation(supabase, {
     restaurantId: input.restaurantId,
     customerId: input.entry.customerId,
     tableId: input.tableId,
@@ -101,6 +101,7 @@ export async function seatWaitlistEntry(
     source: "walk_in",
     createdBy: input.createdBy,
   });
+  await assignReservationToTableOrGroup(supabase, input.restaurantId, reservation.id, input.tableId);
   await updateWaitlistStatus(supabase, input.entry.id, "seated");
 }
 

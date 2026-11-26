@@ -26,6 +26,9 @@ import {
   updateReservationStatus,
   updateDecor,
   updateReservationTable,
+  assignReservationToTableOrGroup,
+  assignCandidateToReservation,
+  releaseTableFromReservation,
   updateTable,
   updateTablePosition,
   type ConsumptionItemInput,
@@ -303,8 +306,18 @@ export function useFloorPlan(restaurantId: string | undefined) {
     await deleteDecor(supabase, id);
   }
 
-  async function moveReservationToTable(reservationId: string, tableId: string, source?: TableAssignmentSource) {
-    await updateReservationTable(supabase, reservationId, tableId, source);
+  async function moveReservationToTable(reservationId: string, tableId: string, source?: TableAssignmentSource, tableIds?: string[]) {
+    if (tableIds && tableIds.length > 1) await assignCandidateToReservation(supabase, reservationId, { tableIds }, source ?? "manual");
+    else if (restaurantId) await assignReservationToTableOrGroup(supabase, restaurantId, reservationId, tableId, source);
+    else await updateReservationTable(supabase, reservationId, tableId, source);
+    await reload();
+  }
+
+  /** Llegaron menos personas: la reserva suelta una de sus mesas unidas y sigue con las demás. */
+  async function releaseReservationTable(reservationId: string, tableId: string) {
+    const reservation = reservationsToday.find((r) => r.id === reservationId);
+    if (!reservation) return;
+    await releaseTableFromReservation(supabase, reservation, tableId);
     await reload();
   }
 
@@ -326,7 +339,7 @@ export function useFloorPlan(restaurantId: string | undefined) {
       phone: phone || undefined,
       email: email || undefined,
     });
-    await createReservation(supabase, {
+    const created = await createReservation(supabase, {
       restaurantId,
       customerId: customer.id,
       tableId: table?.id ?? tableId,
@@ -337,6 +350,8 @@ export function useFloorPlan(restaurantId: string | undefined) {
       source: "walk_in",
       createdBy: user.id,
     });
+    // Si la mesa está pegada a otras en el plano, se sienta en el conjunto completo.
+    await assignReservationToTableOrGroup(supabase, restaurantId, created.id, table?.id ?? tableId);
     await reload();
   }
 
@@ -390,6 +405,7 @@ export function useFloorPlan(restaurantId: string | undefined) {
     joinTablesTogether,
     unjoinTable,
     moveReservationToTable,
+    releaseReservationTable,
     saveReservationNotes,
   };
 }

@@ -51,14 +51,11 @@ export function scoreTableForReservation(
     reasons.push("Sin conflicto con reservas posteriores");
   }
 
-  if (candidate.isCombination) {
+  if (candidate.groupId) {
+    reasons.push("Mesa armada con mesas pegadas");
+  } else if (candidate.isCombination) {
     score -= w.combinationPenalty;
-    if (candidate.layoutId) {
-      score += w.sameLayoutBonus;
-      reasons.push("Módulos juntos de la misma mesa");
-    } else {
-      reasons.push("Combinación de mesas");
-    }
+    reasons.push("Combinación de mesas");
   } else {
     reasons.push("Una sola mesa");
   }

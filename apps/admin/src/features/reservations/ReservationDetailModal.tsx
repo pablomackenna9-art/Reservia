@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { minutesSince, type ReservationStatus, type TableAssignmentSource, type TableCandidate, type Zone } from "@reservia/core";
+import { seatedMinutes, type ReservationStatus, type TableAssignmentSource, type TableCandidate, type Zone } from "@reservia/core";
 import { acceptReservationWithTable, assignCandidateToReservation, getSmartTableCandidates, listZones, type ReservationWithDetails } from "@reservia/api-client";
 import { supabase } from "../../lib/supabase";
 import { NEXT_STATUS_ACTIONS, RESERVATION_STATUS_COLOR, RESERVATION_STATUS_LABEL, confirmStatusChange } from "./statusStyles";
@@ -284,7 +284,7 @@ export function ReservationDetailModal({
                   <>
                     Mesa {reservation.tableName} está ocupada ahora por{" "}
                     <span className="font-medium">{occupant.customerName}</span> ({occupant.partySize}p) — llegó a las{" "}
-                    {formatTime(occupant.startsAt)}, hace {formatElapsed(minutesSince(occupant.startsAt))}.
+                    {formatTime(occupant.startsAt)}, hace {formatElapsed(seatedMinutes(occupant))}.
                   </>
                 ) : (
                   <>Mesa {reservation.tableName} está libre ahora mismo.</>
